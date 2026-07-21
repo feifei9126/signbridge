@@ -3,6 +3,7 @@
 > 让每一个视频都能被"听"见。
 
 SignBridge 是一个开源的 Chrome 浏览器扩展，将网页视频的字幕（或语音）实时转换为 **3D 虚拟人手语动画**。通过一个可拖拽的叠加窗口，在任何视频网站的角落展示虚拟人翻译，让听障用户也能无障碍观看视频内容。
+<img width="3516" height="1834" alt="ScreenShot_2026-07-21_102027_932_副本" src="https://github.com/user-attachments/assets/c1c4a27a-8cdf-49e6-8170-43264f2b8b76" />
 
 <p align="center">
   <img src="https://img.shields.io/badge/license-MIT-blue" alt="License MIT">
