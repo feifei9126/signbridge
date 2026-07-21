@@ -1,0 +1,24 @@
+{
+  "name": "signbridge",
+  "version": "1.0.0",
+  "description": "SignBridge — 实时手语翻译覆盖层浏览器插件，在视频角落显示3D虚拟人手语翻译",
+  "private": true,
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "dev": "node scripts/build.mjs --watch",
+    "lint": "eslint src/",
+    "format": "prettier --write src/"
+  },
+  "dependencies": {
+    "three": "^0.170.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.24.0",
+    "eslint": "^9.0.0",
+    "fbx2gltf": "^0.9.7-p1",
+    "gltf-transform": "^0.12.0-alpha.0",
+    "prettier": "^3.4.0",
+    "typescript": "^6.0.3",
+    "vite": "^8.1.3"
+  }
+}

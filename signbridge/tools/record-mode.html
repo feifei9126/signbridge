@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>SignBridge — 手语动画录制器</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:monospace;background:#1a1a2e;color:#e0e0e0;display:flex;height:100vh}
+#sidebar{width:320px;padding:12px;overflow-y:auto;background:#16213e;border-right:1px solid #333}
+#viewer{flex:1;position:relative;background:#0f0f23}
+#c{width:100%;height:100%}
+h2{color:#4f46e5;margin-bottom:8px;font-size:14px}
+.row{display:flex;gap:6px;margin:4px 0}
+label{font-size:11px;color:#888;display:block;margin-top:4px}
+input,select,button{background:#2a2a4a;color:#e0e0e0;border:1px solid #444;padding:4px 8px;border-radius:3px;font-size:11px}
+button{cursor:pointer}
+button:hover{background:#3a3a5a}
+button.rec{background:#933}
+button.rec.active{background:#393;animation:pulse 0.5s infinite}
+@keyframes pulse{50%{opacity:0.6}}
+#keyframes{max-height:300px;overflow-y:auto}
+.kf{display:flex;justify-content:space-between;align-items:center;padding:3px 6px;margin:2px 0;background:#2a2a4a;border-radius:3px;font-size:10px}
+.kf.active{background:#4f46e5}
+#export-box{width:100%;height:120px;font-size:10px;font-family:monospace;background:#0a0a1a;color:#0f0;border:1px solid #333;padding:4px;resize:vertical}
+#preview-timeline{display:flex;gap:2px;margin:6px 0;flex-wrap:wrap}
+.tick{width:20px;height:20px;background:#333;border-radius:2px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:8px}
+.tick.active{background:#4f46e5}
+.bone-row{display:flex;align-items:center;gap:4px;margin:2px 0}
+.bone-name{width:70px;font-size:10px;color:#888}
+.bone-row input[type=range]{flex:1;height:12px}
+.bone-row span{width:36px;font-size:9px;text-align:right;color:#ff0}
+</style>
+</head>
+<body>
+<div id="sidebar">
+  <h2>🎬 手语动画录制器</h2>
+  <div class="row">
+    <input id="sign-gloss" placeholder="词条名 (如: hello)" style="flex:1">
+    <input id="sign-text" placeholder="对应文字 (如: 你好)" style="flex:1">
+  </div>
+  <label>分类标签</label>
+  <div class="row">
+    <select id="sign-tags" multiple style="height:40px">
+      <option>greeting</option><option>polite</option><option>confirm</option>
+      <option>negation</option><option>positive</option><option>emotion</option>
+      <option>pronoun</option><option>question</option><option>action</option>
+    </select>
+  </div>
+  
+  <h2>🎥 录制</h2>
+  <div class="row">
+    <button id="btn-record" class="rec" onclick="toggleRecord()">⏺ 开始录制</button>
+    <button onclick="addKeyframe()">📸 抓关键帧</button>
+    <button onclick="previewAnimation()">▶ 预览</button>
+    <button onclick="stopPreview()">⏹ 停止</button>
+  </div>
+  <div id="rec-status" style="font-size:10px;color:#888;margin-top:4px">空闲</div>
+  <div id="preview-timeline"></div>
+  
+  <h2>📋 关键帧 (<span id="kf-count">0</span>)</h2>
+  <div id="keyframes"></div>
+  <div class="row" style="margin-top:6px">
+    <button onclick="deleteKeyframe()">🗑 删除选中</button>
+    <button onclick="clearKeyframes()">🗑 清空全部</button>
+    <button onclick="applyToCurrent()">✏ 应用到模型</button>
+  </div>
+  
+  <h2>🦴 骨骼调试</h2>
+  <div id="bone-sliders"></div>
+  <button onclick="resetBones()" style="margin-top:4px;width:100%;background:#933">🔄 重置全部骨骼</button>
+  
+  <h2>📤 导出</h2>
+  <textarea id="export-box" readonly placeholder="点击导出按钮生成代码..."></textarea>
+  <div class="row" style="margin-top:4px">
+    <button onclick="exportAsCode()">📋 导出为代码</button>
+    <button onclick="exportAsJSON()">📋 导出为 JSON</button>
+    <button onclick="copyToClipboard()">📋 复制</button>
+  </div>
+</div>
+<div id="viewer"><div id="c"></div></div>
+
+<script type="importmap">
+{ "imports": { "three": "../signbridge/dist/avatar/three.module.js" } }
+</script>
+<script type="module">
+import * as THREE from "three";
+import { GLTFLoader } from "../signbridge/dist/avatar/jsm/loaders/GLTFLoader.js";
+
+// State
+let scene, camera, renderer, skinnedMesh, boneMap = {}, REST = {};
+const keyframes = [];
+let isRecording = false;
+let recordTimer = null;
+let previewTimer = null;
+let currentFrame = -1;
+
+// Bones to expose
+const BONE_LIST = [
+  "rUpperArm","rForearm","rHand","rShoulder",
+  "lUpperArm","lForearm","lHand","lShoulder",
+  "rthumb","rindex","rmiddle","rring","rpinky",
+  "head"
+];
+
+// Init
+const container = document.getElementById("c");
+renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(container.clientWidth, container.clientHeight);
+container.appendChild(renderer.domElement);
+
+scene = new THREE.Scene();
+scene.background = new THREE.Color(0x1a1a2e);
+scene.add(new THREE.AmbientLight(0xffffff, 1.2));
+const dl = new THREE.DirectionalLight(0xffffff, 1.0); dl.position.set(2, 5, 3); scene.add(dl);
+const dl2 = new THREE.DirectionalLight(0xffffff, 0.6); dl2.position.set(-1, 2, -1); scene.add(dl2);
+
+camera = new THREE.PerspectiveCamera(45, container.clientWidth/container.clientHeight, 0.1, 100);
+camera.position.set(0, 0.65, 2.0);
+camera.lookAt(0, 0.3, 0);
+
+// Load model
+const loader = new GLTFLoader();
+const modelUrl = "../signbridge/dist/avatar/model.glb";
+console.log("Loading:", modelUrl);
+loader.load(modelUrl, (gltf) => {
+  gltf.scene.traverse((child) => {
+    if (child.isSkinnedMesh && !skinnedMesh) skinnedMesh = child;
+  });
+  const BONE_SHORT = {
+    "Root_225":"root","Body_220":"body","Hip_218":"hip",
+    "Spine_1_199":"spine","Spine_2_198":"chest","Ribcage_197":"upperChest",
+    "Neck_1_132":"neck","Neck_2_131":"neck2","Neck_3_130":"neck3","Head_129":"head",
+    "ClavicR_192":"rShoulder","Arm_Upper_1R_187":"rUpperArm","Arm_Lower_1R_185":"rForearm","HandR_184":"rHand",
+    "ClavicL_162":"lShoulder","Arm_Upper_1L_157":"lUpperArm","Arm_Lower_1L_155":"lForearm","HandL_154":"lHand",
+    "ThumbR_178":"rthumb","Finger_1R002_165":"rindex","Finger_2R002_168":"rmiddle","Finger_3R002_171":"rring","Finger_4R002_174":"rpinky",
+    "ThumbL_148":"lthumb","Finger_1L002_135":"lindex","Finger_2L002_138":"lmiddle","Finger_3L002_141":"lring","Finger_4L002_144":"lpinky",
+  };
+  if (skinnedMesh?.skeleton) {
+    for (const b of skinnedMesh.skeleton.bones) {
+      if (BONE_SHORT[b.name]) boneMap[BONE_SHORT[b.name]] = b;
+    }
+  }
+  scene.add(gltf.scene);
+  gltf.scene.scale.set(0.984, 0.984, 0.984);
+  gltf.scene.position.y = -0.65;
+  for (const k in boneMap) REST[k] = {x:boneMap[k].rotation.x, y:boneMap[k].rotation.y, z:boneMap[k].rotation.z};
+  console.log("Model loaded. Bones:", Object.keys(boneMap).length);
+  buildSliders();
+});
+
+function animate() {
+  requestAnimationFrame(animate);
+  if (renderer && scene && camera) renderer.render(scene, camera);
+}
+animate();
+
+// Bone sliders
+function buildSliders() {
+  const div = document.getElementById("bone-sliders");
+  let html = "";
+  BONE_LIST.forEach(name => {
+    const bm = boneMap[name];
+    if (!bm) { html += '<div class="bone-row"><span class="bone-name" style="color:#f00">'+name+' MISS</span></div>'; return; }
+    ["x","y","z"].forEach(k => {
+      const id = "sl_"+name+"_"+k;
+      html += '<div class="bone-row">';
+      html += '<span class="bone-name">'+name+'.'+k+'</span>';
+      html += '<input type="range" id="'+id+'" min="-3.2" max="3.2" step="0.01" value="'+bm.rotation[k].toFixed(2)+'" oninput="window._slide(\''+name+'\',\''+k+'\',this.value)">';
+      html += '<span id="'+id+'_v">'+bm.rotation[k].toFixed(2)+'</span>';
+      html += '</div>';
+    });
+  });
+  div.innerHTML = html;
+}
+
+window._slide = function(name, key, val) {
+  const b = boneMap[name]; if (!b) return;
+  b.rotation[key] = parseFloat(val);
+  if (skinnedMesh?.skeleton) skinnedMesh.skeleton.update();
+  const vEl = document.getElementById("sl_"+name+"_"+key+"_v");
+  if (vEl) vEl.textContent = parseFloat(val).toFixed(2);
+};
+
+function resetBones() {
+  for (const k in boneMap) {
+    const r = REST[k] || {x:0,y:0,z:0};
+    boneMap[k].rotation.set(r.x, r.y, r.z);
+  }
+  if (skinnedMesh?.skeleton) skinnedMesh.skeleton.update();
+  buildSliders();
+}
+window.resetBones = resetBones;
+
+// Recording
+window.toggleRecord = function() {
+  const btn = document.getElementById("btn-record");
+  isRecording = !isRecording;
+  if (isRecording) {
+    btn.textContent = "⏺ 录制中... (每0.3s自动抓帧)";
+    btn.classList.add("active");
+    document.getElementById("rec-status").textContent = "🟥 录制中";
+    recordTimer = setInterval(window.addKeyframe, 300);
+  } else {
+    btn.textContent = "⏺ 开始录制";
+    btn.classList.remove("active");
+    document.getElementById("rec-status").textContent = "空闲";
+    clearInterval(recordTimer);
+  }
+};
+
+window.addKeyframe = function() {
+  const pose = {};
+  for (const k in boneMap) {
+    const b = boneMap[k];
+    pose[k] = { x: b.rotation.x, y: b.rotation.y, z: b.rotation.z };
+  }
+  keyframes.push({ time: keyframes.length * 0.3, pose });
+  renderKeyframes();
+};
+
+function renderKeyframes() {
+  const div = document.getElementById("keyframes");
+  document.getElementById("kf-count").textContent = keyframes.length;
+  let html = "";
+  keyframes.forEach((kf, i) => {
+    html += '<div class="kf'+(i===currentFrame?' active':'')+'" onclick="selectKeyframe('+i+')">';
+    html += '#'+i+' t='+kf.time.toFixed(1)+'s';
+    html += '</div>';
+  });
+  div.innerHTML = html;
+  
+  const tl = document.getElementById("preview-timeline");
+  tl.innerHTML = keyframes.map((_,i) => 
+    '<div class="tick'+(i===currentFrame?' active':'')+'" onclick="selectKeyframe('+i+')">'+(i+1)+'</div>'
+  ).join("");
+}
+window.renderKeyframes = renderKeyframes;
+
+window.selectKeyframe = function(idx) {
+  currentFrame = idx;
+  const kf = keyframes[idx];
+  if (!kf) return;
+  for (const k in kf.pose) {
+    const b = boneMap[k]; if (!b) continue;
+    b.rotation.set(kf.pose[k].x, kf.pose[k].y, kf.pose[k].z);
+  }
+  if (skinnedMesh?.skeleton) skinnedMesh.skeleton.update();
+  buildSliders();
+  renderKeyframes();
+};
+
+function applyToCurrent() {
+  if (currentFrame < 0 || currentFrame >= keyframes.length) return;
+  const pose = {};
+  for (const k in boneMap) {
+    const b = boneMap[k];
+    pose[k] = { x: b.rotation.x, y: b.rotation.y, z: b.rotation.z };
+  }
+  keyframes[currentFrame].pose = pose;
+  renderKeyframes();
+}
+window.applyToCurrent = applyToCurrent;
+
+function deleteKeyframe() {
+  if (currentFrame < 0) return;
+  keyframes.splice(currentFrame, 1);
+  currentFrame = Math.min(currentFrame, keyframes.length - 1);
+  renderKeyframes();
+}
+window.deleteKeyframe = deleteKeyframe;
+
+function clearKeyframes() {
+  keyframes.length = 0;
+  currentFrame = -1;
+  renderKeyframes();
+}
+window.clearKeyframes = clearKeyframes;
+
+// Preview
+window.previewAnimation = function() {
+  if (keyframes.length === 0) return;
+  stopPreview();
+  let idx = 0;
+  function step() {
+    if (idx >= keyframes.length) { stopPreview(); return; }
+    const kf = keyframes[idx];
+    for (const k in kf.pose) {
+      const b = boneMap[k]; if (!b) continue;
+      b.rotation.set(kf.pose[k].x, kf.pose[k].y, kf.pose[k].z);
+    }
+    if (skinnedMesh?.skeleton) skinnedMesh.skeleton.update();
+    currentFrame = idx;
+    renderKeyframes();
+    idx++;
+    previewTimer = setTimeout(step, (keyframes[idx-1]?.time || 0.3) * 1000);
+  }
+  step();
+};
+
+function stopPreview() {
+  clearTimeout(previewTimer);
+  currentFrame = -1;
+  renderKeyframes();
+}
+window.stopPreview = stopPreview;
+
+// Export
+function getGloss() { return document.getElementById("sign-gloss").value || "new_sign"; }
+function getText() { return document.getElementById("sign-text").value || ""; }
+function getTags() {
+  const sel = document.getElementById("sign-tags");
+  return Array.from(sel.selectedOptions).map(o => o.value);
+}
+
+window.exportAsCode = function() {
+  const gloss = getGloss();
+  const text = getText();
+  const tags = getTags();
+  let code = "// " + gloss + " — " + text + "\n";
+  code += `const ${gloss.replace(/-/g,'_')} = {\n`;
+  code += `  id: "csl_${gloss}",\n`;
+  code += `  gloss: "${text || gloss}",\n`;
+  code += `  texts: ["${text || gloss}"],\n`;
+  code += `  tags: [${tags.map(t=>'"'+t+'"').join(',')}],\n`;
+  code += `  frames: [\n`;
+  for (const kf of keyframes) {
+    code += `    frm(makePose({`;
+    const parts = [];
+    for (const k in kf.pose) {
+      const p = kf.pose[k];
+      parts.push(`${k}:deg(${Math.round(p.x*180/Math.PI)},${Math.round(p.y*180/Math.PI)},${Math.round(p.z*180/Math.PI)})`);
+    }
+    code += parts.join(",") + `}), ${kf.time.toFixed(1)}),\n`;
+  }
+  code += `  ],\n`;
+  code += `  meta: { handshape: "", location: "", movement: "" },\n`;
+  code += `};\n`;
+  document.getElementById("export-box").value = code;
+};
+
+window.exportAsJSON = function() {
+  const gloss = getGloss();
+  const text = getText();
+  const tags = getTags();
+  const data = {
+    id: "csl_" + gloss,
+    gloss: text || gloss,
+    texts: [text || gloss],
+    tags: tags,
+    frames: keyframes.map(kf => {
+      const pose = {};
+      for (const k in kf.pose) {
+        pose[k] = {
+          x: Math.round(kf.pose[k].x * 180 / Math.PI),
+          y: Math.round(kf.pose[k].y * 180 / Math.PI),
+          z: Math.round(kf.pose[k].z * 180 / Math.PI)
+        };
+      }
+      return { pose, duration: kf.time };
+    }),
+    meta: { handshape: "", location: "", movement: "" }
+  };
+  document.getElementById("export-box").value = JSON.stringify(data, null, 2);
+};
+
+window.copyToClipboard = function() {
+  const box = document.getElementById("export-box");
+  box.select();
+  document.execCommand("copy");
+  alert("已复制到剪贴板！");
+};
+
+console.log("🎬 录制器就绪。点击'开始录制'，手动调整骨骼，自动每0.3秒抓取关键帧。");
+</script>
+</body>
+</html>

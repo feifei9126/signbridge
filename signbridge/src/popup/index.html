@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SignBridge</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <div id="app" class="signbridge-popup">
+      <header class="sb-header">
+        <div class="sb-logo">
+          <span class="sb-logo-icon">🤟</span>
+          <span class="sb-logo-text">SignBridge</span>
+        </div>
+        <button id="btnSettings" class="sb-icon-btn" title="设置">⚙</button>
+      </header>
+
+      <section class="sb-status">
+        <div class="sb-status-indicator" id="statusIndicator">
+          <span class="sb-dot" id="statusDot"></span>
+          <span id="statusText">已就绪</span>
+        </div>
+        <button id="btnToggle" class="sb-primary-btn">
+          <span id="btnToggleIcon">▶</span>
+          <span id="btnToggleText">开始翻译</span>
+        </button>
+      </section>
+
+      <!-- 手动输入框 -->
+      <section class="sb-text-input">
+        <div class="sb-input-row">
+          <input
+            type="text"
+            id="textInput"
+            class="sb-text-field"
+            placeholder="输入文字，虚拟人打手语…"
+          />
+          <button id="btnSendText" class="sb-send-btn">发送</button>
+        </div>
+      </section>
+
+      <section class="sb-settings" id="mainSettings">
+        <div class="sb-setting-row">
+          <label class="sb-label">手语类型</label>
+          <select id="signLanguage" class="sb-select">
+            <option value="csl">中国手语 (CSL)</option>
+            <option value="asl">美国手语 (ASL)</option>
+          </select>
+        </div>
+
+        <div class="sb-setting-row">
+          <label class="sb-label">虚拟人大小</label>
+          <div class="sb-range-group">
+            <input
+              type="range"
+              id="avatarSize"
+              min="120"
+              max="320"
+              value="180"
+              class="sb-range"
+            />
+            <span id="sizeValue" class="sb-range-value">180px</span>
+          </div>
+        </div>
+        <div class="sb-setting-row">
+          <label class="sb-label">视频语言</label>
+          <select id="sourceLanguage" class="sb-select">
+            <option value="auto">自动检测</option>
+            <option value="zh-CN">中文（普通话）</option>
+          </select>
+        </div>
+        <div class="sb-setting-row">
+          <label class="sb-label">界面语言</label>
+          <select id="uiLocale" class="sb-select">
+            <option value="auto">自动</option>
+            <option value="zh-CN">简体中文</option>
+          </select>
+        </div>
+      </section>
+
+      <footer class="sb-footer">
+        <span class="sb-version">v1.0.0</span>
+        <span class="sb-tagline">让信息无障碍</span>
+      </footer>
+    </div>
+    <script type="module" src="popup.js"></script>
+
+    <div style="display: flex; gap: 6px; margin-top: 8px">
+      <button
+        id="btnMic"
+        style="
+          flex: 1;
+          padding: 8px;
+          background: #2a2a4a;
+          color: #ddd;
+          border: 1px solid #444;
+          border-radius: 6px;
+          cursor: pointer;
+          font-size: 12px;
+        "
+      >
+        🎤 麦克风：关闭</button
+      ><span
+        id="micStatus"
+        style="
+          display: flex;
+          align-items: center;
+          font-size: 10px;
+          color: #888;
+          min-width: 50px;
+        "
+        >未知</span
+      >
+    </div>
+    <div class="sb-tools-row" style="display: flex; gap: 6px; margin-top: 8px">
+      <button
+        id="btnPoseEditor"
+        style="
+          flex: 1;
+          padding: 6px;
+          background: #2a2a4a;
+          color: #ffd700;
+          border: 1px solid #444;
+          border-radius: 4px;
+          cursor: pointer;
+          font-size: 11px;
+        "
+      >
+        🎬 姿势编辑器
+      </button>
+      <button
+        id="btnRecordMode"
+        style="
+          flex: 1;
+          padding: 6px;
+          background: #2a2a4a;
+          color: #ffd700;
+          border: 1px solid #444;
+          border-radius: 4px;
+          cursor: pointer;
+          font-size: 11px;
+        "
+      >
+        🎥 录制工具
+      </button>
+    </div>
+    <button
+      id="btnHelp"
+      style="
+        flex: 1;
+        padding: 6px;
+        background: #2a2a4a;
+        color: #ffd700;
+        border: 1px solid #444;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 11px;
+        margin-top: 4px;
+      "
+    >
+      📖 帮助文档
+    </button>
+  </body>
+</html>

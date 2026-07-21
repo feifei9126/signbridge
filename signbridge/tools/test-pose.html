@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>SignBridge 独立调试</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,sans-serif;background:#1a1a2e;color:#eee;height:100vh;display:flex;overflow:hidden}
+#viewer{flex:1;min-width:0;position:relative}
+#viewer .info{position:absolute;top:8px;left:12px;font-size:11px;color:#888}
+#pose-name{position:absolute;bottom:12px;left:50%;transform:translateX(-50%);font-size:13px;color:#ffd700;background:rgba(0,0,0,0.7);padding:4px 16px;border-radius:12px}
+#status-bar{position:absolute;bottom:8px;right:12px;font-size:10px;color:#0f0;font-family:monospace}
+#panel{width:300px;background:#16213e;display:flex;flex-direction:column;border-left:1px solid #333;overflow-y:auto;flex-shrink:0;padding:12px}
+#panel h2{font-size:14px;color:#ffd700;margin-bottom:8px}
+.btn-row{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px}
+.btn-row button{padding:4px 10px;border:1px solid #444;border-radius:4px;background:#2a2a4a;color:#ddd;cursor:pointer;font-size:11px}
+.btn-row button:hover{background:#3a3a6a;border-color:#ffd700}
+.btn-row button.green{background:#2d6a2d;border-color:#3a3}
+.btn-row button.red{background:#6a2d2d;border-color:#a33}
+#logs{flex:1;overflow-y:auto;background:#111;padding:8px;border-radius:4px;margin-top:8px;font-size:9px;font-family:monospace;color:#0f0;max-height:200px}
+.bone-row{display:flex;align-items:center;gap:4px;margin:2px 0;font-size:10px}
+.bone-row label{width:50px;color:#ffd700;text-align:right;flex-shrink:0}
+.bone-row input[type=range]{flex:1;accent-color:#ffd700}
+.bone-row .val{width:36px;color:#0f0;text-align:right;font-family:monospace}
+</style>
+</head>
+<body>
+<div id="viewer">
+  <div class="info">🖱 左键旋转 | 滚轮缩放 | 右键平移</div>
+  <div id="pose-name">加载中...</div>
+  <div id="status-bar"></div>
+</div>
+<div id="panel">
+  <h2>SignBridge 调参面板</h2>
+  <div class="btn-row">
+    <button class="red" onclick="resetAll()">🔄 重置</button>
+    <button class="green" onclick="exportPose()">📋 导出JSON</button>
+    <button onclick="importPose()">📥 导入</button>
+  </div>
+  <div class="btn-row">
+    <button class="green" onclick="applyHello()">👋 你好</button>
+    <button class="green" onclick="applyXiexie()">🙏 谢谢</button>
+    <button class="green" onclick="applyWelcome()">🤗 欢迎</button>
+    <button onclick="applyYes()">👍 是</button>
+    <button onclick="applyNo()">👆 不</button>
+    <button onclick="applyHao()">👍 好</button>
+  </div>
+  <div class="btn-row">
+    <button onclick="applyBangzhu()">✋ 帮助</button>
+    <button onclick="applyWo()">👉 我</button>
+    <button onclick="applyNi()">👉 你</button>
+    <button onclick="applyZaiJian()">👋 再见</button>
+    <button onclick="applyFist()">✊ 握拳</button>
+    <button onclick="applyOpen()">🖐 展开</button>
+  </div>
+  <div class="btn-row">
+    <button onclick="applyTestRArm()">测试:右臂</button>
+    <button onclick="applyTestLArm()">测试:左臂</button>
+    <button onclick="applyTestBoth()">测试:双臂</button>
+  </div>
+  <div id="bone-panel"></div>
+  <div id="logs"></div>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "./three.module.js",
+    "three/addons/": "./jsm/"
+  }
+}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+const D = Math.PI / 180;
+function dg(x,y,z){ return {x:(x||0)*D, y:(y||0)*D, z:(z||0)*D}; }
+
+const BONE_SHORT = {
+  'Root_225':'root','Hip_218':'hip',
+  'Spine_1_199':'spine','Spine_2_198':'chest','Ribcage_197':'ribcage',
+  'Neck_1_132':'neck','Neck_2_131':'neck2','Neck_3_130':'neck3','Head_129':'head',
+  'Clavic.R_192':'rShoulder','Arm_Upper_1.R_187':'rUpperArm','Arm_Lower_1.R_185':'rForearm','Hand.R_184':'rHand',
+  'Clavic.L_162':'lShoulder','Arm_Upper_1.L_157':'lUpperArm','Arm_Lower_1.L_155':'lForearm','Hand.L_154':'lHand',
+  'FingerControl_1.R_183':'rthumb','FingerControl_2.R_179':'rindex','FingerControl_3.R_180':'rmiddle','FingerControl_4.R_181':'rring','FingerControl_5.R_182':'rpinky',
+  'FingerControl_1.L_153':'lthumb','FingerControl_2.L_149':'lindex','FingerControl_3.L_150':'lmiddle','FingerControl_4.L_151':'lring','FingerControl_5.L_152':'lpinky',
+};
+
+// 全局变量
+window.boneMap = {};
+window.skinnedMesh = null;
+
+// Three.js setup
+const container = document.getElementById('viewer');
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xdce8f5);
+
+const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
+camera.position.set(0, 1.2, 1.8);
+camera.lookAt(0, 0.8, 0);
+
+const renderer = new THREE.WebGLRenderer({antialias: true});
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+container.appendChild(renderer.domElement);
+
+const ctrl = new OrbitControls(camera, renderer.domElement);
+ctrl.target.set(0, 0.8, 0);
+ctrl.enableDamping = true;
+ctrl.dampingFactor = 0.08;
+ctrl.update();
+
+scene.add(new THREE.AmbientLight(0xffffff, 1.2));
+const l1 = new THREE.DirectionalLight(0xffffff, 1.5); l1.position.set(2,4,3); scene.add(l1);
+const l2 = new THREE.DirectionalLight(0x8888ff, 0.6); l2.position.set(-2,1,-1); scene.add(l2);
+
+function log(msg) {
+  const el = document.getElementById('logs');
+  const time = new Date().toLocaleTimeString();
+  el.innerHTML += '<div>['+time+'] '+msg+'</div>';
+  el.scrollTop = el.scrollHeight;
+  console.log('[PE]', msg);
+}
+
+function resize() {
+  const w = container.clientWidth, h = container.clientHeight;
+  if (!w || !h) return;
+  renderer.setSize(w, h);
+  camera.aspect = w/h;
+  camera.updateProjectionMatrix();
+}
+
+let _frameCount = 0, _lastTime = performance.now();
+function anim() {
+  requestAnimationFrame(anim);
+  ctrl.update();
+  renderer.render(scene, camera);
+  _frameCount++;
+  const now = performance.now();
+  if (now - _lastTime > 1000) {
+    document.getElementById('status-bar').textContent = '骨骼:'+Object.keys(window.boneMap).length+' FPS:'+_frameCount;
+    _frameCount = 0; _lastTime = now;
+  }
+}
+
+// 加载模型
+async function loadModel() {
+  log('加载 model.glb ...');
+  const loader = new GLTFLoader();
+  const resp = await fetch('./model.glb');
+  if (!resp.ok) throw new Error('HTTP '+resp.status);
+  const buf = await resp.arrayBuffer();
+  const gltf = await new Promise((resolve, reject) => { loader.parse(buf, '', resolve, reject); });
+  
+  log('Model parsed, scanning bones...');
+  window.boneMap = {};
+  
+  gltf.scene.traverse(child => {
+    if (child.isSkinnedMesh && !window.skinnedMesh) {
+      window.skinnedMesh = child;
+      log('SkinnedMesh: '+child.name);
+    }
+  });
+  
+  if (window.skinnedMesh?.skeleton) {
+    const bones = window.skinnedMesh.skeleton.bones;
+    log('总骨骼: '+bones.length);
+    
+    let mapped = 0;
+    for (const b of bones) {
+      if (BONE_SHORT[b.name]) {
+        window.boneMap[BONE_SHORT[b.name]] = b;
+        mapped++;
+      }
+    }
+    log('映射成功: '+mapped+' 骨骼');
+    log('映射列表: '+Object.keys(window.boneMap).join(', '));
+    
+    // 检查关键骨骼
+    const crit = ['rUpperArm','rForearm','rHand','lUpperArm','lForearm','lHand','head'];
+    const missing = crit.filter(k => !window.boneMap[k]);
+    if (missing.length > 0) {
+      log('❌ 缺失骨骼: '+missing.join(', '));
+    } else {
+      log('✅ 所有关键骨骼映射成功');
+    }
+  }
+  
+  scene.add(gltf.scene);
+  window._sbModel = gltf.scene;
+  
+  document.getElementById('pose-name').textContent = '就绪';
+  log('✅ 模型加载完成');
+  
+  // 构建骨骼UI
+  buildBonePanel();
+}
+
+function buildBonePanel() {
+  const panel = document.getElementById('bone-panel');
+  const bones = [
+    {name:'rUpperArm',label:'右上臂',keys:['x','y','z']},
+    {name:'rForearm',label:'右前臂',keys:['x','y','z']},
+    {name:'rHand',label:'右手',keys:['x','y','z']},
+    {name:'rShoulder',label:'右肩',keys:['x','y','z']},
+    {name:'rthumb',label:'右拇指',keys:['z']},
+    {name:'rindex',label:'右食指',keys:['z']},
+    {name:'rmiddle',label:'右中指',keys:['z']},
+    {name:'rring',label:'右无名指',keys:['z']},
+    {name:'rpinky',label:'右小指',keys:['z']},
+    {name:'lUpperArm',label:'左上臂',keys:['x','y','z']},
+    {name:'lForearm',label:'左前臂',keys:['x','y','z']},
+    {name:'lHand',label:'左手',keys:['x','y','z']},
+    {name:'lShoulder',label:'左肩',keys:['x','y','z']},
+    {name:'head',label:'头',keys:['x','y','z']},
+  ];
+  
+  let html = '<div style="color:#ff0;font-size:10px;margin:8px 0 4px;">骨骼滑块</div>';
+  for (const b of bones) {
+    const bm = window.boneMap[b.name];
+    if (!bm) {
+      html += '<div class="bone-row" style="color:#f44;">❌ '+b.label+' (未映射)</div>';
+      continue;
+    }
+    html += '<div class="bone-row"><label>'+b.label+'</label>';
+    for (const k of b.keys) {
+      const id = 'sl_'+b.name+'_'+k;
+      html += k+':<input type="range" id="'+id+'" data-bone="'+b.name+'" data-key="'+k+'" min="-3.2" max="3.2" step="0.01" value="0">';
+      html += '<span id="'+id+'_v" class="val">0.00</span> ';
+    }
+    html += '</div>';
+  }
+  panel.innerHTML = html;
+  
+  // 绑定滑动事件
+  panel.querySelectorAll('input[type=range]').forEach(inp => {
+    inp.addEventListener('input', e => {
+      const boneName = e.target.dataset.bone;
+      const key = e.target.dataset.key;
+      const val = parseFloat(e.target.value);
+      const bone = window.boneMap[boneName];
+      if (!bone) return;
+      bone.rotation[key] = val;
+      if (window.skinnedMesh?.skeleton) window.skinnedMesh.skeleton.update();
+      const vEl = document.getElementById('sl_'+boneName+'_'+key+'_v');
+      if (vEl) vEl.textContent = val.toFixed(2);
+    });
+  });
+}
+
+function syncSliders() {
+  const panel = document.getElementById('bone-panel');
+  panel.querySelectorAll('input[type=range]').forEach(inp => {
+    const bm = window.boneMap[inp.dataset.bone];
+    if (!bm) return;
+    const val = bm.rotation[inp.dataset.key] || 0;
+    inp.value = val;
+    const vEl = document.getElementById('sl_'+inp.dataset.bone+'_'+inp.dataset.key+'_v');
+    if (vEl) vEl.textContent = val.toFixed(2);
+  });
+}
+
+function applyPose(poseObj) {
+  for (const name in poseObj) {
+    const bone = window.boneMap[name];
+    if (!bone) continue;
+    const r = poseObj[name];
+    if (r && 'x' in r) bone.rotation.set(r.x||0, r.y||0, r.z||0);
+  }
+  if (window.skinnedMesh?.skeleton) window.skinnedMesh.skeleton.update();
+  syncSliders();
+}
+
+function resetAll() {
+  for (const k in window.boneMap) window.boneMap[k].rotation.set(0,0,0);
+  if (window.skinnedMesh?.skeleton) window.skinnedMesh.skeleton.update();
+  syncSliders();
+  log('已重置');
+}
+
+// 手势函数
+function rPose(uaX,uaY,uaZ,faX,faY,faZ,hX,hY,hZ,thX,ixX,mdX,rgX,pyX){
+  const p={};
+  for(const k in window.boneMap) p[k]=dg(0,0,0);
+  p.rUpperArm=dg(uaX||0,uaY||0,uaZ||0);
+  p.rForearm=dg(faX||0,faY||0,faZ||0);
+  p.rHand=dg(hX||0,hY||0,hZ||0);
+  if(thX!==undefined)p.rthumb=dg(0,0,thX);
+  if(ixX!==undefined)p.rindex=dg(0,0,ixX);
+  if(mdX!==undefined)p.rmiddle=dg(0,0,mdX);
+  if(rgX!==undefined)p.rring=dg(0,0,rgX);
+  if(pyX!==undefined)p.rpinky=dg(0,0,pyX);
+  return p;
+}
+function lPose(uaX,uaY,uaZ,faX,faY,faZ,hX,hY,hZ,thX,ixX,mdX,rgX,pyX){
+  const p={};
+  for(const k in window.boneMap) p[k]=dg(0,0,0);
+  p.lUpperArm=dg(uaX||0,uaY||0,uaZ||0);
+  p.lForearm=dg(faX||0,faY||0,faZ||0);
+  p.lHand=dg(hX||0,hY||0,hZ||0);
+  if(thX!==undefined)p.lthumb=dg(0,0,thX);
+  if(ixX!==undefined)p.lindex=dg(0,0,ixX);
+  if(mdX!==undefined)p.lmiddle=dg(0,0,mdX);
+  if(rgX!==undefined)p.lring=dg(0,0,rgX);
+  if(pyX!==undefined)p.lpinky=dg(0,0,pyX);
+  return p;
+}
+
+// 手势预设绑定到 window 供 HTML onclick 调用
+window.applyHello = () => { applyPose(rPose(75,-10,-15,-95,0,0,0,0,15,0,0,0,0,0)); log('👋 你好'); };
+window.applyXiexie = () => { applyPose(rPose(75,-15,-10,-90,0,0,0,10,10,-80,-80,-80,-80,-80)); log('🙏 谢谢'); };
+window.applyWelcome = () => { applyPose({...rPose(40,10,0,-60,5,0,10,0,0,-30,-30,-30,-30,-30), ...lPose(40,-10,0,-60,-5,0,10,0,0,-30,-30,-30,-30,-30)}); log('🤗 欢迎'); };
+window.applyYes = () => { applyPose(rPose(75,-10,-15,-95,0,0,-5,0,5,-80,-5,-5,-80,-80)); log('👍 是'); };
+window.applyNo = () => { applyPose(rPose(80,-10,-15,-95,0,0,10,0,5,-85,-5,-85,-85,-85)); log('👆 不'); };
+window.applyHao = () => { applyPose(rPose(75,-10,-15,-90,0,0,5,5,5,-80,-80,-80,-80,-80)); log('👍 好'); };
+window.applyBangzhu = () => { applyPose(rPose(60,10,-10,-80,0,0,-10,5,0,20,20,20,20,20)); log('✋ 帮助'); };
+window.applyWo = () => { applyPose(rPose(50,-15,-15,-95,0,0,15,0,5,-80,-5,-80,-80,-80)); log('👉 我'); };
+window.applyNi = () => { applyPose(rPose(80,-10,-15,-100,0,0,5,0,5,-80,-5,-80,-80,-80)); log('👉 你'); };
+window.applyZaiJian = () => { applyPose(rPose(85,-10,-15,-90,0,0,5,0,20,-20,-20,-20,-20,-20)); log('👋 再见'); };
+window.applyFist = () => { applyPose(rPose(75,-10,-15,-90,0,0,0,0,5,-85,-85,-85,-85,-85)); log('✊ 握拳'); };
+window.applyOpen = () => { applyPose(rPose(75,-10,-15,-85,0,0,0,5,5,30,30,30,30,30)); log('🖐 展开'); };
+window.applyTestRArm = () => { applyPose(rPose(90,-5,0,-90,0,0,0,0,0,0,0,0,0,0)); log('测试:右臂抬起'); };
+window.applyTestLArm = () => { applyPose(lPose(90,5,0,-90,0,0,0,0,0,0,0,0,0,0)); log('测试:左臂抬起'); };
+window.applyTestBoth = () => { applyPose({...rPose(90,-5,0,-90,0,0,0,0,0,0,0,0,0,0),...lPose(90,5,0,-90,0,0,0,0,0,0,0,0,0,0)}); log('测试:双臂抬起'); };
+
+window.exportPose = () => {
+  const out = {};
+  for (const [k, b] of Object.entries(window.boneMap)) {
+    out[k] = {x:b.rotation.x, y:b.rotation.y, z:b.rotation.z};
+  }
+  const json = JSON.stringify(out, null, 2);
+  navigator.clipboard.writeText(json).then(() => log('✅ JSON已复制到剪贴板'));
+  log('Current pose:\n'+json);
+};
+
+window.importPose = () => {
+  const txt = prompt('粘贴JSON:');
+  if (!txt) return;
+  try {
+    applyPose(JSON.parse(txt));
+    log('✅ 已导入');
+  } catch(e) {
+    log('❌ JSON错误: '+e.message);
+  }
+};
+
+// 启动
+window.addEventListener('resize', resize);
+resize();
+anim();
+loadModel().catch(e => {
+  log('❌ 加载失败: '+e.message);
+  document.getElementById('pose-name').textContent = '加载失败';
+});
+</script>
+</body>
+</html>

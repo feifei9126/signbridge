@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SignBridge Pose Editor</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #1a1a2e; color: #eee; height: 100vh; display: flex; overflow: hidden; }
+
+#viewer { flex: 1; min-width: 0; position: relative; background: radial-gradient(ellipse at center, #2d2d44 0%, #1a1a2e 70%); }
+#viewer .info { position: absolute; top: 8px; left: 12px; font-size: 11px; color: #888; pointer-events: none; }
+#viewer .pose-name { position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%); font-size: 13px; color: #ffd700; background: rgba(0,0,0,0.7); padding: 4px 16px; border-radius: 12px; }
+#status-bar { position: absolute; bottom: 8px; right: 12px; font-size: 10px; color: #0f0; font-family: monospace; }
+
+#panel { width: 380px; background: #16213e; display: flex; flex-direction: column; border-left: 1px solid #333; overflow: hidden; flex-shrink: 0; }
+#panel h2 { padding: 14px 16px 8px; font-size: 16px; color: #ffd700; border-bottom: 1px solid #333; }
+#panel h3 { padding: 8px 16px 4px; font-size: 12px; color: #aaa; text-transform: uppercase; letter-spacing: 1px; }
+
+.toolbar { display: flex; gap: 4px; padding: 6px 12px; flex-wrap: wrap; }
+.toolbar button { padding: 5px 12px; border: 1px solid #444; border-radius: 4px; background: #2a2a4a; color: #ddd; cursor: pointer; font-size: 11px; white-space: nowrap; }
+.toolbar button:hover { background: #3a3a6a; border-color: #ffd700; }
+.toolbar button.accent { background: #2d6a2d; border-color: #3a3; }
+.toolbar button.accent:hover { background: #3a8a3a; }
+.toolbar button.warn { background: #6a2d2d; border-color: #a33; }
+.toolbar button.warn:hover { background: #8a3a3a; }
+
+#preset-select { padding: 4px 12px; }
+#preset-select select { width: 100%; padding: 6px 8px; background: #2a2a4a; color: #ddd; border: 1px solid #444; border-radius: 4px; font-size: 12px; }
+
+#bones-scroll { flex: 1; overflow-y: auto; padding: 0 4px 8px; }
+.bone-group { margin: 2px 0; padding: 4px 8px; background: #1a1a3a; border-radius: 4px; border: 1px solid #222; }
+.bone-group .bone-label { font-size: 11px; color: #ffd700; margin-bottom: 2px; font-weight: 600; }
+.bone-group .slider-row { display: flex; align-items: center; gap: 2px; margin: 1px 0; }
+.bone-group .slider-row .axis { width: 14px; font-size: 10px; color: #888; text-align: center; flex-shrink: 0; }
+.bone-group .slider-row input[type=range] { flex: 1; height: 14px; accent-color: #ffd700; }
+.bone-group .slider-row .val { width: 36px; font-size: 9px; color: #0f0; text-align: right; font-family: monospace; flex-shrink: 0; }
+
+#output-area { max-height: 160px; overflow-y: auto; border-top: 1px solid #333; padding: 6px 12px; background: #111; }
+#output-area pre { font-size: 10px; color: #0f0; font-family: monospace; white-space: pre-wrap; word-break: break-all; margin: 0; }
+
+.sym-toggle { display: flex; align-items: center; gap: 8px; padding: 4px 12px; }
+.sym-toggle label { font-size: 11px; color: #ccc; cursor: pointer; }
+.sym-toggle input[type=checkbox] { cursor: pointer; }
+
+#toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: #333; color: #ffd700; padding: 8px 20px; border-radius: 8px; font-size: 13px; z-index: 100; opacity: 0; transition: opacity 0.3s; pointer-events: none; }
+#toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+
+<div id="viewer">
+  <div class="info">左键旋转 | 滚轮缩放 | 右键平移</div>
+  <div class="pose-name" id="pose-label">加载中...</div>
+  <div id="status-bar"></div>
+</div>
+
+<div id="panel">
+  <h2>Pose Editor</h2>
+
+  <div class="toolbar">
+    <button onclick="__PE.resetAll()" class="warn">重置</button>
+    <button onclick="__PE.exportPose()" class="accent">导出 JSON</button>
+    <button onclick="__PE.exportAsCode()">导出代码</button>
+    <button onclick="__PE.importPose()">导入</button>
+    <button onclick="__PE.playSequence()">播放序列</button>
+    <button onclick="__PE.stopSequence()">停止</button>
+  </div>
+
+  <div class="sym-toggle">
+    <input type="checkbox" id="sym-mode" onchange="__PE.onSymToggle()">
+    <label for="sym-mode">对称模式 (调右臂自动镜像左臂)</label>
+  </div>
+
+  <div id="preset-select">
+    <select id="preset-dd" onchange="__PE.loadPreset(this.value)">
+      <option value="">-- 加载预设姿势 --</option>
+      <option value="tpose">T-Pose (归零)</option>
+      <option value="idle">空闲姿态</option>
+      <option value="hello">你好</option>
+      <option value="thanks">谢谢</option>
+      <option value="welcome">欢迎</option>
+      <option value="yes">是</option>
+      <option value="no">不</option>
+      <option value="ok">好</option>
+      <option value="help">帮助</option>
+      <option value="point_r">食指指向 (右手)</option>
+      <option value="fist_r">握拳 (右手)</option>
+      <option value="open_r">手掌展开 (右手)</option>
+    </select>
+  </div>
+
+  <h3>骨骼参数 (弧度)</h3>
+  <div id="bones-scroll"></div>
+
+  <div id="output-area">
+    <pre id="output-text">等待导出...</pre>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<!-- 本地 Three.js，零外部依赖 -->
+<script type="importmap">
+{ "imports": { "three": "./three.module.js" } }
+</script>
+<script type="module" src="./editor-bundle.js"></script>
+</body>
+</html>

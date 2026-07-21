@@ -1,0 +1,14 @@
+node_modules/
+dist/
+*.log
+.DS_Store
+test-results/
+*.zip
+*.tar.gz
+tools/three.module.js
+tools/model.glb
+tools/*.py
+scripts/extractor/
+scripts/bundle-*.mjs
+scripts/clean-glb.mjs
+*.backup

@@ -1,0 +1,79 @@
+<!DOCTYPE html><html lang="zh"><head><meta charset="UTF-8"><title>SignBridge Dev v2</title>
+<style>
+*{margin:0;padding:0}body{display:flex;height:100vh;background:#1a1a2e;color:#fff;font:14px sans-serif}
+#v{flex:1;position:relative}#p{width:320px;background:#16213e;padding:12px;overflow-y:auto;display:flex;flex-direction:column;gap:8px}
+h3{color:#ffd700;margin:0;font-size:13px}button{padding:6px 12px;background:#2a2a4a;color:#fff;border:1px solid #444;border-radius:4px;cursor:pointer;font-size:11px}
+button:hover{background:#3a3a6a}button.g{background:#2d6a2d;border-color:#3a3}button.r{background:#6a2d2d;border-color:#a33}
+.row{display:flex;gap:4px;flex-wrap:wrap}#log{background:#111;color:#0f0;font:9px monospace;padding:8px;flex:1;overflow-y:auto;max-height:300px;min-height:100px}
+</style></head><body>
+<div id="v"><div id="status" style="position:absolute;top:8px;left:12px;font-size:10px;color:#888;">Loading...</div></div>
+<div id="p"><h3>SignBridge Dev v2</h3>
+<div class="row"><button class="r" onclick="test(''reset'')">A-Pose</button><button class="g" onclick="test(''fist'')">Fist</button><button onclick="test(''flat'')">Flat</button><button onclick="test(''point'')">Point</button><button onclick="test(''thumb'')">ThumbUp</button></div>
+<div class="row"><button onclick="test(''hello'')">Hello</button><button onclick="test(''xiexie'')">Thanks</button><button onclick="test(''welcome'')">Welcome</button><button onclick="test(''goodbye'')">Bye</button></div>
+<h3>Log</h3><div id="log"></div></div>
+<script type="importmap">{"imports":{"three":"./three.module.js","three/addons/":"./jsm/"}}</script>
+<script type="module">
+import * as THREE from "three";
+import {OrbitControls} from "three/addons/controls/OrbitControls.js";
+import {GLTFLoader} from "three/addons/loaders/GLTFLoader.js";
+const D=Math.PI/180,dd=(x,y,z)=>({x:(x||0)*D,y:(y||0)*D,z:(z||0)*D});
+const L=m=>{let e=document.getElementById("log");e.innerHTML+=m+"<br>";e.scrollTop=e.scrollHeight;console.log(m)};
+const S=m=>{document.getElementById("status").textContent=m};
+const BM={
+  "Root_225":"root","Hip_218":"hip","Spine_1_199":"spine","Spine_2_198":"chest","Ribcage_197":"ribcage",
+  "Neck_1_132":"neck","Neck_2_131":"neck2","Neck_3_130":"neck3","Head_129":"head",
+  "ClavicR_192":"rShoulder","Arm_Upper_1R_187":"rUpperArm","Arm_Lower_1R_185":"rForearm","HandR_184":"rHand",
+  "ClavicL_162":"lShoulder","Arm_Upper_1L_157":"lUpperArm","Arm_Lower_1L_155":"lForearm","HandL_154":"lHand",
+  "ThumbR_178":"rthumb","Finger_1R002_165":"rindex","Finger_2R002_168":"rmiddle","Finger_3R002_171":"rring","Finger_4R002_174":"rpinky",
+  "ThumbL_148":"lthumb","Finger_1L002_135":"lindex","Finger_2L002_138":"lmiddle","Finger_3L002_141":"lring","Finger_4L002_144":"lpinky",
+};
+const SHAPES={
+  fist:{rthumb:dd(-40,0,0),rindex:dd(-110,0,0),rmiddle:dd(-110,0,0),rring:dd(-110,0,0),rpinky:dd(-110,0,0)},
+  flat:{rthumb:dd(30,0,0),rindex:dd(30,0,0),rmiddle:dd(30,0,0),rring:dd(30,0,0),rpinky:dd(30,0,0)},
+  point:{rindex:dd(0,0,0),rthumb:dd(-40,0,0),rmiddle:dd(-110,0,0),rring:dd(-110,0,0),rpinky:dd(-110,0,0)},
+  thumbUp:{rthumb:dd(0,63,30),rindex:dd(-110,0,0),rmiddle:dd(-110,0,0),rring:dd(-110,0,0),rpinky:dd(-110,0,0)},
+};
+let sc,cam,rnd,ctrl,sm=null,bm={},REST={};
+const cv=document.getElementById("v");
+sc=new THREE.Scene();sc.background=new THREE.Color(0xdce8f5);
+cam=new THREE.PerspectiveCamera(45,1,0.1,100);cam.position.set(0,1.2,1.8);cam.lookAt(0,0.8,0);
+rnd=new THREE.WebGLRenderer({antialias:true});rnd.setPixelRatio(Math.min(devicePixelRatio,2));cv.appendChild(rnd.domElement);
+ctrl=new OrbitControls(cam,rnd.domElement);ctrl.target.set(0,0.8,0);ctrl.enableDamping=true;ctrl.update();
+sc.add(new THREE.AmbientLight(0xffffff,1.2));
+let l1=new THREE.DirectionalLight(0xffffff,1.5);l1.position.set(2,4,3);sc.add(l1);
+let l2=new THREE.DirectionalLight(0x8888ff,0.6);l2.position.set(-2,1,-1);sc.add(l2);
+function resize(){let w=cv.clientWidth,h=cv.clientHeight;if(w&&h){rnd.setSize(w,h);cam.aspect=w/h;cam.updateProjectionMatrix()}}
+function anim(){requestAnimationFrame(anim);ctrl.update();rnd.render(sc,cam)}
+function applyDelta(delta){
+  for(let k in bm){let r=REST[k];if(r)bm[k].rotation.set(r.x,r.y,r.z)}
+  for(let k in delta){let b=bm[k];if(!b)continue;let r=REST[k]||{x:0,y:0,z:0},d=delta[k];b.rotation.set(r.x+(d.x||0),r.y+(d.y||0),r.z+(d.z||0))}
+  if(sm?.skeleton)sm.skeleton.update();
+}
+window.test=t=>{
+  L("TEST:"+t);
+  if(t==="reset"){applyDelta({});S("A-Pose");return}
+  if(t==="fist"){applyDelta(SHAPES.fist);S("fist");return}
+  if(t==="flat"){applyDelta(SHAPES.flat);S("flat");return}
+  if(t==="point"){applyDelta(SHAPES.point);S("point");return}
+  if(t==="thumb"){applyDelta(SHAPES.thumbUp);S("thumbUp");return}
+  if(t==="hello"){let p={...SHAPES.flat,rUpperArm:dd(70,-10,0),rForearm:dd(-80,0,0),rHand:dd(0,0,10)};applyDelta(p);S("hello");return}
+  if(t==="xiexie"){let p={...SHAPES.thumbUp,rUpperArm:dd(70,-10,0),rForearm:dd(-80,0,0),rHand:dd(0,0,10)};applyDelta(p);S("xiexie");return}
+  if(t==="welcome"){let p={...SHAPES.flat,rUpperArm:dd(30,-40,10),rForearm:dd(-50,0,0),rHand:dd(0,0,0)};applyDelta(p);S("welcome");return}
+  if(t==="goodbye"){let p={...SHAPES.flat,rUpperArm:dd(70,-10,0),rForearm:dd(-80,0,0),rHand:dd(0,0,10)};applyDelta(p);S("goodbye");return}
+};
+(async()=>{
+  S("Loading...");L("Fetching...");
+  let loader=new GLTFLoader();
+  let resp=await fetch("./model.glb");
+  let buf=await resp.arrayBuffer();
+  let gltf=await new Promise((rs,rj)=>{loader.parse(buf,"",rs,rj)});
+  L("Parsed");
+  bm={};REST={};
+  gltf.scene.traverse(ch=>{if(ch.isSkinnedMesh)sm=ch});
+  if(sm?.skeleton){for(let b of sm.skeleton.bones){if(BM[b.name]){bm[BM[b.name]]=b;REST[BM[b.name]]={x:b.rotation.x,y:b.rotation.y,z:b.rotation.z}}}}
+  L("Mapped "+Object.keys(bm).length+" bones");
+  sc.add(gltf.scene);
+  S("Ready");resize();anim();
+})().catch(e=>{L("ERROR:"+e.message);S("FAILED")});
+window.addEventListener("resize",resize);
+</script></body></html>
