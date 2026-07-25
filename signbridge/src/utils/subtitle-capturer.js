@@ -12,19 +12,21 @@ export class SubtitleCapturer {
     this._observers = [];
     this._lastText = "";
     this._debounceTimer = null;
-    this._sources = [];
+    this._sources = new Set();
+    this._watchedTracks = new WeakSet();
+    this._watchedElements = new WeakSet();
   }
 
   start() {
     if (this._active) return;
     this._active = true;
-    this._sources = [];
+    this._sources.clear();
+    this._watchedTracks = new WeakSet();
+    this._watchedElements = new WeakSet();
 
     this._captureTrackElements();
     this._captureVideoTextTracks();
     this._captureDOMSubtitles();
-    this._captureBilibiliSubtitles();
-    this._captureYoutubeSubtitles();
     // Periodic scan for dynamically loaded video elements
     this._scanInterval = setInterval(() => {
       if (!this._active) return;
@@ -38,7 +40,9 @@ export class SubtitleCapturer {
       .querySelectorAll('track[kind="subtitles"], track[kind="captions"]')
       .forEach((track) => {
         if (track.track) {
-          if (track.track.mode !== "showing") track.track.mode = "showing";
+          if (this._watchedTracks.has(track.track)) return;
+          this._watchedTracks.add(track.track);
+          if (track.track.mode === "disabled") track.track.mode = "hidden";
           const handler = () => {
             const cues = track.track.activeCues;
             if (!cues || cues.length === 0) return;
@@ -52,7 +56,7 @@ export class SubtitleCapturer {
           this._observers.push(() =>
             track.track?.removeEventListener("cuechange", handler),
           );
-          this._sources.push("track:" + (track.track.language || "unknown"));
+          this._sources.add("track:" + (track.track.language || "unknown"));
         }
       });
   }
@@ -64,13 +68,15 @@ export class SubtitleCapturer {
         const textTrack = video.textTracks[i];
         if (textTrack.kind !== "subtitles" && textTrack.kind !== "captions")
           continue;
+        if (this._watchedTracks.has(textTrack)) continue;
         if (
           this.language &&
           textTrack.language &&
           !textTrack.language.startsWith(this.language.split("-")[0])
         )
           continue;
-        if (textTrack.mode !== "showing") textTrack.mode = "showing";
+        if (textTrack.mode === "disabled") textTrack.mode = "hidden";
+        this._watchedTracks.add(textTrack);
         const handler = () => {
           const cues = textTrack.activeCues;
           if (!cues || cues.length === 0) return;
@@ -84,102 +90,9 @@ export class SubtitleCapturer {
         this._observers.push(() =>
           textTrack?.removeEventListener("cuechange", handler),
         );
-        this._sources.push("textTrack:" + textTrack.language);
+        this._sources.add("textTrack:" + (textTrack.language || "unknown"));
       }
     });
-  }
-
-  /** Bilibili 专用字幕捕获 */
-  _captureBilibiliSubtitles() {
-    // Bilibili 字幕渲染在特定容器中
-    const biliSelectors = [
-      ".bilibili-player-video-subtitle-text",
-      ".subtitle-container .text",
-      ".video-subtitle",
-      "bpx-player-subtitle-panel-text",
-      ".bpx-player-video-subtitle-text",
-      ".bpx-player-subtitle-wrapper span",
-      ".bpx-player-sending-text",
-      '[class*="subtitle"] [class*="text"]',
-      ".subtitle-text",
-    ];
-
-    // 检查现有元素
-    for (const sel of biliSelectors) {
-      try {
-        document.querySelectorAll(sel).forEach((el) => this._watchElement(el));
-      } catch (e) {}
-    }
-
-    // 监听新元素
-    const observer = new MutationObserver((mutations) => {
-      for (const mutation of mutations) {
-        for (const node of mutation.addedNodes) {
-          if (node.nodeType === 1) {
-            for (const sel of biliSelectors) {
-              try {
-                if (node.matches && node.matches(sel)) this._watchElement(node);
-                if (node.querySelectorAll) {
-                  node
-                    .querySelectorAll(sel)
-                    .forEach((el) => this._watchElement(el));
-                }
-              } catch (e) {}
-            }
-            // 也检查文本内容变化
-            if (node.nodeType === 3 && node.textContent?.trim()) {
-              const parent = node.parentElement;
-              if (
-                parent &&
-                (parent.className.includes("subtitle") ||
-                  parent.className.includes("caption"))
-              ) {
-                this._checkText(node.textContent.trim());
-              }
-            }
-          }
-        }
-      }
-    });
-
-    observer.observe(document.body, { childList: true, subtree: true });
-    this._observers.push(() => observer.disconnect());
-  }
-
-  /** YouTube专用字幕捕获 */
-  _captureYoutubeSubtitles() {
-    if (!window.location.hostname.includes("youtube.com")) return;
-    const ytSelectors = [
-      ".ytp-caption-segment",
-      ".caption-window .ytp-caption-segment span",
-      ".ytp-caption-window-container span",
-      ".ytp-caption-window-rollup span",
-      '[class*="caption-window"] [class*="caption"]',
-    ];
-    for (const sel of ytSelectors) {
-      try {
-        document.querySelectorAll(sel).forEach((el) => this._watchElement(el));
-      } catch (e) {}
-    }
-    const ytObserver = new MutationObserver((mutations) => {
-      for (const mutation of mutations) {
-        for (const node of mutation.addedNodes) {
-          if (node.nodeType === 1) {
-            for (const sel of ytSelectors) {
-              try {
-                if (node.matches && node.matches(sel)) this._watchElement(node);
-                if (node.querySelectorAll)
-                  node
-                    .querySelectorAll(sel)
-                    .forEach((el) => this._watchElement(el));
-              } catch (e) {}
-            }
-          }
-        }
-      }
-    });
-    ytObserver.observe(document.body, { childList: true, subtree: true });
-    this._observers.push(() => ytObserver.disconnect());
   }
 
   _captureDOMSubtitles() {
@@ -220,45 +133,25 @@ export class SubtitleCapturer {
       ".vjs-text-track-display .vjs-text-track-cue div",
       ".vjs-text-track-cue > div",
       // Generic
-      ".bilibili-player-video-subtitle-text",
-      ".subtitle-container .text",
-      ".video-subtitle",
-      "bpx-player-subtitle-panel-text",
-      ".bpx-player-video-subtitle-text",
-      ".bpx-player-subtitle-wrapper span",
-      ".bpx-player-sending-text",
-      ".ytp-caption-segment",
-      ".caption-window .captions-text span",
       '[class*="subtitle"] [class*="text"]',
       '[class*="caption"] [class*="text"]',
       ".player-subtitle",
-      ".vjs-text-track-display .vjs-text-track-cue div",
-      ".txp-subtitle-text",
-      ".iqp-subtitle-text",
-      ".yk-player-subtitle-text",
       ".subtitle-text",
     ];
 
-    for (const sel of subtitleSelectors) {
-      try {
-        document.querySelectorAll(sel).forEach((el) => this._watchElement(el));
-      } catch (e) {}
-    }
+    const combinedSelector = subtitleSelectors.join(",");
+    document
+      .querySelectorAll(combinedSelector)
+      .forEach((element) => this._watchElement(element));
 
     const observer = new MutationObserver((mutations) => {
       for (const mutation of mutations) {
         for (const node of mutation.addedNodes) {
           if (node.nodeType === 1) {
-            for (const sel of subtitleSelectors) {
-              try {
-                if (node.matches && node.matches(sel)) this._watchElement(node);
-                if (node.querySelectorAll) {
-                  node
-                    .querySelectorAll(sel)
-                    .forEach((el) => this._watchElement(el));
-                }
-              } catch (e) {}
-            }
+            if (node.matches?.(combinedSelector)) this._watchElement(node);
+            node
+              .querySelectorAll(combinedSelector)
+              .forEach((element) => this._watchElement(element));
           }
         }
       }
@@ -269,8 +162,8 @@ export class SubtitleCapturer {
   }
 
   _watchElement(element) {
-    if (element._sbWatched) return;
-    element._sbWatched = true;
+    if (this._watchedElements.has(element)) return;
+    this._watchedElements.add(element);
 
     this._checkElementText(element);
 
@@ -332,10 +225,12 @@ export class SubtitleCapturer {
     for (const cleanup of this._observers) {
       try {
         cleanup();
-      } catch (e) {}
+      } catch {}
     }
     this._observers = [];
-    this._sources = [];
+    this._sources.clear();
+    this._watchedTracks = new WeakSet();
+    this._watchedElements = new WeakSet();
     this._lastText = "";
   }
 

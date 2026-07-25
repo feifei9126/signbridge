@@ -103,14 +103,11 @@ function gesture(arm, shape, lArm, lShape) {
 
 // 常用手臂简写
 const A = [0, 0, 0, 35, 50, -15, 15, 0, 0, 0, 0, 0];
-const AH = [0, 0, 0, 40, 50, -15, 20, 0, 0, -90, 0, 0];
 const AL = [0, 0, 0, 30, 50, -10, 10, 0, 0, 0, 0, 0];
 const AT = [0, 0, 0, 55, 5, -10, 20, 0, 0, 0, 10, 10];
 const AW = [10, 20, 0, 35, 20, 0, 15, 5, 0, 10, 0, 0];
 const AWL = [10, -20, 0, 35, -5, 0, 15, -5, 0, 10, 0, 0];
 
-const AP = [0, 0, 0, 40, 50, -15, 20, 0, 0, 0, 0, 0];
-const AS = [0, 0, 0, 40, 30, -15, 15, 0, 0, 0, 0, 0];
 const AD = [0, 0, 0, 35, 40, -10, 20, 0, 0, 0, -5, 0];
 const APL = [0, 0, 0, 40, 50, -15, 20, 0, 0, 5, 0, 0];
 const AW2 = [15, 20, 0, 50, 40, -15, 25, 5, 0, 5, 0, 0];
@@ -611,12 +608,9 @@ addChar(" ", [frm({}, 0.3)]);
 function buildLookup() {
   const lookup = {};
   // Multi-word signs from SIGNS
-  for (const [id, sign] of Object.entries(SIGNS)) {
+  for (const sign of Object.values(SIGNS)) {
     for (const text of sign.texts) {
-      // Keep longest text match
-      if (!lookup[text] || text.length > (lookup[text].length || 0)) {
-        lookup[text] = sign.frames;
-      }
+      if (!lookup[text]) lookup[text] = sign.frames;
     }
   }
   return lookup;
@@ -666,27 +660,91 @@ function stripFunctionWords(text) {
   return result;
 }
 
+function compactText(text) {
+  return stripFunctionWords(normalizeText(text)).replace(/\s/g, "");
+}
+
+const SIGN_MATCHERS = Object.entries(SIGNS)
+  .flatMap(([id, sign]) =>
+    sign.texts.map((text) => ({
+      id,
+      sign,
+      text: compactText(text),
+    })),
+  )
+  .filter((entry) => entry.text)
+  .sort((a, b) => b.text.length - a.text.length);
+
+function neutralGesture() {
+  return { frames: [frm({}, 0.5)], matches: [] };
+}
+
+function translateText(subtitleText, maxSigns = 12) {
+  const text = compactText(subtitleText);
+  if (!text) return null;
+
+  const matches = [];
+  let cursor = 0;
+  while (cursor < text.length && matches.length < maxSigns) {
+    const signMatch = SIGN_MATCHERS.find((entry) =>
+      text.startsWith(entry.text, cursor),
+    );
+    if (signMatch) {
+      matches.push({
+        id: signMatch.id,
+        text: signMatch.text,
+        gloss: signMatch.sign.gloss,
+        frames: signMatch.sign.frames,
+      });
+      cursor += signMatch.text.length;
+      continue;
+    }
+
+    const character = text[cursor];
+    if (SINGLE_CHARS[character]) {
+      matches.push({
+        id: `char_${character}`,
+        text: character,
+        gloss: character,
+        frames: SINGLE_CHARS[character],
+      });
+    }
+    cursor += 1;
+  }
+
+  if (matches.length === 0) {
+    console.log("[SB] No match, using idle");
+    return neutralGesture();
+  }
+
+  console.log(
+    "[SB] Translation:",
+    matches.map((match) => `${match.id}:${match.text}`).join(" → "),
+  );
+  return {
+    frames: [...matches.flatMap((match) => match.frames), frm({}, 0.25)],
+    matches: matches.map((match) => ({
+      id: match.id,
+      text: match.text,
+      gloss: match.gloss,
+    })),
+  };
+}
+
 function findGesture(subtitleText) {
-  const text = stripFunctionWords(normalizeText(subtitleText));
+  const text = compactText(subtitleText);
   if (!text) return null;
 
   // 第1层：多字词匹配（最长优先）
-  const entries = Object.entries(SIGNS).sort(
-    (a, b) => b[1].texts[0].length - a[1].texts[0].length,
-  );
-  for (const [id, sign] of entries) {
-    for (const t of sign.texts) {
-      if (text.includes(t)) {
-        console.log("[SB] Sign match:", id, "→", t);
-        return { frames: sign.frames, meta: sign.meta };
-      }
-    }
+  const signMatch = SIGN_MATCHERS.find((entry) => text.includes(entry.text));
+  if (signMatch) {
+    console.log("[SB] Sign match:", signMatch.id, "→", signMatch.text);
+    return { frames: signMatch.sign.frames, meta: signMatch.sign.meta };
   }
 
   // 第2层：单字匹配
-  const chars = text.replace(/\s/g, "");
-  for (let i = 0; i < chars.length; i++) {
-    const ch = chars[i];
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
     if (SINGLE_CHARS[ch]) {
       console.log("[SB] Char match:", ch);
       return { frames: SINGLE_CHARS[ch] };
@@ -695,7 +753,7 @@ function findGesture(subtitleText) {
 
   // 第3层：默认（空闲姿态）
   console.log("[SB] No match, using idle");
-  return { frames: [frm({}, 0.5)] };
+  return neutralGesture();
 }
 
 // ===== 兼容旧版接口 =====
@@ -710,5 +768,6 @@ export {
   CHARS,
   addChar,
   findGesture,
+  translateText,
   normalizeText,
 };

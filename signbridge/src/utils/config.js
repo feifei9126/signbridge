@@ -4,7 +4,7 @@
  */
 
 const DEFAULTS = {
-  enabled: false,
+  enabled: true,
   sourceLanguage: "auto",
   targetSignLanguage: "csl",
   avatarStyle: "default",
@@ -27,7 +27,7 @@ export async function getConfig() {
       const result = await chrome.storage.sync.get(STORAGE_KEY);
       return { ...DEFAULTS, ...result[STORAGE_KEY] };
     }
-  } catch (e) {
+  } catch {
     // Fallback for non-extension context
   }
   return { ...DEFAULTS };
@@ -40,7 +40,7 @@ export async function setConfig(updates) {
     if (typeof chrome !== "undefined" && chrome.storage) {
       await chrome.storage.sync.set({ [STORAGE_KEY]: merged });
     }
-  } catch (e) {
+  } catch {
     // Fallback
   }
   return merged;
@@ -51,7 +51,7 @@ export async function resetConfig() {
     if (typeof chrome !== "undefined" && chrome.storage) {
       await chrome.storage.sync.remove(STORAGE_KEY);
     }
-  } catch (e) {}
+  } catch {}
   return { ...DEFAULTS };
 }
 

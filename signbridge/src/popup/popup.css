@@ -123,6 +123,10 @@ body {
   animation: pulse 1.5s ease-in-out infinite;
 }
 
+.sb-dot.error {
+  background: #ef4444;
+}
+
 @keyframes pulse {
   0%,
   100% {
@@ -377,4 +381,53 @@ body {
 }
 .sb-send-btn:hover {
   background: #6366f1;
+}
+
+.sb-utilities {
+  padding: 0 16px 12px;
+  display: grid;
+  gap: 8px;
+}
+
+.sb-mic-row,
+.sb-tools-row {
+  display: flex;
+  gap: 6px;
+}
+
+.sb-tools-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+
+.sb-secondary-btn {
+  min-height: 34px;
+  padding: 7px 9px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  cursor: pointer;
+  font-size: 11px;
+}
+
+.sb-secondary-btn:hover {
+  border-color: var(--accent);
+}
+
+.sb-secondary-btn.active {
+  background: #1f6b3a;
+  border-color: var(--success);
+}
+
+.sb-icon-command {
+  grid-column: 1 / -1;
+}
+
+.sb-mic-status {
+  min-width: 60px;
+  display: flex;
+  align-items: center;
+  color: var(--text-muted);
+  font-size: 10px;
 }

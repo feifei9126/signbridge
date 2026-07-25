@@ -30,6 +30,7 @@ export class SpeechRecognizer {
   async start() {
     if (this._isRunning) return;
     this._isRunning = true;
+    this._silent = false;
     this.onStateChange("starting");
 
     if (!SpeechRecognizer.isSupported()) {
@@ -103,7 +104,19 @@ export class SpeechRecognizer {
     };
 
     this._recognition.onend = () => {
-      // 不自动重启—让调用方决定
+      if (!this._isRunning || this._silent) return;
+      clearTimeout(this._restartTimeout);
+      this._restartTimeout = setTimeout(() => {
+        if (!this._isRunning || this._silent) return;
+        try {
+          this._recognition?.start();
+        } catch (error) {
+          console.warn(
+            "[SignBridge] Speech recognition restart failed:",
+            error.message,
+          );
+        }
+      }, 250);
     };
 
     this._recognition.start();
@@ -124,7 +137,7 @@ export class SpeechRecognizer {
     if (this._recognition) {
       try {
         this._recognition.stop();
-      } catch (e) {}
+      } catch {}
       this._recognition = null;
     }
     this.onStateChange("stopped");

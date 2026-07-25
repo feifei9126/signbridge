@@ -3,7 +3,7 @@
   "name": "SignBridge",
   "version": "1.0.0",
   "description": "实时手语翻译覆盖层 — 在视频角落显示3D虚拟人手语翻译",
-  "homepage_url": "https://signbridge.app",
+  "homepage_url": "https://github.com/feifei9126/signbridge",
   "author": "SignBridge Team",
   "icons": {
     "16": "icons/icon16.png",
@@ -12,12 +12,7 @@
   },
   "permissions": [
     "storage",
-    "activeTab",
-    "scripting"
-  ],
-  "host_permissions": [
-    "http://*/*",
-    "https://*/*"
+    "activeTab"
   ],
   "action": {
     "default_popup": "popup/index.html",
@@ -43,10 +38,13 @@
   "web_accessible_resources": [
     {
       "resources": [
-        "avatar/*",
-        "content/*",
-        "utils/*",
-        "popup/*"
+        "avatar/avatar-frame.html",
+        "avatar/iframe-bundle.js",
+        "avatar/three.module.js",
+        "avatar/jsm/loaders/GLTFLoader.js",
+        "avatar/jsm/utils/BufferGeometryUtils.js",
+        "avatar/model.glb",
+        "avatar/page-agent.js"
       ],
       "matches": ["http://*/*", "https://*/*"]
     }

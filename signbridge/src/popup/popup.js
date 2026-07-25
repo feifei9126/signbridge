@@ -1,29 +1,26 @@
-/**
- * SignBridge Popup v2
- * 新增: 手动输入框 - 直接打字驱动虚拟人手语
- */
 import { getConfig, setConfig } from "../utils/config.js";
-import { setLocale } from "../i18n/locales.js";
+import { setLocale, t } from "../i18n/locales.js";
 
 class SignBridgePopup {
   constructor() {
     this.config = {};
+    this.elements = {};
     this._currentTabId = null;
     this._isActive = false;
     this._micEnabled = false;
+    this._settingsTimer = null;
   }
 
   async init() {
     this.config = await getConfig();
-    this._currentTabId = (await this._getCurrentTab())?.id;
-    if (this.config.uiLocale && this.config.uiLocale !== "auto") {
-      setLocale(this.config.uiLocale);
-    }
+    this._currentTabId = (await this._getCurrentTab())?.id ?? null;
+    this._setConfiguredLocale();
     this._cacheElements();
+    this._applyTranslations();
     this._bindEvents();
     this._populateSettings();
     this._updateUI();
-    this._queryStatus();
+    await this._queryStatus();
   }
 
   _cacheElements() {
@@ -34,24 +31,31 @@ class SignBridgePopup {
       statusDot: document.getElementById("statusDot"),
       statusText: document.getElementById("statusText"),
       signLanguage: document.getElementById("signLanguage"),
-      avatarStyle: document.getElementById("avatarStyle"),
-      avatarPosition: document.getElementById("avatarPosition"),
       avatarSize: document.getElementById("avatarSize"),
       sizeValue: document.getElementById("sizeValue"),
       sourceLanguage: document.getElementById("sourceLanguage"),
-      showSubtitles: document.getElementById("showSubtitles"),
-      autoDetect: document.getElementById("autoDetect"),
       uiLocale: document.getElementById("uiLocale"),
       settingsBtn: document.getElementById("btnSettings"),
       btnPoseEditor: document.getElementById("btnPoseEditor"),
       btnRecordMode: document.getElementById("btnRecordMode"),
-      // 新增: 手动输入
       textInput: document.getElementById("textInput"),
       btnSendText: document.getElementById("btnSendText"),
       btnHelp: document.getElementById("btnHelp"),
       btnMic: document.getElementById("btnMic"),
       micStatus: document.getElementById("micStatus"),
     };
+  }
+
+  _applyTranslations() {
+    document.querySelectorAll("[data-i18n]").forEach((element) => {
+      element.textContent = t(element.dataset.i18n);
+    });
+    document.querySelectorAll("[data-i18n-placeholder]").forEach((element) => {
+      element.placeholder = t(element.dataset.i18nPlaceholder);
+    });
+    document.querySelectorAll("[data-i18n-title]").forEach((element) => {
+      element.title = t(element.dataset.i18nTitle);
+    });
   }
 
   _bindEvents() {
@@ -61,155 +65,190 @@ class SignBridgePopup {
     this.elements.signLanguage?.addEventListener("change", () =>
       this._saveSettings(),
     );
-    this.elements.avatarPosition?.addEventListener("change", () =>
+    this.elements.avatarSize?.addEventListener("input", () => {
+      this._updateSizeLabel();
+      this._scheduleSettingsSave();
+    });
+    this.elements.avatarSize?.addEventListener("change", () =>
       this._saveSettings(),
     );
-    this.elements.avatarSize?.addEventListener("input", () => {
-      this.elements.sizeValue.textContent =
-        this.elements.avatarSize.value + "px";
-      this._saveSettings();
-    });
     this.elements.sourceLanguage?.addEventListener("change", () =>
       this._saveSettings(),
     );
-    this.elements.uiLocale?.addEventListener("change", () =>
-      this._saveSettings(),
-    );
+    this.elements.uiLocale?.addEventListener("change", async () => {
+      await this._saveSettings();
+      this._setConfiguredLocale();
+      this._applyTranslations();
+      this._updateUI();
+      this._updateMicUI();
+    });
     this.elements.settingsBtn?.addEventListener("click", () => {
       const settings = document.getElementById("mainSettings");
-      if (settings)
-        settings.style.display =
-          settings.style.display === "none" ? "flex" : "none";
+      if (settings) settings.hidden = !settings.hidden;
     });
-    // 手动发送文字
     this.elements.btnSendText?.addEventListener("click", () =>
       this._sendText(),
     );
-    this.elements.textInput?.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") this._sendText();
+    this.elements.textInput?.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") this._sendText();
     });
-
     this.elements.btnPoseEditor?.addEventListener("click", () => {
-      const url = chrome.runtime.getURL("avatar/pose-editor.html");
-      chrome.tabs.create({ url });
+      chrome.tabs.create({
+        url: chrome.runtime.getURL("avatar/pose-editor.html"),
+      });
     });
     this.elements.btnRecordMode?.addEventListener("click", () => {
-      const url = chrome.runtime.getURL("avatar/record-mode.html");
-      chrome.tabs.create({ url });
+      chrome.tabs.create({
+        url: chrome.runtime.getURL("avatar/record-mode.html"),
+      });
     });
     this.elements.btnMic?.addEventListener("click", () => this._handleMic());
     this.elements.btnHelp?.addEventListener("click", () => {
-      const url = chrome.runtime.getURL("avatar/help.html");
-      chrome.tabs.create({ url });
+      chrome.tabs.create({ url: chrome.runtime.getURL("avatar/help.html") });
     });
   }
 
   _populateSettings() {
-    if (this.elements.signLanguage)
-      this.elements.signLanguage.value =
-        this.config.targetSignLanguage || "csl";
-    if (this.elements.avatarPosition)
-      this.elements.avatarPosition.value =
-        this.config.avatarPosition || "bottom-right";
-    if (this.elements.avatarSize) {
-      this.elements.avatarSize.value = this.config.avatarSize || 180;
-      if (this.elements.sizeValue)
-        this.elements.sizeValue.textContent =
-          (this.config.avatarSize || 180) + "px";
+    if (this.elements.signLanguage) {
+      const requested = this.config.targetSignLanguage || "csl";
+      const supported = Array.from(this.elements.signLanguage.options).some(
+        (option) => option.value === requested,
+      );
+      this.elements.signLanguage.value = supported ? requested : "csl";
     }
-    if (this.elements.sourceLanguage)
+    if (this.elements.avatarSize) {
+      this.elements.avatarSize.value = this.config.avatarSize || 260;
+      this._updateSizeLabel();
+    }
+    if (this.elements.sourceLanguage) {
       this.elements.sourceLanguage.value = this.config.sourceLanguage || "auto";
-    if (this.elements.uiLocale)
+    }
+    if (this.elements.uiLocale) {
       this.elements.uiLocale.value = this.config.uiLocale || "auto";
+    }
+  }
+
+  _updateSizeLabel() {
+    if (this.elements.sizeValue && this.elements.avatarSize) {
+      this.elements.sizeValue.textContent = `${this.elements.avatarSize.value}px`;
+    }
   }
 
   _updateUI() {
-    if (this._isActive) {
-      this.elements.toggleBtn?.classList.add("active");
-      if (this.elements.toggleIcon) this.elements.toggleIcon.textContent = "⏹";
-      if (this.elements.toggleText)
-        this.elements.toggleText.textContent = "停止翻译";
-      if (this.elements.statusDot)
-        this.elements.statusDot.className = "sb-dot translating";
-      if (this.elements.statusText)
-        this.elements.statusText.textContent = "正在翻译...";
-    } else {
-      this.elements.toggleBtn?.classList.remove("active");
-      if (this.elements.toggleIcon) this.elements.toggleIcon.textContent = "▶";
-      if (this.elements.toggleText)
-        this.elements.toggleText.textContent = "开始翻译";
-      if (this.elements.statusDot) this.elements.statusDot.className = "sb-dot";
-      if (this.elements.statusText)
-        this.elements.statusText.textContent = "已就绪";
+    this.elements.toggleBtn?.classList.toggle("active", this._isActive);
+    if (this.elements.toggleIcon) {
+      this.elements.toggleIcon.textContent = this._isActive ? "■" : "▶";
     }
+    if (this.elements.toggleText) {
+      this.elements.toggleText.textContent = t(
+        this._isActive ? "stop" : "start",
+      );
+    }
+    this._setStatus(this._isActive ? "translating" : "ready", this._isActive);
+  }
+
+  _setStatus(key, translating = false) {
+    if (this.elements.statusDot) {
+      this.elements.statusDot.className = translating
+        ? "sb-dot translating"
+        : key === "unavailable"
+          ? "sb-dot error"
+          : "sb-dot";
+    }
+    if (this.elements.statusText) this.elements.statusText.textContent = t(key);
   }
 
   async _handleToggle() {
-    if (this._isActive) {
-      await this._sendMessage("stop");
-      this._isActive = false;
-    } else {
-      await this._sendMessage("start");
-      this._isActive = true;
+    const requestedActive = !this._isActive;
+    const response = await this._sendMessage(
+      requestedActive ? "start" : "stop",
+    );
+    if (!response?.ok) {
+      this._setStatus("unavailable");
+      return;
     }
+    this._isActive = response.active ?? requestedActive;
+    this.config = await setConfig({ enabled: this._isActive });
     this._updateUI();
   }
 
   async _handleMic() {
-    var e = this.elements.btnMic;
-    if (!e) return;
-    if (this._micEnabled) {
-      await this._sendMessage("micOff");
-      this._micEnabled = !1;
-      e.textContent = "🎤 麦克风：关闭";
-      e.style.background = "#2a2a4a";
-      if (this.elements.micStatus)
-        this.elements.micStatus.textContent = "已关闭";
-    } else {
-      await this._sendMessage("micOn");
-      this._micEnabled = !0;
-      e.textContent = "🎤 麦克风：开启";
-      e.style.background = "#2d6a2d";
-      if (this.elements.micStatus)
-        this.elements.micStatus.textContent = "监听中...";
+    const requestedEnabled = !this._micEnabled;
+    const response = await this._sendMessage(
+      requestedEnabled ? "micOn" : "micOff",
+    );
+    if (!response?.ok) {
+      if (this.elements.micStatus) {
+        this.elements.micStatus.textContent = t("unavailable");
+      }
+      return;
+    }
+    this._micEnabled = requestedEnabled;
+    this._updateMicUI();
+  }
+
+  _updateMicUI() {
+    this.elements.btnMic?.classList.toggle("active", this._micEnabled);
+    if (this.elements.btnMic) {
+      this.elements.btnMic.textContent = t(
+        this._micEnabled ? "micOn" : "micOff",
+      );
+    }
+    if (this.elements.micStatus) {
+      this.elements.micStatus.textContent = t(
+        this._micEnabled ? "micListening" : "micStopped",
+      );
     }
   }
+
   async _sendText() {
     const text = this.elements.textInput?.value?.trim();
     if (!text) return;
-    // 发送到 content script
-    await this._sendMessage("sendText", { text });
+    const response = await this._sendMessage("sendText", { text });
+    if (!response?.ok) {
+      this._setStatus("unavailable");
+      return;
+    }
     this.elements.textInput.value = "";
-    // 反馈
-    const btn = this.elements.btnSendText;
-    if (btn) {
-      btn.textContent = "✓";
+    if (this.elements.btnSendText) {
+      this.elements.btnSendText.textContent = t("sent");
       setTimeout(() => {
-        if (btn) btn.textContent = "发送";
+        if (this.elements.btnSendText) {
+          this.elements.btnSendText.textContent = t("send");
+        }
       }, 500);
     }
   }
 
+  _scheduleSettingsSave() {
+    clearTimeout(this._settingsTimer);
+    this._settingsTimer = setTimeout(() => this._saveSettings(), 100);
+  }
+
   async _saveSettings() {
+    clearTimeout(this._settingsTimer);
     const updates = {
-      targetSignLanguage: this.elements.signLanguage?.value,
-      avatarPosition: this.elements.avatarPosition?.value,
-      avatarSize: parseInt(this.elements.avatarSize?.value),
-      sourceLanguage: this.elements.sourceLanguage?.value,
-      uiLocale: this.elements.uiLocale?.value,
+      targetSignLanguage: this.elements.signLanguage?.value || "csl",
+      avatarSize: Number.parseInt(this.elements.avatarSize?.value || "260", 10),
+      sourceLanguage: this.elements.sourceLanguage?.value || "auto",
+      uiLocale: this.elements.uiLocale?.value || "auto",
     };
     this.config = await setConfig(updates);
-    if (updates.uiLocale && updates.uiLocale !== "auto")
-      setLocale(updates.uiLocale);
     await this._sendMessage("updateConfig", { config: updates });
   }
 
   async _queryStatus() {
     const response = await this._sendMessage("getStatus");
-    if (response) {
-      this._isActive = response.active || false;
-      this._updateUI();
+    if (!response?.ok) {
+      this._setStatus("unavailable");
+      return;
     }
+    this._isActive = response.active ?? false;
+    this._updateUI();
+  }
+
+  _setConfiguredLocale() {
+    setLocale(this.config.uiLocale === "auto" ? null : this.config.uiLocale);
   }
 
   async _sendMessage(action, data = {}) {
@@ -220,7 +259,7 @@ class SignBridgePopup {
           ...data,
         });
       }
-    } catch (e) {}
+    } catch {}
     return null;
   }
 

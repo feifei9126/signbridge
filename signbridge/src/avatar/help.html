@@ -1,0 +1,241 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <title>SignBridge 帮助</title>
+    <style>
+      body {
+        font-family: -apple-system, sans-serif;
+        max-width: 800px;
+        margin: 40px auto;
+        padding: 20px;
+        background: #1a1a2e;
+        color: #e0e0e0;
+        line-height: 1.8;
+      }
+      h1 {
+        color: #4f46e5;
+        border-bottom: 2px solid #333;
+        padding-bottom: 10px;
+      }
+      h2 {
+        color: #ffd700;
+        margin-top: 30px;
+      }
+      h3 {
+        color: #aaa;
+        margin-top: 20px;
+      }
+      code {
+        background: #2a2a4a;
+        padding: 2px 6px;
+        border-radius: 3px;
+        font-size: 13px;
+        color: #ffd700;
+      }
+      pre {
+        background: #111;
+        padding: 15px;
+        border-radius: 6px;
+        overflow-x: auto;
+        font-size: 12px;
+      }
+      table {
+        border-collapse: collapse;
+        width: 100%;
+        margin: 10px 0;
+      }
+      td,
+      th {
+        border: 1px solid #333;
+        padding: 8px 12px;
+        font-size: 13px;
+      }
+      th {
+        background: #2a2a4a;
+        color: #ffd700;
+      }
+      a {
+        color: #4f46e5;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>📖 SignBridge 帮助文档</h1>
+    <p>
+      实时字幕与语音输入驱动的手语动画浏览器扩展。完整文档见
+      <a href="https://github.com/feifei9126/signbridge">GitHub</a>。
+    </p>
+
+    <h2>🚀 快速使用</h2>
+    <ol>
+      <li>打开B站/YouTube任意视频</li>
+      <li>确保视频已开启CC字幕</li>
+      <li>等待右下角虚拟人加载</li>
+      <li>字幕出现时自动翻译</li>
+    </ol>
+
+    <h2>🖱 鼠标交互</h2>
+    <table>
+      <tr>
+        <th>操作</th>
+        <th>效果</th>
+      </tr>
+      <tr>
+        <td>拖拽左右</td>
+        <td>旋转虚拟人</td>
+      </tr>
+      <tr>
+        <td>拖拽上下</td>
+        <td>上下平移虚拟人</td>
+      </tr>
+      <tr>
+        <td>鼠标滚轮</td>
+        <td>缩放虚拟人</td>
+      </tr>
+      <tr>
+        <td>拖拽标题栏</td>
+        <td>移动浮窗位置</td>
+      </tr>
+      <tr>
+        <td>点击×</td>
+        <td>关闭浮窗</td>
+      </tr>
+    </table>
+
+    <h2>🎛 弹窗控制</h2>
+    <table>
+      <tr>
+        <th>按钮</th>
+        <th>功能</th>
+      </tr>
+      <tr>
+        <td>▶/⏹</td>
+        <td>开关翻译</td>
+      </tr>
+      <tr>
+        <td>🎤</td>
+        <td>开关语音识别(需授权)</td>
+      </tr>
+      <tr>
+        <td>🎬</td>
+        <td>姿势编辑器(骨骼调参+导出)</td>
+      </tr>
+      <tr>
+        <td>🎥</td>
+        <td>录制工具(关键帧动画)</td>
+      </tr>
+      <tr>
+        <td>📖</td>
+        <td>本帮助页面</td>
+      </tr>
+    </table>
+
+    <h2>🦴 骨骼系统</h2>
+    <p>
+      Godette模型 227骨骼 76K三角面。映射33根关键骨骼：手臂×8 + 手指×10 + 头×2 +
+      面部×4 + 躯干×9。
+    </p>
+    <p>手形原子(7种): 握拳/平掌/食指指/拇指竖/胜利V/OK/放松</p>
+    <p>轴约定: X=前后/弯曲, Y=外展/左右, Z=扭转</p>
+
+    <h2>🛠 工具</h2>
+    <ul>
+      <li>
+        <b>🎬姿势编辑器</b>:
+        <code>chrome-extension://ID/avatar/pose-editor.html</code> —
+        可视化调骨骼滑块，导出代码
+      </li>
+      <li>
+        <b>🎥录制工具</b>:
+        <code>chrome-extension://ID/avatar/record-mode.html</code> —
+        录制关键帧序列，导出词条
+      </li>
+    </ul>
+
+    <h2>翻译架构</h2>
+    <ol>
+      <li>字幕轨、网页字幕节点或语音识别产生文本。</li>
+      <li>文本规范化并过滤无独立手势的虚词。</li>
+      <li>按原文顺序做最长词组匹配，未知内容跳过。</li>
+      <li>把多个已知词的关键帧合并，通过 REST 增量和平滑插值播放。</li>
+    </ol>
+    <p>
+      当前词典包含 52 个结构化词条和 16
+      个单字回退。这是可审计的词典驱动方案，不等同于完整自然语言手语翻译；未收录词和
+      CSL 语法重排仍需继续建设。
+    </p>
+
+    <h2>推荐扩展方式</h2>
+    <ol>
+      <li>先在姿势编辑器或录制工具中完成并人工确认动作。</li>
+      <li>给动作添加稳定的 gloss、别名、标签和手语参数元数据。</li>
+      <li>把模型骨骼映射与动作数据分离，更换模型时只重做一次重定向配置。</li>
+      <li>为每个标准动作保存预览截图和回归测试，再并入运行时词典。</li>
+    </ol>
+
+    <h2>📝 控制台日志</h2>
+    <table>
+      <tr>
+        <th>前缀</th>
+        <th>含义</th>
+      </tr>
+      <tr>
+        <td><code>[SB-CS]</code></td>
+        <td>注入器加载/初始化</td>
+      </tr>
+      <tr>
+        <td><code>[SB]</code></td>
+        <td>模型加载、手势匹配</td>
+      </tr>
+      <tr>
+        <td><code>[SB] Sign match</code></td>
+        <td>词条匹配成功(id→文字)</td>
+      </tr>
+      <tr>
+        <td><code>[SB] No match</code></td>
+        <td>无匹配，播放空闲姿态</td>
+      </tr>
+    </table>
+
+    <h2>❓ 常见问题</h2>
+    <table>
+      <tr>
+        <th>问题</th>
+        <th>解决</th>
+      </tr>
+      <tr>
+        <td>虚拟人不加载</td>
+        <td>重新加载扩展→刷新页面→看控制台<code>[SB]✅Ready</code></td>
+      </tr>
+      <tr>
+        <td>字幕无手势</td>
+        <td>确认CC字幕已开→看控制台<code>[SB]Sign match</code></td>
+      </tr>
+      <tr>
+        <td>手势不准</td>
+        <td>用姿势编辑器或录制工具校准并验收动作后更新词典</td>
+      </tr>
+      <tr>
+        <td>手掌方向反</td>
+        <td>调<code>gesture()</code>中hZ(第12个参数)</td>
+      </tr>
+      <tr>
+        <td>手臂穿身体</td>
+        <td>增大uaY(第5个参数)到50+外推</td>
+      </tr>
+      <tr>
+        <td>页面卡顿</td>
+        <td>确认扩展只出现一个浮窗；重新构建并加载最新 dist 目录</td>
+      </tr>
+      <tr>
+        <td>麦克风不工作</td>
+        <td>点弹窗🎤按钮授权</td>
+      </tr>
+    </table>
+
+    <p style="margin-top: 40px; color: #666; font-size: 12px">
+      SignBridge — MIT License | 让每一个视频都能被听见 👐
+    </p>
+  </body>
+</html>
