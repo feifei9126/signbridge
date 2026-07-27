@@ -97,13 +97,25 @@
       </section>
 
       <section class="sb-utilities">
-        <div class="sb-mic-row">
-          <button id="btnMic" class="sb-secondary-btn" data-i18n="micOff">
-            麦克风：关闭
+        <div class="sb-audio-row">
+          <button id="btnAudio" class="sb-secondary-btn" data-i18n="audioOff">
+            视频声音：关闭
           </button>
-          <span id="micStatus" class="sb-mic-status" data-i18n="micUnknown"
-            >未知</span
+          <span
+            id="audioStatus"
+            class="sb-audio-status"
+            data-i18n="audioStopped"
+            >已关闭</span
           >
+          <button
+            id="btnAsrSettings"
+            class="sb-icon-btn sb-audio-settings"
+            type="button"
+            data-i18n-title="asrSettings"
+            title="声音识别设置"
+          >
+            ⚙
+          </button>
         </div>
         <div class="sb-tools-row">
           <button

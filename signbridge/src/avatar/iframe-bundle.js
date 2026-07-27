@@ -5,51 +5,13 @@
  */
 import * as THREE from "./three.module.js";
 import { GLTFLoader } from "./jsm/loaders/GLTFLoader.js";
+import { createHumanoidRig } from "./humanoid-rig.js";
+import { createMotionPlayer } from "./motion-player.js";
 import { translateText } from "./sign-language-data.js";
 
-// Godette骨骼映射 — 使用GLB中的实际骨骼名称
-const BONE_SHORT = {
-  Root_225: "root",
-  Body_220: "body",
-  Hip_218: "hip",
-  Spine_1_199: "spine",
-  Spine_2_198: "chest",
-  Ribcage_197: "upperChest",
-  Neck_1_132: "neck",
-  Neck_2_131: "neck2",
-  Neck_3_130: "neck3",
-  Head_129: "head",
-  ClavicR_192: "rShoulder",
-  Arm_Upper_1R_187: "rUpperArm",
-  Arm_Lower_1R_185: "rForearm",
-  HandR_184: "rHand",
-  ClavicL_162: "lShoulder",
-  Arm_Upper_1L_157: "lUpperArm",
-  Arm_Lower_1L_155: "lForearm",
-  HandL_154: "lHand",
-  ThumbR_178: "rthumb",
-  Finger_1R002_165: "rindex",
-  Finger_2R002_168: "rmiddle",
-  Finger_3R002_171: "rring",
-  Finger_4R002_174: "rpinky",
-  ThumbL_148: "lthumb",
-  Finger_1L002_135: "lindex",
-  Finger_2L002_138: "lmiddle",
-  Finger_3L002_141: "lring",
-  Finger_4L002_144: "lpinky",
-  Jaw_4: "jaw",
-  Eyelid_Control_UpperL_14: "lUpperEyelid",
-  Eyelid_Control_UpperR_15: "rUpperEyelid",
-  Eyelid_Control_LowerL_16: "lLowerEyelid",
-  Eyelid_Control_LowerR_17: "rLowerEyelid",
-};
-
-let renderer,
-  scene,
-  camera,
-  skinnedMesh = null;
-let boneMap = {},
-  REST = {};
+let renderer, scene, camera;
+let rig = null;
+let motionPlayer = null;
 let modelRoot = null;
 let baseModelY = -0.65;
 let modelReady = false;
@@ -59,83 +21,6 @@ let breathingFrameId = null;
 let blinkTimerId = null;
 let subtitleTimerId = null;
 
-// ===== 动画系统 =====
-let animQueue = [],
-  animTimer = null,
-  animPlaying = false,
-  blendFrameId = null;
-
-function playFrames(frames) {
-  if (!frames || frames.length === 0) return;
-  stopAnimation();
-  animQueue = [...frames];
-  animPlaying = true;
-  playNextFrame();
-}
-
-function playNextFrame() {
-  if (!animPlaying || animQueue.length === 0) {
-    animPlaying = false;
-    cancelAnimationFrame(blendFrameId);
-    return;
-  }
-  const frame = animQueue.shift();
-  const durMs = (frame.duration || 0.8) * 1000;
-  const blendMs = Math.min(durMs * 0.35, 150);
-
-  // Save current absolute rotations as 'from'
-  const from = {};
-  for (const k in boneMap) {
-    const b = boneMap[k];
-    from[k] = { x: b.rotation.x, y: b.rotation.y, z: b.rotation.z };
-  }
-
-  const startTime = performance.now();
-  function step() {
-    let t = Math.min((performance.now() - startTime) / blendMs, 1.0);
-    t = t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t; // ease in-out
-    lerpPose(from, frame.value, t);
-    if (t < 1.0) blendFrameId = requestAnimationFrame(step);
-  }
-  step();
-
-  animTimer = setTimeout(playNextFrame, durMs);
-}
-
-function stopAnimation() {
-  animPlaying = false;
-  if (animTimer) {
-    clearTimeout(animTimer);
-    animTimer = null;
-  }
-  if (blendFrameId) cancelAnimationFrame(blendFrameId);
-  blendFrameId = null;
-  animQueue = [];
-}
-
-// ===== Pose 应用 =====
-function lerpPose(fromPose, toPose, t) {
-  if (!skinnedMesh?.skeleton) return;
-  for (const k in boneMap) {
-    const r = REST[k];
-    if (!r) continue;
-    const target = toPose[k]
-      ? {
-          x: r.x + (toPose[k].x || 0),
-          y: r.y + (toPose[k].y || 0),
-          z: r.z + (toPose[k].z || 0),
-        }
-      : { x: r.x, y: r.y, z: r.z };
-    const current = fromPose[k] || { x: r.x, y: r.y, z: r.z };
-    boneMap[k].rotation.set(
-      current.x + (target.x - current.x) * t,
-      current.y + (target.y - current.y) * t,
-      current.z + (target.z - current.z) * t,
-    );
-  }
-  skinnedMesh.skeleton.update();
-}
-
 // ===== 字幕 → 手语 =====
 
 function textToAnimation(text) {
@@ -143,8 +28,7 @@ function textToAnimation(text) {
   const result = translateText(text);
   if (!result) return false;
   if (!result.frames) return false;
-  playFrames(result.frames);
-  return true;
+  return motionPlayer?.play(result) || false;
 }
 
 // ===== 初始化 =====
@@ -189,11 +73,10 @@ function init(modelUrl) {
     modelUrl,
     (gltf) => {
       console.log("[SB] Model loaded");
-      skinnedMesh = null;
-      boneMap = {};
+      let primaryMesh = null;
       gltf.scene.traverse((child) => {
-        if (child.isSkinnedMesh && !skinnedMesh) {
-          skinnedMesh = child;
+        if (child.isSkinnedMesh && !primaryMesh) {
+          primaryMesh = child;
           console.log(
             "[SB] Mesh:",
             child.name,
@@ -202,54 +85,29 @@ function init(modelUrl) {
           );
         }
       });
-      if (skinnedMesh?.skeleton) {
-        const bones = skinnedMesh.skeleton.bones;
-        console.log("[SB] Bones:", bones.length);
-        for (const b of bones) {
-          if (BONE_SHORT[b.name]) boneMap[BONE_SHORT[b.name]] = b;
-        }
-        const crit = [
-          "rUpperArm",
-          "rForearm",
-          "rHand",
-          "lUpperArm",
-          "lForearm",
-          "lHand",
-          "head",
-        ];
-        const st = {};
-        for (const k of crit) st[k] = !!boneMap[k];
-        console.log("[SB] BoneMap status:", JSON.stringify(st));
-        if (!boneMap.rUpperArm) {
-          console.warn(
-            "[SB] rUpperArm not mapped! Available:",
-            bones
-              .map((b) => b.name)
-              .filter(
-                (n) =>
-                  n.includes("Arm") ||
-                  n.includes("Hand") ||
-                  n.includes("Clavic"),
-              ),
-          );
-        }
+      const boneCount = primaryMesh?.skeleton?.bones.length || 0;
+      console.log("[SB] Bones:", boneCount);
+      rig = createHumanoidRig(gltf.scene);
+      motionPlayer = createMotionPlayer(rig);
+      console.log(
+        "[SB] Humanoid profile:",
+        rig.profile.id,
+        `${Object.keys(rig.bones).length} mapped`,
+      );
+      if (!rig.isSigningReady) {
+        console.error("[SB] Missing signing bones:", rig.missing);
+        modelLoading = false;
+        notify("ERROR", {
+          message: `Missing signing bones: ${rig.missing.join(", ")}`,
+        });
+        return;
       }
       scene.add(gltf.scene);
       gltf.scene.scale.set(0.984, 0.984, 0.984);
       gltf.scene.position.y = -0.65;
       modelRoot = gltf.scene;
       baseModelY = gltf.scene.position.y;
-
-      // Save REST rotations (A-Pose)
-      REST = {};
-      for (const k in boneMap) {
-        REST[k] = {
-          x: boneMap[k].rotation.x,
-          y: boneMap[k].rotation.y,
-          z: boneMap[k].rotation.z,
-        };
-      }
-      console.log("[SB] REST saved for", Object.keys(REST).length, "bones");
+      console.log("[SB] REST saved for", Object.keys(rig.rest).length, "bones");
 
       modelReady = true;
       modelLoading = false;
@@ -292,7 +150,7 @@ function startIdleAnimations() {
   function scheduleBlink() {
     const delay = 2000 + Math.random() * 3000;
     blinkTimerId = setTimeout(() => {
-      if (!modelReady || animPlaying) {
+      if (!modelReady || motionPlayer?.isPlaying) {
         scheduleBlink();
         return;
       }
@@ -312,7 +170,7 @@ function startIdleAnimations() {
     }
     breathTime += 0.016;
     const breathe = Math.sin(breathTime * 0.8) * 0.003;
-    if (modelRoot && !animPlaying) {
+    if (modelRoot && !motionPlayer?.isPlaying) {
       modelRoot.position.y = baseModelY + breathe;
     }
     breathingFrameId = requestAnimationFrame(breathingLoop);
@@ -321,8 +179,8 @@ function startIdleAnimations() {
 }
 
 function blink() {
-  const le = boneMap.lUpperEyelid,
-    re = boneMap.rUpperEyelid;
+  const le = rig?.bones.leftUpperEyelid,
+    re = rig?.bones.rightUpperEyelid;
   if (!le || !re) return;
   const startY = le.rotation.x;
   const dur = 150;
@@ -345,10 +203,10 @@ function blink() {
     } else {
       le.rotation.x = startY;
       re.rotation.x = startY;
-      if (skinnedMesh?.skeleton) skinnedMesh.skeleton.update();
+      rig?.update();
       return;
     }
-    if (skinnedMesh?.skeleton) skinnedMesh.skeleton.update();
+    rig?.update();
     requestAnimationFrame(step);
   }
   requestAnimationFrame(step);
@@ -450,7 +308,7 @@ window.addEventListener("message", (ev) => {
 window.addEventListener("pagehide", disposeAvatar, { once: true });
 
 function disposeAvatar() {
-  stopAnimation();
+  motionPlayer?.stop();
   if (renderFrameId) cancelAnimationFrame(renderFrameId);
   if (breathingFrameId) cancelAnimationFrame(breathingFrameId);
   if (blinkTimerId) clearTimeout(blinkTimerId);
@@ -468,6 +326,8 @@ function disposeAvatar() {
       material.dispose?.();
     }
   });
+  motionPlayer = null;
+  rig = null;
   modelRoot = null;
   renderer?.dispose();
 }

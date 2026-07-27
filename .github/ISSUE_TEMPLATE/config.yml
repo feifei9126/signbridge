@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security report
+    url: https://github.com/feifei9126/signbridge/security/policy
+    about: 请通过私密渠道报告安全问题

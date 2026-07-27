@@ -3,99 +3,100 @@
  * 手语数据 v7 — 结构化词典 + 手语参数元数据
  * 借鉴 VLibras 的词典设计：gloss 标准名、手形/位置/运动分类、可检索标签
  */
-import { deg, frm } from "./pose-engine.js";
+import { deg, frm, motionClip } from "./pose-engine.js";
 
 // ===== 手形原子 (Handshape Primitives) =====
-function handShape(name) {
-  const d = Math.PI / 180;
-  const shapes = {
-    relax: {},
-    fist: {
-      rthumb: { x: -40 * d, y: 0, z: 0 },
-      rindex: { x: -110 * d, y: 0, z: 0 },
-      rmiddle: { x: -110 * d, y: 0, z: 0 },
-      rring: { x: -110 * d, y: 0, z: 0 },
-      rpinky: { x: -110 * d, y: 0, z: 0 },
-      lthumb: { x: -40 * d, y: 0, z: 0 },
-      lindex: { x: -110 * d, y: 0, z: 0 },
-      lmiddle: { x: -110 * d, y: 0, z: 0 },
-      lring: { x: -110 * d, y: 0, z: 0 },
-      lpinky: { x: -110 * d, y: 0, z: 0 },
-    },
-    flat: {
-      rthumb: { x: 30 * d, y: 0, z: 0 },
-      rindex: { x: 30 * d, y: 0, z: 0 },
-      rmiddle: { x: 30 * d, y: 0, z: 0 },
-      rring: { x: 30 * d, y: 0, z: 0 },
-      rpinky: { x: 30 * d, y: 0, z: 0 },
-      lthumb: { x: 30 * d, y: 0, z: 0 },
-      lindex: { x: 30 * d, y: 0, z: 0 },
-      lmiddle: { x: 30 * d, y: 0, z: 0 },
-      lring: { x: 30 * d, y: 0, z: 0 },
-      lpinky: { x: 30 * d, y: 0, z: 0 },
-    },
-    point: {
-      rthumb: { x: -40 * d, y: 0, z: 0 },
-      rindex: { x: 0, y: 0, z: 0 },
-      rmiddle: { x: -110 * d, y: 0, z: 0 },
-      rring: { x: -110 * d, y: 0, z: 0 },
-      rpinky: { x: -110 * d, y: 0, z: 0 },
-      lthumb: { x: -40 * d, y: 0, z: 0 },
-      lindex: { x: 0, y: 0, z: 0 },
-      lmiddle: { x: -110 * d, y: 0, z: 0 },
-      lring: { x: -110 * d, y: 0, z: 0 },
-      lpinky: { x: -110 * d, y: 0, z: 0 },
-    },
-    thumbUp: {
-      rthumb: { x: 0, y: 63 * d, z: 30 * d },
-      rindex: { x: -110 * d, y: 0, z: 0 },
-      rmiddle: { x: -110 * d, y: 0, z: 0 },
-      rring: { x: -110 * d, y: 0, z: 0 },
-      rpinky: { x: -110 * d, y: 0, z: 0 },
-      lthumb: { x: 0, y: 63 * d, z: 30 * d },
-      lindex: { x: -110 * d, y: 0, z: 0 },
-      lmiddle: { x: -110 * d, y: 0, z: 0 },
-      lring: { x: -110 * d, y: 0, z: 0 },
-      lpinky: { x: -110 * d, y: 0, z: 0 },
-    },
-    peace: {
-      rthumb: { x: -40 * d, y: 0, z: 0 },
-      rindex: { x: 0, y: 0, z: 0 },
-      rmiddle: { x: 0, y: 0, z: 0 },
-      rring: { x: -110 * d, y: 0, z: 0 },
-      rpinky: { x: -110 * d, y: 0, z: 0 },
-    },
-    ok: {
-      rthumb: { x: -20 * d, y: 30 * d, z: 0 },
-      rindex: { x: -90 * d, y: 0, z: 0 },
-      rmiddle: { x: -90 * d, y: 0, z: 0 },
-      rring: { x: -90 * d, y: 0, z: 0 },
-      rpinky: { x: -90 * d, y: 0, z: 0 },
-    },
-  };
-  return shapes[name] || shapes.relax;
+const FINGERS = ["Index", "Middle", "Ring", "Little"];
+
+function setFinger(pose, side, finger, [proximal, intermediate, distal]) {
+  pose[`${side}${finger}Proximal`] = deg(proximal, 0, 0);
+  pose[`${side}${finger}Intermediate`] = deg(intermediate, 0, 0);
+  pose[`${side}${finger}Distal`] = deg(distal, 0, 0);
+}
+
+function setThumb(pose, side, rotations) {
+  const [metacarpal, proximal, distal] = rotations;
+  pose[`${side}ThumbMetacarpal`] = metacarpal;
+  pose[`${side}ThumbProximal`] = proximal;
+  pose[`${side}ThumbDistal`] = distal;
+}
+
+function handShape(name, side = "right") {
+  if (name === "relax") return {};
+  const pose = {};
+  const mirror = side === "left" ? -1 : 1;
+  const fistFinger = [-25, -55, -30];
+  const flatFinger = [8, 14, 8];
+  const fistThumb = [deg(-10, 0, 0), deg(-20, 0, 0), deg(-10, 0, 0)];
+  const flatThumb = [deg(8, 0, 0), deg(14, 0, 0), deg(8, 0, 0)];
+
+  if (name === "fist") {
+    for (const finger of FINGERS) setFinger(pose, side, finger, fistFinger);
+    setThumb(pose, side, fistThumb);
+  } else if (name === "flat") {
+    for (const finger of FINGERS) setFinger(pose, side, finger, flatFinger);
+    setThumb(pose, side, flatThumb);
+  } else if (name === "point") {
+    for (const finger of FINGERS) {
+      setFinger(
+        pose,
+        side,
+        finger,
+        finger === "Index" ? flatFinger : fistFinger,
+      );
+    }
+    setThumb(pose, side, fistThumb);
+  } else if (name === "thumbUp") {
+    for (const finger of FINGERS) setFinger(pose, side, finger, fistFinger);
+    setThumb(pose, side, [
+      deg(0, 63 * mirror, 63 * mirror),
+      deg(0, 0, 0),
+      deg(0, 0, 0),
+    ]);
+  } else if (name === "peace") {
+    for (const finger of FINGERS) {
+      setFinger(
+        pose,
+        side,
+        finger,
+        finger === "Index" || finger === "Middle" ? flatFinger : fistFinger,
+      );
+    }
+    setThumb(pose, side, fistThumb);
+  } else if (name === "ok") {
+    setFinger(pose, side, "Index", [-20, -45, -25]);
+    for (const finger of ["Middle", "Ring", "Little"]) {
+      setFinger(pose, side, finger, [-15, -35, -20]);
+    }
+    setThumb(pose, side, [
+      deg(-10, 30 * mirror, 0),
+      deg(-10, 0, 0),
+      deg(0, 0, 0),
+    ]);
+  }
+  return pose;
 }
 
 // ===== 手势构建器 =====
 // 手臂参数: [shX,shY,shZ, uaX,uaY,uaZ, faX,faY,faZ, hX,hY,hZ]
 function gesture(arm, shape, lArm, lShape) {
   const p = {};
-  p.rShoulder = deg(arm[0] || 0, arm[1] || 0, arm[2] || 0);
-  p.rUpperArm = deg(arm[3] || 0, arm[4] || 0, arm[5] || 0);
-  p.rForearm = deg(arm[6] || 0, arm[7] || 0, arm[8] || 0);
-  p.rHand = deg(arm[9] || 0, arm[10] || 0, arm[11] || 0);
+  p.rightShoulder = deg(arm[0] || 0, arm[1] || 0, arm[2] || 0);
+  p.rightUpperArm = deg(arm[3] || 0, arm[4] || 0, arm[5] || 0);
+  p.rightLowerArm = deg(arm[6] || 0, arm[7] || 0, arm[8] || 0);
+  p.rightHand = deg(arm[9] || 0, arm[10] || 0, arm[11] || 0);
   if (lArm) {
-    p.lShoulder = deg(lArm[0] || 0, lArm[1] || 0, lArm[2] || 0);
-    p.lUpperArm = deg(lArm[3] || 0, lArm[4] || 0, lArm[5] || 0);
-    p.lForearm = deg(lArm[6] || 0, lArm[7] || 0, lArm[8] || 0);
-    p.lHand = deg(lArm[9] || 0, lArm[10] || 0, lArm[11] || 0);
+    p.leftShoulder = deg(lArm[0] || 0, lArm[1] || 0, lArm[2] || 0);
+    p.leftUpperArm = deg(lArm[3] || 0, lArm[4] || 0, lArm[5] || 0);
+    p.leftLowerArm = deg(lArm[6] || 0, lArm[7] || 0, lArm[8] || 0);
+    p.leftHand = deg(lArm[9] || 0, lArm[10] || 0, lArm[11] || 0);
   }
   if (shape) {
-    const s = handShape(shape);
+    const s = handShape(shape, "right");
     for (const k in s) p[k] = s[k];
   }
   if (lShape) {
-    const s = handShape(lShape);
+    const s = handShape(lShape, "left");
     for (const k in s) p[k] = s[k];
   }
   return p;
@@ -569,6 +570,14 @@ const SIGNS = {
     meta: { handshape: "fist", location: "chest", movement: "self" },
   },
 };
+
+for (const sign of Object.values(SIGNS)) {
+  sign.motion = motionClip(sign.id, sign.frames, {
+    gloss: sign.gloss,
+    tags: sign.tags,
+    ...sign.meta,
+  });
+}
 
 // ===== 单字手势（特殊/备用） =====
 const SINGLE_CHARS = {};

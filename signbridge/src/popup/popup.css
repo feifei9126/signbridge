@@ -389,10 +389,14 @@ body {
   gap: 8px;
 }
 
-.sb-mic-row,
+.sb-audio-row,
 .sb-tools-row {
   display: flex;
   gap: 6px;
+}
+
+.sb-audio-row {
+  align-items: center;
 }
 
 .sb-tools-row {
@@ -424,10 +428,17 @@ body {
   grid-column: 1 / -1;
 }
 
-.sb-mic-status {
+.sb-audio-status {
   min-width: 60px;
+  flex: 1;
   display: flex;
   align-items: center;
   color: var(--text-muted);
   font-size: 10px;
+}
+
+.sb-audio-settings {
+  flex: 0 0 30px;
+  width: 30px;
+  height: 30px;
 }

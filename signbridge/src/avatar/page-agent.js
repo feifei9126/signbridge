@@ -1,10 +1,8 @@
 /**
- * SignBridge Page Agent v6
- * 双重识别: SpeechRecognition(iframe) + SubtitleCapturer(页面)
- * 增加: 启动诊断日志
+ * SignBridge Page Agent
+ * 页面域只捕获字幕；扩展 iframe 负责已授权的语音识别。
  */
 import { SubtitleCapturer } from "../utils/subtitle-capturer.js";
-import { SpeechRecognizer } from "../utils/speech-recognizer.js";
 
 if (window.__SIGNBRIDGE_PAGE_AGENT__) {
   console.log("[SB] Duplicate page agent ignored");
@@ -16,7 +14,6 @@ if (window.__SIGNBRIDGE_PAGE_AGENT__) {
     initialized: false,
     subtitleEl: null,
     lastText: "",
-    recognizer: null,
     capturer: null,
     config: {},
   };
@@ -126,41 +123,11 @@ if (window.__SIGNBRIDGE_PAGE_AGENT__) {
       }
     }, 2000);
 
-    // ===== 语音识别 (在 iframe 里, 不在这里重复) =====
-    // 只做后备 SpeechRecognition
-    state.recognizer = new SpeechRecognizer({
-      language: recognitionLanguage(),
-      interimResults: false,
-      onResult: (result) => {
-        if (!state.active || !result.isFinal || !result.text) return;
-        if (result.text === state.lastText) return;
-        state.lastText = result.text;
-        sendToIframe("SUBTITLE_TEXT", { text: result.text });
-        showTextOverlay("🎤 " + result.text.substring(0, 40));
-      },
-      onError: () => {},
-      onStateChange: (s) => {
-        if (s === "demo") {
-          console.log("[SB] Speech demo mode (no mic)");
-          showTextOverlay("💡 请打开视频CC字幕或授权麦克风");
-          setTimeout(() => {
-            if (state.active && !state.lastText)
-              showTextOverlay("🔴 翻译中...");
-          }, 3000);
-        }
-      },
-    });
-    state.recognizer.start().catch(() => {});
-
     console.log("[SB] Translation started");
   }
 
   function stopTranslation() {
     state.active = false;
-    if (state.recognizer) {
-      state.recognizer.stop();
-      state.recognizer = null;
-    }
     if (state.capturer) {
       state.capturer.stop();
       state.capturer = null;
@@ -184,32 +151,14 @@ if (window.__SIGNBRIDGE_PAGE_AGENT__) {
       case "SIGNBRIDGE_STOP":
         stopTranslation();
         break;
-      case "MIC_ENABLE":
+      case "SPEECH_TEXT":
         if (!state.active) startTranslation();
-        if (state.recognizer) {
-          try {
-            state.recognizer.start();
-          } catch {}
-          console.log("[SB] Mic enabled");
-        }
-        break;
-      case "MIC_DISABLE":
-        if (state.recognizer) {
-          try {
-            state.recognizer.stop();
-          } catch {}
-          console.log("[SB] Mic disabled");
-        }
+        if (!ev.data.text) break;
+        state.lastText = ev.data.text;
+        showTextOverlay("🔊 " + ev.data.text.substring(0, 40));
         break;
       case "SIGNBRIDGE_CONFIG":
         state.config = { ...state.config, ...(ev.data.config || {}) };
-        state.recognizer?.setLanguage(recognitionLanguage());
-        break;
-      case "SPEECH_STATUS":
-        // 来自 iframe 的状态反馈
-        if (ev.data.status === "denied" || ev.data.status === "unavailable") {
-          console.log("[SB] iframe mic:", ev.data.status);
-        }
         break;
     }
   });

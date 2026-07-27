@@ -133,7 +133,7 @@
     iframe.title = "SignBridge 手语虚拟人";
     iframe.style.cssText =
       "width:100%;height:100%;border:none;background:transparent;display:block;";
-    iframe.setAttribute("allow", "microphone; autoplay");
+    iframe.setAttribute("allow", "autoplay");
     container.appendChild(iframe);
     document.body.appendChild(container);
 
@@ -305,9 +305,12 @@
     } else if (action === "stop" || action === "SIGNBRIDGE_STOP") {
       active = false;
       postMessageToPage("SIGNBRIDGE_STOP");
-    } else if (action === "micOn" || action === "micOff") {
+    } else if (action === "audioTranscript") {
       await ensureInjected();
-      postMessageToPage(action === "micOn" ? "MIC_ENABLE" : "MIC_DISABLE");
+      if (message.text) {
+        postMessageToIframe("SUBTITLE_TEXT", { text: message.text });
+        postMessageToPage("SPEECH_TEXT", { text: message.text });
+      }
     } else if (action === "sendText" || action === "SEND_TEXT") {
       await ensureInjected();
       if (message.text) {
@@ -317,7 +320,11 @@
       updateConfig(message.config || {});
     }
 
-    return { ok: true, active, ready: iframeReady };
+    return {
+      ok: true,
+      active,
+      ready: iframeReady,
+    };
   }
 
   function updateConfig(updates) {

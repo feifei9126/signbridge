@@ -1,8 +1,9 @@
 {
   "manifest_version": 3,
+  "minimum_chrome_version": "116",
   "name": "SignBridge",
   "version": "1.0.0",
-  "description": "实时手语翻译覆盖层 — 在视频角落显示3D虚拟人手语翻译",
+  "description": "将网页视频字幕和标签页声音实时转换为3D中国手语动画，支持浏览器内Whisper",
   "homepage_url": "https://github.com/feifei9126/signbridge",
   "author": "SignBridge Team",
   "icons": {
@@ -10,10 +11,8 @@
     "48": "icons/icon48.png",
     "128": "icons/icon128.png"
   },
-  "permissions": [
-    "storage",
-    "activeTab"
-  ],
+  "permissions": ["storage", "activeTab", "offscreen", "tabCapture"],
+  "optional_host_permissions": ["http://*/*", "https://*/*"],
   "action": {
     "default_popup": "popup/index.html",
     "default_title": "SignBridge — 手语翻译",
@@ -27,6 +26,7 @@
     "service_worker": "background/worker.js",
     "type": "module"
   },
+  "options_page": "options/asr-settings.html",
   "content_scripts": [
     {
       "matches": ["http://*/*", "https://*/*"],
@@ -50,6 +50,6 @@
     }
   ],
   "content_security_policy": {
-    "extension_pages": "script-src 'self'; object-src 'self'"
+    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
   }
 }

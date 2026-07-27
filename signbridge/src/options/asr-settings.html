@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SignBridge - 声音识别设置</title>
+    <link rel="icon" href="../icons/icon48.png" />
+    <link rel="stylesheet" href="asr-settings.css" />
+  </head>
+  <body>
+    <header class="page-header">
+      <div>
+        <h1 data-i18n="asrTitle">视频声音识别</h1>
+        <p data-i18n="asrPurpose">
+          选择本地 Whisper 或云端 ASR，将当前视频声音转换为手语动作。
+        </p>
+      </div>
+      <span class="brand">SignBridge</span>
+    </header>
+
+    <main>
+      <section>
+        <h2 data-i18n="asrProvider">识别方式</h2>
+        <div class="segmented" role="radiogroup">
+          <label>
+            <input type="radio" name="provider" value="local" />
+            <span data-i18n="asrLocal">本地 Whisper</span>
+          </label>
+          <label>
+            <input type="radio" name="provider" value="cloud" />
+            <span data-i18n="asrCloud">云端 ASR</span>
+          </label>
+        </div>
+      </section>
+
+      <section id="localPanel">
+        <div class="section-heading">
+          <div>
+            <h2 data-i18n="asrLocalSettings">本地 Whisper 设置</h2>
+            <p data-i18n="asrLocalPrivacy">
+              模型和音频都在浏览器扩展内处理，视频声音不会上传到识别服务。
+            </p>
+          </div>
+        </div>
+        <div class="form-grid">
+          <label>
+            <span data-i18n="asrModel">模型</span>
+            <select id="localModel">
+              <option value="tiny" data-i18n="asrModelTiny">
+                tiny（最快）
+              </option>
+              <option value="base" data-i18n="asrModelBase">
+                base（均衡）
+              </option>
+              <option value="small" data-i18n="asrModelSmall">
+                small（更准确）
+              </option>
+            </select>
+          </label>
+        </div>
+        <div class="deployment-row">
+          <button
+            id="btnDeploy"
+            class="primary"
+            type="button"
+            data-i18n="asrDeployLocal"
+          >
+            一键部署本地 Whisper
+          </button>
+          <div class="deployment-state">
+            <progress id="deployProgress" max="100" value="0" hidden></progress>
+            <span id="deployStatus" role="status" aria-live="polite"></span>
+          </div>
+        </div>
+        <p class="hint" data-i18n="asrDeployHint">
+          点击后自动下载并缓存模型，无需安装 Python 或运行本地服务。
+        </p>
+      </section>
+
+      <section id="cloudPanel" hidden>
+        <h2 data-i18n="asrCloudSettings">云端 ASR 设置</h2>
+        <p data-i18n="asrCloudPrivacy">
+          视频音频分片会发送到你配置的服务，请确认服务的隐私与计费规则。
+        </p>
+        <div class="form-grid">
+          <label class="wide">
+            <span data-i18n="asrEndpoint">服务地址</span>
+            <input id="cloudEndpoint" type="url" spellcheck="false" />
+          </label>
+          <label>
+            <span data-i18n="asrApiKey">API Key</span>
+            <input id="cloudApiKey" type="password" autocomplete="off" />
+          </label>
+          <label>
+            <span data-i18n="asrModel">模型</span>
+            <input id="cloudModel" type="text" spellcheck="false" />
+          </label>
+        </div>
+      </section>
+
+      <section>
+        <h2 data-i18n="asrCommonSettings">通用设置</h2>
+        <div class="form-grid">
+          <label>
+            <span data-i18n="asrLanguage">识别语言</span>
+            <select id="language">
+              <option value="zh">中文</option>
+              <option value="auto">自动检测</option>
+              <option value="en">English</option>
+            </select>
+          </label>
+          <label>
+            <span data-i18n="asrChunkSeconds">音频分片</span>
+            <div class="range-row">
+              <input id="chunkSeconds" type="range" min="4" max="15" />
+              <output id="chunkValue">6s</output>
+            </div>
+          </label>
+        </div>
+      </section>
+
+      <footer class="actions">
+        <div id="saveStatus" role="status" aria-live="polite"></div>
+        <button id="btnTest" type="button" data-i18n="asrTest">测试连接</button>
+        <button id="btnSave" class="primary" type="button" data-i18n="asrSave">
+          保存设置
+        </button>
+      </footer>
+    </main>
+    <script type="module" src="asr-settings.js"></script>
+  </body>
+</html>

@@ -2,6 +2,7 @@
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
+    <link rel="icon" href="../icons/icon16.png" />
     <title>SignBridge 帮助</title>
     <style>
       body {
@@ -114,8 +115,12 @@
         <td>开关翻译</td>
       </tr>
       <tr>
-        <td>🎤</td>
-        <td>开关语音识别(需授权)</td>
+        <td>🔊</td>
+        <td>捕获当前视频标签页声音并启动 ASR</td>
+      </tr>
+      <tr>
+        <td>⚙</td>
+        <td>一键部署浏览器内 Whisper，或配置云端 ASR 服务</td>
       </tr>
       <tr>
         <td>🎬</td>
@@ -149,16 +154,18 @@
       <li>
         <b>🎥录制工具</b>:
         <code>chrome-extension://ID/avatar/record-mode.html</code> —
-        录制关键帧序列，导出词条
+        录制关键帧序列，导出词条；左键拖拽旋转，滚轮缩放，右键拖拽平移
       </li>
     </ul>
 
     <h2>翻译架构</h2>
     <ol>
-      <li>字幕轨、网页字幕节点或语音识别产生文本。</li>
+      <li>字幕轨、网页字幕节点或视频声音 ASR 产生文本。</li>
       <li>文本规范化并过滤无独立手势的虚词。</li>
       <li>按原文顺序做最长词组匹配，未知内容跳过。</li>
-      <li>把多个已知词的关键帧合并，通过 REST 增量和平滑插值播放。</li>
+      <li>把多个已知词的版本化 motion clip 按顺序合并。</li>
+      <li>标准 Humanoid rig 把动作重定向到当前 avatar profile。</li>
+      <li>通过 REST 增量和四元数平滑插值播放。</li>
     </ol>
     <p>
       当前词典包含 52 个结构化词条和 16
@@ -173,6 +180,19 @@
       <li>把模型骨骼映射与动作数据分离，更换模型时只重做一次重定向配置。</li>
       <li>为每个标准动作保存预览截图和回归测试，再并入运行时词典。</li>
     </ol>
+
+    <h2>标准骨骼与换模型</h2>
+    <p>
+      动作统一使用
+      <code>humanoid-local-v1</code> 标准名称。运行时、姿势编辑器和录制器共用
+      <code>GODETTE_PROFILE</code
+      >，双手五指均覆盖根、中、尖三段指骨。换模型时只应新增 avatar profile
+      并通过完整骨骼测试，不应逐个修改词条轴向。
+    </p>
+    <p>
+      当前默认模型仍是 Godette glTF。正式接入 VRM 时，先提供一份可验收的 VRM 1.0
+      模型，再增加 VRM profile/loader；字幕、语音、词典和浮窗层不需要重写。
+    </p>
 
     <h2>📝 控制台日志</h2>
     <table>
@@ -218,7 +238,10 @@
       </tr>
       <tr>
         <td>手掌方向反</td>
-        <td>调<code>gesture()</code>中hZ(第12个参数)</td>
+        <td>
+          先在姿势编辑器确认动作；若所有词都同向错误，修 avatar
+          profile，不逐词猜轴
+        </td>
       </tr>
       <tr>
         <td>手臂穿身体</td>
@@ -229,8 +252,13 @@
         <td>确认扩展只出现一个浮窗；重新构建并加载最新 dist 目录</td>
       </tr>
       <tr>
-        <td>麦克风不工作</td>
-        <td>点弹窗🎤按钮授权</td>
+        <td>视频声音识别不工作</td>
+        <td>
+          打开“声音识别设置”，选择本地 Whisper 或云端
+          ASR。本地模式先选择模型并点击“一键部署本地
+          Whisper”；云端模式保存配置并完成服务地址授权；
+          然后回到视频页点击“视频声音：关闭”开始捕获当前标签页音频。该功能不使用电脑麦克风。
+        </td>
       </tr>
     </table>
 

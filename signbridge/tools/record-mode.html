@@ -2,6 +2,7 @@
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
+    <link rel="icon" href="../icons/icon16.png" />
     <title>SignBridge — 手语动画录制器</title>
     <style>
       * {
@@ -130,16 +131,18 @@
         gap: 4px;
         margin: 2px 0;
       }
-      .bone-name {
-        width: 70px;
+      .bone-row .bone-name {
+        width: 82px;
+        flex: 0 0 82px;
         font-size: 10px;
         color: #888;
+        text-align: left;
       }
       .bone-row input[type="range"] {
         flex: 1;
         height: 12px;
       }
-      .bone-row span {
+      .bone-row span:not(.bone-name) {
         width: 36px;
         font-size: 9px;
         text-align: right;
@@ -228,15 +231,17 @@
     </script>
     <script type="module">
       import * as THREE from "three";
+      import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
       import { GLTFLoader } from "../dist/avatar/jsm/loaders/GLTFLoader.js";
+      import { createHumanoidRig } from "../src/avatar/humanoid-rig.js";
 
       // State
       let scene,
         camera,
         renderer,
-        skinnedMesh,
-        boneMap = {},
-        REST = {};
+        controls,
+        rig,
+        boneMap = {};
       const keyframes = [];
       let isRecording = false;
       let recordTimer = null;
@@ -245,19 +250,44 @@
 
       // Bones to expose
       const BONE_LIST = [
-        "rUpperArm",
-        "rForearm",
-        "rHand",
-        "rShoulder",
-        "lUpperArm",
-        "lForearm",
-        "lHand",
-        "lShoulder",
-        "rthumb",
-        "rindex",
-        "rmiddle",
-        "rring",
-        "rpinky",
+        "rightShoulder",
+        "rightUpperArm",
+        "rightLowerArm",
+        "rightHand",
+        "leftShoulder",
+        "leftUpperArm",
+        "leftLowerArm",
+        "leftHand",
+        "rightThumbMetacarpal",
+        "rightThumbProximal",
+        "rightThumbDistal",
+        "rightIndexProximal",
+        "rightIndexIntermediate",
+        "rightIndexDistal",
+        "rightMiddleProximal",
+        "rightMiddleIntermediate",
+        "rightMiddleDistal",
+        "rightRingProximal",
+        "rightRingIntermediate",
+        "rightRingDistal",
+        "rightLittleProximal",
+        "rightLittleIntermediate",
+        "rightLittleDistal",
+        "leftThumbMetacarpal",
+        "leftThumbProximal",
+        "leftThumbDistal",
+        "leftIndexProximal",
+        "leftIndexIntermediate",
+        "leftIndexDistal",
+        "leftMiddleProximal",
+        "leftMiddleIntermediate",
+        "leftMiddleDistal",
+        "leftRingProximal",
+        "leftRingIntermediate",
+        "leftRingDistal",
+        "leftLittleProximal",
+        "leftLittleIntermediate",
+        "leftLittleDistal",
         "head",
       ];
 
@@ -286,70 +316,50 @@
       );
       camera.position.set(0, 0.65, 2.0);
       camera.lookAt(0, 0.3, 0);
+      controls = new OrbitControls(camera, renderer.domElement);
+      controls.target.set(0, 0.55, 0);
+      controls.enableDamping = true;
+      controls.dampingFactor = 0.08;
+      controls.enablePan = true;
+      controls.minDistance = 0.8;
+      controls.maxDistance = 5;
+      controls.update();
 
       // Load model
       const loader = new GLTFLoader();
       const modelUrl = "../dist/avatar/model.glb";
       console.log("Loading:", modelUrl);
       loader.load(modelUrl, (gltf) => {
-        gltf.scene.traverse((child) => {
-          if (child.isSkinnedMesh && !skinnedMesh) skinnedMesh = child;
-        });
-        const BONE_SHORT = {
-          Root_225: "root",
-          Body_220: "body",
-          Hip_218: "hip",
-          Spine_1_199: "spine",
-          Spine_2_198: "chest",
-          Ribcage_197: "upperChest",
-          Neck_1_132: "neck",
-          Neck_2_131: "neck2",
-          Neck_3_130: "neck3",
-          Head_129: "head",
-          ClavicR_192: "rShoulder",
-          Arm_Upper_1R_187: "rUpperArm",
-          Arm_Lower_1R_185: "rForearm",
-          HandR_184: "rHand",
-          ClavicL_162: "lShoulder",
-          Arm_Upper_1L_157: "lUpperArm",
-          Arm_Lower_1L_155: "lForearm",
-          HandL_154: "lHand",
-          ThumbR_178: "rthumb",
-          Finger_1R002_165: "rindex",
-          Finger_2R002_168: "rmiddle",
-          Finger_3R002_171: "rring",
-          Finger_4R002_174: "rpinky",
-          ThumbL_148: "lthumb",
-          Finger_1L002_135: "lindex",
-          Finger_2L002_138: "lmiddle",
-          Finger_3L002_141: "lring",
-          Finger_4L002_144: "lpinky",
-        };
-        if (skinnedMesh?.skeleton) {
-          for (const b of skinnedMesh.skeleton.bones) {
-            if (BONE_SHORT[b.name]) boneMap[BONE_SHORT[b.name]] = b;
-          }
+        rig = createHumanoidRig(gltf.scene);
+        if (!rig.isSigningReady) {
+          throw new Error("Missing signing bones: " + rig.missing.join(", "));
         }
+        boneMap = rig.bones;
         scene.add(gltf.scene);
         gltf.scene.scale.set(0.984, 0.984, 0.984);
         gltf.scene.position.y = -0.65;
-        for (const k in boneMap)
-          REST[k] = {
-            x: boneMap[k].rotation.x,
-            y: boneMap[k].rotation.y,
-            z: boneMap[k].rotation.z,
-          };
         console.log("Model loaded. Bones:", Object.keys(boneMap).length);
         buildSliders();
       });
 
       function animate() {
         requestAnimationFrame(animate);
+        controls?.update();
         if (renderer && scene && camera) renderer.render(scene, camera);
       }
       animate();
 
       // Bone sliders
+      function compactBoneName(name) {
+        return name
+          .replace(/^right/, "R.")
+          .replace(/^left/, "L.")
+          .replace("Metacarpal", ".0")
+          .replace("Proximal", ".1")
+          .replace("Intermediate", ".2")
+          .replace("Distal", ".3");
+      }
+
       function buildSliders() {
         const div = document.getElementById("bone-sliders");
         let html = "";
@@ -365,7 +375,12 @@
           ["x", "y", "z"].forEach((k) => {
             const id = "sl_" + name + "_" + k;
             html += '<div class="bone-row">';
-            html += '<span class="bone-name">' + name + "." + k + "</span>";
+            html +=
+              '<span class="bone-name">' +
+              compactBoneName(name) +
+              "." +
+              k +
+              "</span>";
             html +=
               '<input type="range" id="' +
               id +
@@ -401,17 +416,13 @@
         const b = boneMap[name];
         if (!b) return;
         b.rotation[key] = parseFloat(val);
-        if (skinnedMesh?.skeleton) skinnedMesh.skeleton.update();
+        rig?.update();
         const vEl = document.getElementById("sl_" + name + "_" + key + "_v");
         if (vEl) vEl.textContent = parseFloat(val).toFixed(2);
       };
 
       function resetBones() {
-        for (const k in boneMap) {
-          const r = REST[k] || { x: 0, y: 0, z: 0 };
-          boneMap[k].rotation.set(r.x, r.y, r.z);
-        }
-        if (skinnedMesh?.skeleton) skinnedMesh.skeleton.update();
+        rig?.reset();
         buildSliders();
       }
       window.resetBones = resetBones;
@@ -434,12 +445,8 @@
       };
 
       window.addKeyframe = function () {
-        const pose = {};
-        for (const k in boneMap) {
-          const b = boneMap[k];
-          pose[k] = { x: b.rotation.x, y: b.rotation.y, z: b.rotation.z };
-        }
-        keyframes.push({ time: keyframes.length * 0.3, pose });
+        const pose = rig.capturePose();
+        keyframes.push({ duration: 0.3, pose });
         renderKeyframes();
       };
 
@@ -454,7 +461,7 @@
             '" data-index="' +
             i +
             '">';
-          html += "#" + i + " t=" + kf.time.toFixed(1) + "s";
+          html += "#" + i + " t=" + (i * kf.duration).toFixed(1) + "s";
           html += "</div>";
         });
         div.innerHTML = html;
@@ -489,23 +496,14 @@
         currentFrame = idx;
         const kf = keyframes[idx];
         if (!kf) return;
-        for (const k in kf.pose) {
-          const b = boneMap[k];
-          if (!b) continue;
-          b.rotation.set(kf.pose[k].x, kf.pose[k].y, kf.pose[k].z);
-        }
-        if (skinnedMesh?.skeleton) skinnedMesh.skeleton.update();
+        rig?.applyPose(kf.pose);
         buildSliders();
         renderKeyframes();
       };
 
       function applyToCurrent() {
         if (currentFrame < 0 || currentFrame >= keyframes.length) return;
-        const pose = {};
-        for (const k in boneMap) {
-          const b = boneMap[k];
-          pose[k] = { x: b.rotation.x, y: b.rotation.y, z: b.rotation.z };
-        }
+        const pose = rig.capturePose();
         keyframes[currentFrame].pose = pose;
         renderKeyframes();
       }
@@ -537,19 +535,11 @@
             return;
           }
           const kf = keyframes[idx];
-          for (const k in kf.pose) {
-            const b = boneMap[k];
-            if (!b) continue;
-            b.rotation.set(kf.pose[k].x, kf.pose[k].y, kf.pose[k].z);
-          }
-          if (skinnedMesh?.skeleton) skinnedMesh.skeleton.update();
+          rig?.applyPose(kf.pose);
           currentFrame = idx;
           renderKeyframes();
           idx++;
-          previewTimer = setTimeout(
-            step,
-            (keyframes[idx - 1]?.time || 0.3) * 1000,
-          );
+          previewTimer = setTimeout(step, kf.duration * 1000);
         }
         step();
       };
@@ -585,7 +575,7 @@
         code += `  tags: [${tags.map((t) => '"' + t + '"').join(",")}],\n`;
         code += `  frames: [\n`;
         for (const kf of keyframes) {
-          code += `    frm(makePose({`;
+          code += `    frm({`;
           const parts = [];
           for (const k in kf.pose) {
             const p = kf.pose[k];
@@ -593,7 +583,7 @@
               `${k}:deg(${Math.round((p.x * 180) / Math.PI)},${Math.round((p.y * 180) / Math.PI)},${Math.round((p.z * 180) / Math.PI)})`,
             );
           }
-          code += parts.join(",") + `}), ${kf.time.toFixed(1)}),\n`;
+          code += parts.join(",") + `}, ${kf.duration.toFixed(1)}),\n`;
         }
         code += `  ],\n`;
         code += `  meta: { handshape: "", location: "", movement: "" },\n`;
@@ -619,7 +609,7 @@
                 z: Math.round((kf.pose[k].z * 180) / Math.PI),
               };
             }
-            return { pose, duration: kf.time };
+            return { pose, duration: kf.duration };
           }),
           meta: { handshape: "", location: "", movement: "" },
         };

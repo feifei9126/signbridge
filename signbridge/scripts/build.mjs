@@ -203,6 +203,35 @@ async function build() {
   console.log("  ✓ popup/{index.html,popup.css}");
   await bundle("popup/popup.js", "popup/popup.js");
 
+  const optionsDir = join(ROOT, "src/options");
+  copyFileSync(
+    join(optionsDir, "asr-settings.html"),
+    dp("options/asr-settings.html"),
+  );
+  copyFileSync(
+    join(optionsDir, "asr-settings.css"),
+    dp("options/asr-settings.css"),
+  );
+  await bundle("options/asr-settings.js", "options/asr-settings.js");
+  console.log("  ✓ options/asr-settings.{html,css,js}");
+
+  copyFileSync(
+    join(ROOT, "src/offscreen/audio-capture.html"),
+    dp("offscreen/audio-capture.html"),
+  );
+  await bundle("offscreen/audio-capture.js", "offscreen/audio-capture.js");
+  const transformersDist = join(
+    ROOT,
+    "node_modules/@huggingface/transformers/dist",
+  );
+  for (const asset of [
+    "ort-wasm-simd-threaded.jsep.mjs",
+    "ort-wasm-simd-threaded.jsep.wasm",
+  ]) {
+    copyFileSync(join(transformersDist, asset), dp(`asr/${asset}`));
+  }
+  console.log("  ✓ offscreen/audio-capture.{html,js}");
+
   await buildPoseEditor();
   await buildRecordMode();
 

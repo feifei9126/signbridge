@@ -1,9 +1,29 @@
 {
   "name": "signbridge",
   "version": "1.0.0",
-  "description": "SignBridge — 实时手语翻译覆盖层浏览器插件，在视频角落显示3D虚拟人手语翻译",
+  "description": "Chrome extension that turns video subtitles and tab audio into real-time 3D Chinese Sign Language with local Whisper.",
   "private": true,
   "type": "module",
+  "engines": {
+    "node": ">=20.19.0"
+  },
+  "homepage": "https://github.com/feifei9126/signbridge",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/feifei9126/signbridge.git"
+  },
+  "bugs": {
+    "url": "https://github.com/feifei9126/signbridge/issues"
+  },
+  "keywords": [
+    "accessibility",
+    "sign-language",
+    "chinese-sign-language",
+    "chrome-extension",
+    "threejs",
+    "whisper",
+    "speech-recognition"
+  ],
   "scripts": {
     "build": "node scripts/build.mjs",
     "dev": "node scripts/build.mjs --watch",
@@ -13,11 +33,15 @@
     "verify": "npm run build && npm run lint && npm test && npx prettier --check src/ scripts/build.mjs tools/editor-full-entry.js tools/pose-editor.html tools/record-mode.html tests/ eslint.config.mjs package.json"
   },
   "dependencies": {
+    "@huggingface/transformers": "^3.7.6",
     "three": "^0.170.0"
   },
+  "overrides": {
+    "sharp": "^0.35.3"
+  },
   "devDependencies": {
-    "esbuild": "^0.24.0",
-    "eslint": "^9.0.0",
+    "esbuild": "^0.28.1",
+    "eslint": "^10.8.0",
     "prettier": "^3.4.0"
   }
 }

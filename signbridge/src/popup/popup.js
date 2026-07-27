@@ -7,7 +7,7 @@ class SignBridgePopup {
     this.elements = {};
     this._currentTabId = null;
     this._isActive = false;
-    this._micEnabled = false;
+    this._audioEnabled = false;
     this._settingsTimer = null;
   }
 
@@ -41,8 +41,9 @@ class SignBridgePopup {
       textInput: document.getElementById("textInput"),
       btnSendText: document.getElementById("btnSendText"),
       btnHelp: document.getElementById("btnHelp"),
-      btnMic: document.getElementById("btnMic"),
-      micStatus: document.getElementById("micStatus"),
+      btnAudio: document.getElementById("btnAudio"),
+      audioStatus: document.getElementById("audioStatus"),
+      btnAsrSettings: document.getElementById("btnAsrSettings"),
     };
   }
 
@@ -80,7 +81,7 @@ class SignBridgePopup {
       this._setConfiguredLocale();
       this._applyTranslations();
       this._updateUI();
-      this._updateMicUI();
+      this._updateAudioUI();
     });
     this.elements.settingsBtn?.addEventListener("click", () => {
       const settings = document.getElementById("mainSettings");
@@ -102,7 +103,12 @@ class SignBridgePopup {
         url: chrome.runtime.getURL("avatar/record-mode.html"),
       });
     });
-    this.elements.btnMic?.addEventListener("click", () => this._handleMic());
+    this.elements.btnAudio?.addEventListener("click", () =>
+      this._handleAudio(),
+    );
+    this.elements.btnAsrSettings?.addEventListener("click", () => {
+      chrome.runtime.openOptionsPage();
+    });
     this.elements.btnHelp?.addEventListener("click", () => {
       chrome.tabs.create({ url: chrome.runtime.getURL("avatar/help.html") });
     });
@@ -172,31 +178,66 @@ class SignBridgePopup {
     this._updateUI();
   }
 
-  async _handleMic() {
-    const requestedEnabled = !this._micEnabled;
-    const response = await this._sendMessage(
-      requestedEnabled ? "micOn" : "micOff",
-    );
-    if (!response?.ok) {
-      if (this.elements.micStatus) {
-        this.elements.micStatus.textContent = t("unavailable");
+  async _handleAudio() {
+    const requestedEnabled = !this._audioEnabled;
+    if (requestedEnabled) {
+      if (!this._currentTabId) {
+        this._setAudioStatus("audioUnavailable");
+        return;
+      }
+      this._setAudioStatus("audioStarting");
+      try {
+        const response = await this._sendRuntimeMessage({
+          type: "ASR_START",
+          tabId: this._currentTabId,
+        });
+        if (!response?.ok) {
+          this._setAudioStatus(this._audioErrorKey(response?.error));
+          return;
+        }
+        this._audioEnabled = true;
+        this._updateAudioUI();
+      } catch (error) {
+        console.error("[SignBridge] Tab audio capture failed:", error);
+        this._setAudioStatus("audioCaptureFailed");
       }
       return;
     }
-    this._micEnabled = requestedEnabled;
-    this._updateMicUI();
+
+    const response = await this._sendRuntimeMessage({ type: "ASR_STOP" });
+    if (!response?.ok) {
+      this._setAudioStatus("audioUnavailable");
+      return;
+    }
+    this._audioEnabled = false;
+    this._updateAudioUI();
   }
 
-  _updateMicUI() {
-    this.elements.btnMic?.classList.toggle("active", this._micEnabled);
-    if (this.elements.btnMic) {
-      this.elements.btnMic.textContent = t(
-        this._micEnabled ? "micOn" : "micOff",
+  _audioErrorKey(error) {
+    const known = {
+      "asr-cloud-key-required": "audioCloudKeyRequired",
+      "asr-host-permission-required": "audioPermissionRequired",
+      "local-whisper-not-deployed": "audioLocalUnavailable",
+    };
+    return known[error] || "audioCaptureFailed";
+  }
+
+  _setAudioStatus(key) {
+    if (this.elements.audioStatus) {
+      this.elements.audioStatus.textContent = t(key);
+    }
+  }
+
+  _updateAudioUI() {
+    this.elements.btnAudio?.classList.toggle("active", this._audioEnabled);
+    if (this.elements.btnAudio) {
+      this.elements.btnAudio.textContent = t(
+        this._audioEnabled ? "audioOn" : "audioOff",
       );
     }
-    if (this.elements.micStatus) {
-      this.elements.micStatus.textContent = t(
-        this._micEnabled ? "micListening" : "micStopped",
+    if (this.elements.audioStatus) {
+      this.elements.audioStatus.textContent = t(
+        this._audioEnabled ? "audioListening" : "audioStopped",
       );
     }
   }
@@ -244,7 +285,14 @@ class SignBridgePopup {
       return;
     }
     this._isActive = response.active ?? false;
+    const asrStatus = await this._sendRuntimeMessage({
+      type: "ASR_GET_STATUS",
+    });
+    this._audioEnabled =
+      asrStatus?.status === "running" &&
+      asrStatus?.tabId === this._currentTabId;
     this._updateUI();
+    this._updateAudioUI();
   }
 
   _setConfiguredLocale() {
@@ -261,6 +309,14 @@ class SignBridgePopup {
       }
     } catch {}
     return null;
+  }
+
+  async _sendRuntimeMessage(message) {
+    try {
+      return await chrome.runtime.sendMessage(message);
+    } catch {
+      return null;
+    }
   }
 
   async _getCurrentTab() {

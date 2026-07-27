@@ -1,82 +1,95 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import {
+  canonicalizePose,
+  createHumanoidRig,
+} from "../src/avatar/humanoid-rig.js";
+import { handShape } from "../src/avatar/sign-language-data.js";
 
 const D = Math.PI / 180;
 function dg(x, y, z) {
   return { x: (x || 0) * D, y: (y || 0) * D, z: (z || 0) * D };
 }
 
-const BONE_SHORT = {
-  Root_225: "root",
-  Hip_218: "hip",
-  Spine_1_199: "spine",
-  Spine_2_198: "chest",
-  Ribcage_197: "ribcage",
-  Neck_1_132: "neck",
-  Neck_2_131: "neck2",
-  Neck_3_130: "neck3",
-  Head_129: "head",
-  ClavicR_192: "rShoulder",
-  Arm_Upper_1R_187: "rUpperArm",
-  Arm_Lower_1R_185: "rForearm",
-  HandR_184: "rHand",
-  ClavicL_162: "lShoulder",
-  Arm_Upper_1L_157: "lUpperArm",
-  Arm_Lower_1L_155: "lForearm",
-  HandL_154: "lHand",
-  ThumbR_178: "rthumb",
-  Finger_1R002_165: "rindex",
-  Finger_2R002_168: "rmiddle",
-  Finger_3R002_171: "rring",
-  Finger_4R002_174: "rpinky",
-  ThumbL_148: "lthumb",
-  Finger_1L002_135: "lindex",
-  Finger_2L002_138: "lmiddle",
-  Finger_3L002_141: "lring",
-  Finger_4L002_144: "lpinky",
-};
-
 const EDIT_BONES = [
   { name: "head", label: "头", keys: ["x", "y", "z"] },
   {
-    name: "rShoulder",
+    name: "rightShoulder",
     label: "右肩",
     keys: ["x", "y", "z"],
-    mirror: "lShoulder",
+    mirror: "leftShoulder",
   },
   {
-    name: "rUpperArm",
+    name: "rightUpperArm",
     label: "右上臂",
     keys: ["x", "y", "z"],
-    mirror: "lUpperArm",
+    mirror: "leftUpperArm",
   },
   {
-    name: "rForearm",
+    name: "rightLowerArm",
     label: "右前臂",
     keys: ["x", "y", "z"],
-    mirror: "lForearm",
+    mirror: "leftLowerArm",
   },
-  { name: "rHand", label: "右手", keys: ["x", "y", "z"], mirror: "lHand" },
-  { name: "rthumb", label: "右拇指", keys: ["x", "y", "z"], mirror: "lthumb" },
-  { name: "rindex", label: "右食指", keys: ["x", "y", "z"], mirror: "lindex" },
   {
-    name: "rmiddle",
-    label: "右中指",
+    name: "rightHand",
+    label: "右手",
     keys: ["x", "y", "z"],
-    mirror: "lmiddle",
+    mirror: "leftHand",
   },
-  { name: "rring", label: "右无名指", keys: ["x", "y", "z"], mirror: "lring" },
-  { name: "rpinky", label: "右小指", keys: ["x", "y", "z"], mirror: "lpinky" },
-  { name: "lShoulder", label: "左肩", keys: ["x", "y", "z"] },
-  { name: "lUpperArm", label: "左上臂", keys: ["x", "y", "z"] },
-  { name: "lForearm", label: "左前臂", keys: ["x", "y", "z"] },
-  { name: "lHand", label: "左手", keys: ["x", "y", "z"] },
-  { name: "lthumb", label: "左拇指", keys: ["x", "y", "z"] },
-  { name: "lindex", label: "左食指", keys: ["x", "y", "z"] },
-  { name: "lmiddle", label: "左中指", keys: ["x", "y", "z"] },
-  { name: "lring", label: "左无名指", keys: ["x", "y", "z"] },
-  { name: "lpinky", label: "左小指", keys: ["x", "y", "z"] },
+  {
+    name: "rightThumbMetacarpal",
+    label: "右拇指根",
+    keys: ["x", "y", "z"],
+    mirror: "leftThumbMetacarpal",
+  },
+  {
+    name: "rightThumbProximal",
+    label: "右拇指中",
+    keys: ["x", "y", "z"],
+    mirror: "leftThumbProximal",
+  },
+  {
+    name: "rightThumbDistal",
+    label: "右拇指尖",
+    keys: ["x", "y", "z"],
+    mirror: "leftThumbDistal",
+  },
+  ...["Index", "Middle", "Ring", "Little"].flatMap((finger) =>
+    ["Proximal", "Intermediate", "Distal"].map((segment) => ({
+      name: `right${finger}${segment}`,
+      label: `右${{ Index: "食指", Middle: "中指", Ring: "无名指", Little: "小指" }[finger]}${{ Proximal: "根", Intermediate: "中", Distal: "尖" }[segment]}`,
+      keys: ["x", "y", "z"],
+      mirror: `left${finger}${segment}`,
+    })),
+  ),
+  { name: "leftShoulder", label: "左肩", keys: ["x", "y", "z"] },
+  { name: "leftUpperArm", label: "左上臂", keys: ["x", "y", "z"] },
+  { name: "leftLowerArm", label: "左前臂", keys: ["x", "y", "z"] },
+  { name: "leftHand", label: "左手", keys: ["x", "y", "z"] },
+  {
+    name: "leftThumbMetacarpal",
+    label: "左拇指根",
+    keys: ["x", "y", "z"],
+  },
+  {
+    name: "leftThumbProximal",
+    label: "左拇指中",
+    keys: ["x", "y", "z"],
+  },
+  {
+    name: "leftThumbDistal",
+    label: "左拇指尖",
+    keys: ["x", "y", "z"],
+  },
+  ...["Index", "Middle", "Ring", "Little"].flatMap((finger) =>
+    ["Proximal", "Intermediate", "Distal"].map((segment) => ({
+      name: `left${finger}${segment}`,
+      label: `左${{ Index: "食指", Middle: "中指", Ring: "无名指", Little: "小指" }[finger]}${{ Proximal: "根", Intermediate: "中", Distal: "尖" }[segment]}`,
+      keys: ["x", "y", "z"],
+    })),
+  ),
 ];
 const MIRROR_MAP = {};
 EDIT_BONES.forEach((b) => {
@@ -87,13 +100,13 @@ const container = document.getElementById("viewer");
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0xdce8f5);
 const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
-camera.position.set(0, 1.2, 1.8);
-camera.lookAt(0, 0.8, 0);
+camera.position.set(0, 1.05, 2.25);
+camera.lookAt(0, 0.75, 0);
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 container.appendChild(renderer.domElement);
 const ctrl = new OrbitControls(camera, renderer.domElement);
-ctrl.target.set(0, 0.8, 0);
+ctrl.target.set(0, 0.75, 0);
 ctrl.enableDamping = true;
 ctrl.dampingFactor = 0.08;
 ctrl.update();
@@ -105,8 +118,8 @@ const l2 = new THREE.DirectionalLight(0x8888ff, 0.6);
 l2.position.set(-2, 1, -1);
 scene.add(l2);
 
-let skinnedMesh = null,
-  modelRoot = null,
+let modelRoot = null,
+  rig = null,
   boneMap = {},
   REST = {};
 let _lt = 0;
@@ -143,23 +156,13 @@ async function loadModel() {
 }
 
 function mapBones(gltf) {
-  boneMap = {};
-  REST = {};
-  gltf.scene.traverse((child) => {
-    if (child.isSkinnedMesh && !skinnedMesh) skinnedMesh = child;
-  });
-  if (skinnedMesh?.skeleton) {
-    const bones = skinnedMesh.skeleton.bones;
-    for (const b of bones) {
-      if (BONE_SHORT[b.name]) {
-        boneMap[BONE_SHORT[b.name]] = b;
-        REST[BONE_SHORT[b.name]] = {
-          x: b.rotation.x,
-          y: b.rotation.y,
-          z: b.rotation.z,
-        };
-      }
-    }
+  rig = createHumanoidRig(gltf.scene);
+  boneMap = rig.bones;
+  REST = Object.fromEntries(
+    Object.entries(rig.rest).map(([name, value]) => [name, value.rotation]),
+  );
+  if (!rig.isSigningReady) {
+    throw new Error(`缺少手语骨骼: ${rig.missing.join(", ")}`);
   }
 }
 
@@ -170,7 +173,7 @@ function handleSliderInput(e) {
   const b = boneMap[bn];
   if (!b) return;
   b.rotation[k] = v;
-  if (skinnedMesh?.skeleton) skinnedMesh.skeleton.update();
+  rig?.update();
   const ve = document.getElementById("sl_" + bn + "_" + k + "_v");
   if (ve) ve.textContent = v.toFixed(2);
   if (document.getElementById("sym-mode")?.checked && MIRROR_MAP[bn]) {
@@ -179,7 +182,7 @@ function handleSliderInput(e) {
     if (!mb) return;
     const mv = k === "y" ? -v : v;
     mb.rotation[k] = mv;
-    if (skinnedMesh?.skeleton) skinnedMesh.skeleton.update();
+    rig?.update();
     const ms = document.getElementById("sl_" + mn + "_" + k),
       mv2 = document.getElementById("sl_" + mn + "_" + k + "_v");
     if (ms) ms.value = mv;
@@ -247,18 +250,7 @@ function syncSliders() {
 }
 
 function applyDelta(delta) {
-  for (const k in boneMap) {
-    const r = REST[k];
-    if (r) boneMap[k].rotation.set(r.x, r.y, r.z);
-  }
-  for (const k in delta) {
-    const b = boneMap[k];
-    if (!b) continue;
-    const r = REST[k] || { x: 0, y: 0, z: 0 };
-    const d = delta[k];
-    b.rotation.set(r.x + (d.x || 0), r.y + (d.y || 0), r.z + (d.z || 0));
-  }
-  if (skinnedMesh?.skeleton) skinnedMesh.skeleton.update();
+  rig?.applyPose(canonicalizePose(delta));
   syncSliders();
 }
 
@@ -269,7 +261,7 @@ function applyAbs(obj) {
     const r = obj[n];
     if (r && "x" in r) b.rotation.set(r.x || 0, r.y || 0, r.z || 0);
   }
-  if (skinnedMesh?.skeleton) skinnedMesh.skeleton.update();
+  rig?.update();
   syncSliders();
 }
 function getPose() {
@@ -298,37 +290,19 @@ const PRESETS = {
     toast("A-Pose");
   },
   fist: () => {
-    applyDelta({
-      rthumb: dg(-40, 0, 0),
-      rindex: dg(-110, 0, 0),
-      rmiddle: dg(-110, 0, 0),
-      rring: dg(-110, 0, 0),
-      rpinky: dg(-110, 0, 0),
-    });
+    applyDelta(handShape("fist", "right"));
     toast("握拳");
   },
   flat: () => {
-    applyDelta({
-      rthumb: dg(30, 0, 0),
-      rindex: dg(30, 0, 0),
-      rmiddle: dg(30, 0, 0),
-      rring: dg(30, 0, 0),
-      rpinky: dg(30, 0, 0),
-    });
+    applyDelta(handShape("flat", "right"));
     toast("平掌");
   },
   point: () => {
-    applyDelta({
-      rindex: dg(0, 0, 0),
-      rthumb: dg(-40, 0, 0),
-      rmiddle: dg(-110, 0, 0),
-      rring: dg(-110, 0, 0),
-      rpinky: dg(-110, 0, 0),
-    });
+    applyDelta(handShape("point", "right"));
     toast("食指指");
   },
   thumbUp: () => {
-    applyDelta({ rthumb: { x: 0, y: 1.1, z: 1.1 } });
+    applyDelta(handShape("thumbUp", "right"));
     toast("拇指竖");
   },
   抬头: () => {
@@ -568,8 +542,8 @@ function bindUI() {
     mapBones(gltf);
     modelRoot = gltf.scene;
     scene.add(modelRoot);
-    camera.position.set(0, 1.2, 1.8);
-    ctrl.target.set(0, 0.8, 0);
+    camera.position.set(0, 1.05, 2.25);
+    ctrl.target.set(0, 0.75, 0);
     ctrl.update();
 
     poseLabel.textContent = "A-Pose (" + Object.keys(boneMap).length + " 骨骼)";
