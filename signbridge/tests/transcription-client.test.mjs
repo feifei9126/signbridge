@@ -63,3 +63,24 @@ test("transcription client preserves WAV file metadata", async () => {
     },
   );
 });
+
+test("transcription client forwards cancellation to fetch", async () => {
+  const controller = new AbortController();
+  const request = transcribeAudio(
+    new Blob(["audio"]),
+    { endpoint: "https://speech.example.test/transcribe", model: "test" },
+    async (_url, options) => {
+      assert.equal(options.signal, controller.signal);
+      return new Promise((_resolve, reject) => {
+        options.signal.addEventListener(
+          "abort",
+          () => reject(options.signal.reason),
+          { once: true },
+        );
+      });
+    },
+    { signal: controller.signal },
+  );
+  controller.abort();
+  await assert.rejects(request, { name: "AbortError" });
+});

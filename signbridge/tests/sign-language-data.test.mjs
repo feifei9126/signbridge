@@ -20,6 +20,15 @@ test("dictionary keeps the published coverage", () => {
   assert.equal(Object.keys(CHARS).length, 16);
 });
 
+test("every published alias still matches as a complete term", () => {
+  for (const alias of Object.keys(GESTURES)) {
+    const result = translateText(alias);
+    assert.equal(result.matches.length, 1, alias);
+    assert.deepEqual(result.unmatched, [], alias);
+    assert.deepEqual(result.frames[0], GESTURES[alias][0], alias);
+  }
+});
+
 test("every sign exposes a versioned humanoid motion clip", () => {
   const knownBones = new Set(HUMANOID_BONES);
   for (const sign of Object.values(SIGNS)) {
@@ -74,4 +83,40 @@ test("unknown text returns a neutral frame", () => {
   const result = findGesture("未收录词汇甲乙丙");
   assert.equal(result.frames.length, 1);
   assert.deepEqual(result.frames[0].value, {});
+});
+
+test("English aliases match whole words without case sensitivity", () => {
+  assert.equal(translateText("Hello").matches[0].id, "csl_hello");
+  for (const text of ["higher", "doctor", "thisisnot", "can't", "don't"]) {
+    assert.deepEqual(translateText(text).matches, [], text);
+  }
+  assert.deepEqual(
+    translateText("HELLO, you!").matches.map((match) => match.id),
+    ["csl_hello", "csl_you"],
+  );
+});
+
+test("function words are skipped as tokens, never removed inside a word", () => {
+  for (const text of ["了不起", "不一定"]) {
+    assert.deepEqual(translateText(text).matches, [], text);
+    assert.deepEqual(findGesture(text).matches, [], text);
+  }
+  assert.deepEqual(
+    translateText("过来吧").matches.map((match) => match.text),
+    ["过来"],
+  );
+  assert.deepEqual(
+    translateText("你好吗").matches.map((match) => match.id),
+    ["csl_hello"],
+  );
+});
+
+test("translation reports unknown words and the unplayed truncated tail", () => {
+  const partial = translateText("我们今天去医院看医生");
+  assert.deepEqual(partial.unmatched, ["医院", "医生"]);
+  assert.equal(partial.truncated, false);
+  const limited = translateText("可以".repeat(13));
+  assert.equal(limited.matches.length, 12);
+  assert.equal(limited.truncated, true);
+  assert.equal(limited.remainingText, "可以");
 });

@@ -1,0 +1,125 @@
+:root {
+  color-scheme: light;
+  font:
+    16px/1.6 system-ui,
+    sans-serif;
+  color: #172b45;
+  background: #edf3fa;
+}
+body {
+  margin: 0;
+}
+main {
+  max-width: 1060px;
+  margin: 40px auto;
+  padding: 0 20px;
+}
+.eyebrow {
+  color: #284dad;
+  font-weight: 700;
+}
+h1 {
+  margin: 0;
+  font-size: 2rem;
+}
+section {
+  background: #fff;
+  border: 1px solid #ccd9e7;
+  border-radius: 14px;
+  padding: 24px;
+  margin: 24px 0;
+}
+textarea {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  resize: vertical;
+  margin: 10px 0;
+  padding: 12px;
+}
+input,
+select,
+textarea,
+button {
+  font: inherit;
+}
+button,
+select,
+textarea {
+  border: 1px solid #77899e;
+  border-radius: 6px;
+}
+button {
+  padding: 8px 12px;
+  background: #f5f8ff;
+  color: #163265;
+  cursor: pointer;
+}
+button:hover {
+  background: #e7efff;
+}
+button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 3px solid #3366ce;
+  outline-offset: 3px;
+}
+#coverage-analyze {
+  background: #234baf;
+  color: white;
+}
+.actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+#batch-add-form {
+  margin-bottom: 12px;
+}
+.muted {
+  color: #526477;
+  font-size: 0.9rem;
+}
+.summary {
+  font-size: 1.2rem;
+  font-weight: 700;
+}
+.table-wrap {
+  overflow-x: auto;
+}
+table {
+  border-collapse: collapse;
+  width: 100%;
+}
+th,
+td {
+  padding: 10px;
+  text-align: left;
+  border-bottom: 1px solid #dbe4f0;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+td button {
+  margin: 2px 4px;
+  white-space: nowrap;
+}
+details {
+  padding: 12px 0;
+  border-bottom: 1px solid #dbe4f0;
+  overflow-wrap: anywhere;
+}
+summary {
+  cursor: pointer;
+}
+#coverage-status {
+  min-height: 1.6em;
+}
+[hidden] {
+  display: none !important;
+}

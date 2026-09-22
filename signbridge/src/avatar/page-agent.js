@@ -137,7 +137,8 @@ if (window.__SIGNBRIDGE_PAGE_AGENT__) {
   }
 
   window.addEventListener("message", (ev) => {
-    if (ev.data?.source !== "signbridge-content") return;
+    if (ev.source !== window || ev.data?.source !== "signbridge-content")
+      return;
     switch (ev.data.type) {
       case "SIGNBRIDGE_AVATAR_READY":
         initialize(ev.data.config);
@@ -152,8 +153,7 @@ if (window.__SIGNBRIDGE_PAGE_AGENT__) {
         stopTranslation();
         break;
       case "SPEECH_TEXT":
-        if (!state.active) startTranslation();
-        if (!ev.data.text) break;
+        if (!state.active || !ev.data.text) break;
         state.lastText = ev.data.text;
         showTextOverlay("🔊 " + ev.data.text.substring(0, 40));
         break;
@@ -162,6 +162,17 @@ if (window.__SIGNBRIDGE_PAGE_AGENT__) {
         break;
     }
   });
+
+  function resetVideoPlayback(event) {
+    if (!state.active || event.target?.tagName !== "VIDEO") return;
+    state.lastText = "";
+    state.capturer?.reset();
+    sendToIframe("PLAYBACK_RESET");
+    showTextOverlay("");
+  }
+
+  document.addEventListener("seeking", resetVideoPlayback, true);
+  document.addEventListener("emptied", resetVideoPlayback, true);
 
   console.log("[SB] Page agent loaded (v6)");
 }

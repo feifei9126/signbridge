@@ -1,0 +1,95 @@
+#motion-library {
+  padding: 10px 12px;
+  border-block: 1px solid #44516b;
+  font:
+    12px/1.5 system-ui,
+    sans-serif;
+}
+
+#motion-library h3 {
+  padding: 0 0 6px;
+  color: #e3ebff;
+}
+
+#motion-library p {
+  margin: 6px 0;
+  color: #d5def3;
+  overflow-wrap: anywhere;
+}
+
+#motion-library input,
+#motion-library select,
+#motion-library button {
+  background: #273650;
+  color: #f3f6ff;
+  border: 1px solid #65718e;
+  border-radius: 4px;
+  padding: 5px;
+  font-size: 12px;
+  max-width: 100%;
+}
+
+#motion-library label {
+  color: #e3ebff;
+  margin-top: 6px;
+}
+
+#motion-library button {
+  cursor: pointer;
+}
+
+#motion-library button:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}
+
+#motion-library :focus-visible {
+  outline: 2px solid #b5d7ff;
+  outline-offset: 2px;
+}
+
+#motion-import-file,
+#motion-import-format {
+  margin-top: 6px;
+}
+
+#motion-pack {
+  border-top: 1px solid #65718e;
+  margin-top: 12px;
+  padding-top: 8px;
+}
+
+#motion-pack summary {
+  color: #e3ebff;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+#motion-pack button {
+  margin: 4px 4px 4px 0;
+}
+
+#motion-pack-results {
+  max-height: 280px;
+  overflow: auto;
+}
+
+#motion-pack table {
+  width: 100%;
+  border-collapse: collapse;
+  color: #e3ebff;
+  table-layout: fixed;
+}
+
+#motion-pack th,
+#motion-pack td {
+  border-bottom: 1px solid #65718e;
+  padding: 5px;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+
+#motion-pack small {
+  display: block;
+  color: #bacbe8;
+}

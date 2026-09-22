@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>SignBridge</title>
+    <link rel="stylesheet" href="motion-review.css" />
+  </head>
+  <body>
+    <main>
+      <header>
+        <p class="eyebrow">SignBridge</p>
+        <h1 data-i18n="reviewTitle"></h1>
+        <p data-i18n="reviewIntro"></p>
+        <p class="notice" data-i18n="reviewLimits"></p>
+      </header>
+      <p id="review-status" role="status" aria-live="polite"></p>
+      <button id="review-load" data-i18n="reviewReload"></button>
+      <div class="workspace">
+        <section>
+          <h2 data-i18n="reviewSelect"></h2>
+          <label for="review-search" data-i18n="reviewSearch"></label>
+          <input id="review-search" type="search" />
+          <p id="review-count"></p>
+          <div id="review-catalog" class="catalog"></div>
+          <div class="actions">
+            <button id="review-play" disabled data-i18n="reviewPlay"></button>
+            <button
+              id="review-capture"
+              disabled
+              data-i18n="reviewCapture"
+            ></button>
+            <button id="review-stop" disabled data-i18n="reviewStop"></button>
+          </div>
+        </section>
+        <section>
+          <h2 data-i18n="reviewPreview"></h2>
+          <label for="review-view" data-i18n="reviewView"></label>
+          <select id="review-view">
+            <option value="front" data-i18n="reviewFront"></option>
+            <option value="right" data-i18n="reviewRight"></option>
+            <option value="left" data-i18n="reviewLeft"></option>
+          </select>
+          <canvas
+            id="review-canvas"
+            width="320"
+            height="360"
+            data-i18n-aria="reviewPreview"
+          ></canvas>
+          <p data-i18n="reviewPreviewHelp"></p>
+        </section>
+      </div>
+      <section id="review-results" hidden>
+        <h2 data-i18n="reviewResults"></h2>
+        <button id="review-export" disabled data-i18n="reviewExport"></button>
+        <div id="review-cards"></div>
+      </section>
+    </main>
+    <script type="module" src="motion-review.js"></script>
+  </body>
+</html>

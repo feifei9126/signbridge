@@ -48,3 +48,111 @@ test("motion player delegates canonical poses to the rig", () => {
   assert.equal(player.isPlaying, false);
   assert.equal(calls.at(-1), "reset");
 });
+
+function playerHarness(options = {}) {
+  let clock = 0;
+  let nextId = 0;
+  const callbacks = new Map();
+  const visited = [];
+  const rig = {
+    capture: () => ({}),
+    createTargets: (pose) => {
+      visited.push(pose.name);
+      return pose;
+    },
+    interpolate: () => {},
+    reset: () => visited.push("reset"),
+  };
+  const schedule = (callback, delay) => {
+    const id = ++nextId;
+    callbacks.set(id, { callback, at: clock + delay });
+    return id;
+  };
+  const player = createMotionPlayer(rig, {
+    requestFrame: (callback) => schedule(callback, 16),
+    cancelFrame: (id) => callbacks.delete(id),
+    setTimer: schedule,
+    clearTimer: (id) => callbacks.delete(id),
+    now: () => clock,
+    ...options,
+  });
+  function advance(milliseconds) {
+    const end = clock + milliseconds;
+    while (callbacks.size) {
+      const [id, next] = [...callbacks].sort(
+        (first, second) => first[1].at - second[1].at,
+      )[0];
+      if (next.at > end) break;
+      clock = next.at;
+      callbacks.delete(id);
+      next.callback();
+    }
+    clock = end;
+  }
+  return { player, advance, visited, callbacks };
+}
+
+function motion(...names) {
+  return names.map((name) => ({ value: { name }, duration: 0.5 }));
+}
+
+test("queued subtitles finish the current sentence before the next one", () => {
+  const { player, advance, visited } = playerHarness();
+  player.enqueue(motion("first", "second"), { key: "sentence-one" });
+  advance(200);
+  player.enqueue(motion("third"), { key: "sentence-two" });
+  advance(1500);
+  assert.deepEqual(visited, ["first", "second", "third"]);
+  assert.equal(player.isPlaying, false);
+});
+
+test("subtitle queue is bounded and suppresses duplicates across sources", () => {
+  const { player, advance, visited } = playerHarness({ maxPendingMotions: 2 });
+  player.enqueue(motion("current"), { key: "same" });
+  assert.equal(player.enqueue(motion("duplicate"), { key: "same" }), false);
+  player.enqueue(motion("old"), { key: "old" });
+  player.enqueue(motion("newer"), { key: "newer" });
+  player.enqueue(motion("newest"), { key: "newest" });
+  advance(2000);
+  assert.deepEqual(visited, ["current", "newer", "newest"]);
+});
+
+test("expired pending subtitles are dropped instead of building latency", () => {
+  const { player, advance, visited } = playerHarness({ maxPendingAgeMs: 200 });
+  player.enqueue(motion("current"));
+  player.enqueue(motion("expired"));
+  advance(1000);
+  assert.deepEqual(visited, ["current"]);
+});
+
+test("stop cancels queued work and explicit play can replace a preview", () => {
+  const { player, advance, visited, callbacks } = playerHarness();
+  player.enqueue(motion("old", "never"));
+  player.enqueue(motion("also-never"));
+  player.stop({ reset: true });
+  assert.equal(callbacks.size, 0);
+  advance(2000);
+  assert.deepEqual(visited, ["old", "reset"]);
+  player.play(motion("preview"));
+  player.play(motion("replacement"));
+  advance(1000);
+  assert.deepEqual(visited.slice(2), ["preview", "replacement"]);
+});
+
+test("completion fires once after the whole clip but not on cancellation", () => {
+  let completed = 0;
+  const { player, advance } = playerHarness({
+    onComplete: () => {
+      completed += 1;
+    },
+  });
+  player.play(motion("first", "second"));
+  advance(600);
+  assert.equal(completed, 0);
+  advance(600);
+  assert.equal(completed, 1);
+  player.play(motion("cancelled"));
+  player.stop();
+  advance(1000);
+  assert.equal(completed, 1);
+});

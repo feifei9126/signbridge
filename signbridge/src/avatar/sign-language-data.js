@@ -629,8 +629,8 @@ function buildLookup() {
 function normalizeText(text) {
   if (!text) return "";
   return text
-    .replace(/[，。！？、；：""''（）【】《》\s]+/g, " ") // 标点→空格
-    .replace(/[^\u4e00-\u9fff\u3400-\u4dbf a-zA-Z0-9]/g, "") // 保留中文+英文+数字
+    .replace(/[，。！？、；："“”（）【】《》\s]+/g, " ")
+    .replace(/[^\u4e00-\u9fff\u3400-\u4dbf a-zA-Z0-9'’-]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
 }
@@ -660,43 +660,55 @@ const FUNCTION_WORDS = new Set([
   "个",
 ]);
 
-// Step 0: Remove function words before matching
-function stripFunctionWords(text) {
-  let result = "";
-  for (let i = 0; i < text.length; i++) {
-    if (!FUNCTION_WORDS.has(text[i])) result += text[i];
-  }
-  return result;
+const wordSegmenter = new Intl.Segmenter("zh", { granularity: "word" });
+
+function wordTokens(text) {
+  return [...wordSegmenter.segment(text)].filter((token) => token.isWordLike);
 }
 
-function compactText(text) {
-  return stripFunctionWords(normalizeText(text)).replace(/\s/g, "");
+function translationAliasKey(text) {
+  const tokens = wordTokens(normalizeText(text).toLowerCase()).map(
+    (token) => token.segment,
+  );
+  return tokens.length ? JSON.stringify(tokens) : "";
 }
 
-const SIGN_MATCHERS = Object.entries(SIGNS)
-  .flatMap(([id, sign]) =>
-    sign.texts.map((text) => ({
-      id,
-      sign,
-      text: compactText(text),
-    })),
-  )
-  .filter((entry) => entry.text)
-  .sort((a, b) => b.text.length - a.text.length);
+function compileTranslationMatchers(customMotions = []) {
+  return [...Object.values(SIGNS), ...customMotions]
+    .flatMap((sign) =>
+      sign.texts.map((text) => ({
+        id: sign.id,
+        sign,
+        text: normalizeText(text).toLowerCase(),
+        tokens: wordTokens(normalizeText(text).toLowerCase()).map(
+          (token) => token.segment,
+        ),
+      })),
+    )
+    .filter((entry) => entry.text && entry.tokens.length)
+    .sort((a, b) => b.text.length - a.text.length);
+}
+
+const SIGN_MATCHERS = compileTranslationMatchers();
 
 function neutralGesture() {
   return { frames: [frm({}, 0.5)], matches: [] };
 }
 
-function translateText(subtitleText, maxSigns = 12) {
-  const text = compactText(subtitleText);
+function translateText(subtitleText, maxSigns = 12, matchers = SIGN_MATCHERS) {
+  const text = normalizeText(subtitleText).toLowerCase();
   if (!text) return null;
 
+  const tokens = wordTokens(text);
   const matches = [];
+  const unmatched = [];
+  const skipped = [];
   let cursor = 0;
-  while (cursor < text.length && matches.length < maxSigns) {
-    const signMatch = SIGN_MATCHERS.find((entry) =>
-      text.startsWith(entry.text, cursor),
+  while (cursor < tokens.length && matches.length < maxSigns) {
+    const signMatch = matchers.find((entry) =>
+      entry.tokens.every(
+        (token, offset) => tokens[cursor + offset]?.segment === token,
+      ),
     );
     if (signMatch) {
       matches.push({
@@ -705,33 +717,35 @@ function translateText(subtitleText, maxSigns = 12) {
         gloss: signMatch.sign.gloss,
         frames: signMatch.sign.frames,
       });
-      cursor += signMatch.text.length;
+      cursor += signMatch.tokens.length;
       continue;
     }
 
-    const character = text[cursor];
-    if (SINGLE_CHARS[character]) {
+    const word = tokens[cursor].segment;
+    if (FUNCTION_WORDS.has(word)) {
+      skipped.push(word);
+    } else if (SINGLE_CHARS[word]) {
       matches.push({
-        id: `char_${character}`,
-        text: character,
-        gloss: character,
-        frames: SINGLE_CHARS[character],
+        id: `char_${word}`,
+        text: word,
+        gloss: word,
+        frames: SINGLE_CHARS[word],
       });
+    } else {
+      unmatched.push(word);
     }
     cursor += 1;
   }
 
-  if (matches.length === 0) {
-    console.log("[SB] No match, using idle");
-    return neutralGesture();
-  }
-
-  console.log(
-    "[SB] Translation:",
-    matches.map((match) => `${match.id}:${match.text}`).join(" → "),
-  );
   return {
-    frames: [...matches.flatMap((match) => match.frames), frm({}, 0.25)],
+    frames: matches.length
+      ? [...matches.flatMap((match) => match.frames), frm({}, 0.25)]
+      : neutralGesture().frames,
+    unmatched,
+    skipped,
+    truncated: cursor < tokens.length,
+    remainingText:
+      cursor < tokens.length ? text.slice(tokens[cursor].index) : "",
     matches: matches.map((match) => ({
       id: match.id,
       text: match.text,
@@ -741,27 +755,22 @@ function translateText(subtitleText, maxSigns = 12) {
 }
 
 function findGesture(subtitleText) {
-  const text = compactText(subtitleText);
-  if (!text) return null;
-
-  // 第1层：多字词匹配（最长优先）
-  const signMatch = SIGN_MATCHERS.find((entry) => text.includes(entry.text));
-  if (signMatch) {
-    console.log("[SB] Sign match:", signMatch.id, "→", signMatch.text);
-    return { frames: signMatch.sign.frames, meta: signMatch.sign.meta };
+  const result = translateText(subtitleText, Number.MAX_SAFE_INTEGER);
+  if (!result) return null;
+  const match = result.matches.reduce(
+    (longest, candidate) =>
+      !longest || candidate.text.length >= longest.text.length
+        ? candidate
+        : longest,
+    null,
+  );
+  if (match) {
+    const sign = SIGNS[match.id];
+    return {
+      frames: sign?.frames || SINGLE_CHARS[match.text],
+      ...(sign ? { meta: sign.meta } : {}),
+    };
   }
-
-  // 第2层：单字匹配
-  for (let i = 0; i < text.length; i++) {
-    const ch = text[i];
-    if (SINGLE_CHARS[ch]) {
-      console.log("[SB] Char match:", ch);
-      return { frames: SINGLE_CHARS[ch] };
-    }
-  }
-
-  // 第3层：默认（空闲姿态）
-  console.log("[SB] No match, using idle");
   return neutralGesture();
 }
 
@@ -779,4 +788,6 @@ export {
   findGesture,
   translateText,
   normalizeText,
+  compileTranslationMatchers,
+  translationAliasKey,
 };

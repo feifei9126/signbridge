@@ -137,12 +137,9 @@
     </table>
 
     <h2>🦴 骨骼系统</h2>
-    <p>
-      Godette模型 227骨骼 76K三角面。映射33根关键骨骼：手臂×8 + 手指×10 + 头×2 +
-      面部×4 + 躯干×9。
-    </p>
+    <p data-i18n="motionHelpRig"></p>
     <p>手形原子(7种): 握拳/平掌/食指指/拇指竖/胜利V/OK/放松</p>
-    <p>轴约定: X=前后/弯曲, Y=外展/左右, Z=扭转</p>
+    <p data-i18n="motionHelpAxes"></p>
 
     <h2>🛠 工具</h2>
     <ul>
@@ -173,13 +170,30 @@
       CSL 语法重排仍需继续建设。
     </p>
 
-    <h2>推荐扩展方式</h2>
-    <ol>
-      <li>先在姿势编辑器或录制工具中完成并人工确认动作。</li>
-      <li>给动作添加稳定的 gloss、别名、标签和手语参数元数据。</li>
-      <li>把模型骨骼映射与动作数据分离，更换模型时只重做一次重定向配置。</li>
-      <li>为每个标准动作保存预览截图和回归测试，再并入运行时词典。</li>
-    </ol>
+    <section id="motion-help">
+      <h2 data-i18n="motionLibraryTitle"></h2>
+      <ol>
+        <li data-i18n="motionHelpCreate"></li>
+        <li data-i18n="motionHelpReview"></li>
+        <li data-i18n="motionHelpFrames"></li>
+      </ol>
+      <p data-i18n="motionHelpUpdates"></p>
+      <p data-i18n="motionHelpBackup"></p>
+      <p data-i18n="motionPackHelp"></p>
+      <p data-i18n="motionPackPrivacy"></p>
+      <p data-i18n="motionHelpLegacy"></p>
+      <p data-i18n="motionHelpBinding"></p>
+    </section>
+
+    <section id="coverage-help">
+      <h2 data-i18n="coverageTitle"></h2>
+      <p data-i18n="coverageHelpWorkflow"></p>
+      <p data-i18n="coverageMetricHelp"></p>
+      <p data-i18n="coveragePrivacy"></p>
+      <h3 data-i18n="batchTitle"></h3>
+      <p data-i18n="batchIntro"></p>
+      <p data-i18n="batchPrivacy"></p>
+    </section>
 
     <h2>标准骨骼与换模型</h2>
     <p>
@@ -209,12 +223,12 @@
         <td>模型加载、手势匹配</td>
       </tr>
       <tr>
-        <td><code>[SB] Sign match</code></td>
-        <td>词条匹配成功(id→文字)</td>
+        <td><code>[SB] Translation coverage:</code></td>
+        <td data-i18n="motionHelpCoverage"></td>
       </tr>
       <tr>
-        <td><code>[SB] No match</code></td>
-        <td>无匹配，播放空闲姿态</td>
+        <td><code>[SB] Motion library:</code></td>
+        <td data-i18n="motionHelpCatalog"></td>
       </tr>
     </table>
 
@@ -245,7 +259,7 @@
       </tr>
       <tr>
         <td>手臂穿身体</td>
-        <td>增大uaY(第5个参数)到50+外推</td>
+        <td data-i18n="motionHelpCollision"></td>
       </tr>
       <tr>
         <td>页面卡顿</td>
@@ -262,8 +276,14 @@
       </tr>
     </table>
 
+    <h2 data-i18n="reviewTitle"></h2>
+    <p data-i18n="reviewHelp"></p>
+    <p data-i18n="reviewLimits"></p>
+    <p data-i18n="reviewStorageHelp"></p>
+
     <p style="margin-top: 40px; color: #666; font-size: 12px">
       SignBridge — MIT License | 让每一个视频都能被听见 👐
     </p>
+    <script type="module" src="help.js"></script>
   </body>
 </html>

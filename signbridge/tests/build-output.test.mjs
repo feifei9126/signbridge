@@ -7,6 +7,27 @@ import { fileURLToPath } from "node:url";
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const dist = join(root, "dist");
 
+test("release metadata uses one version in source, lockfile and build", () => {
+  const json = (path) => JSON.parse(readFileSync(join(root, path), "utf8"));
+  const version = json("package.json").version;
+  for (const path of [
+    "manifest.json",
+    "package-lock.json",
+    "dist/manifest.json",
+  ])
+    assert.equal(json(path).version, version, path);
+  assert.equal(json("package-lock.json").packages[""].version, version);
+});
+
+test("vocabulary batch is bundled in coverage rather than changing avatar controls", () => {
+  const html = readFileSync(join(dist, "tools/coverage.html"), "utf8");
+  const bundle = readFileSync(join(dist, "tools/coverage.js"), "utf8");
+  assert.match(html, /id="batch-rows"/);
+  assert.match(html, /id="batch-export"/);
+  assert.match(bundle, /signbridge\.vocabulary-batch\.v1/);
+  assert.match(bundle, /not-assessed/);
+});
+
 test("build creates every runtime asset", () => {
   const required = [
     "manifest.json",
@@ -25,8 +46,16 @@ test("build creates every runtime asset", () => {
     "avatar/pose-editor-bundle.js",
     "avatar/record-mode.html",
     "avatar/record-bundle.js",
+    "avatar/motion-library.css",
     "avatar/help.html",
+    "avatar/help.js",
+    "tools/motion-review.html",
+    "tools/motion-review.js",
+    "tools/motion-review.css",
     "popup/index.html",
+    "tools/coverage.html",
+    "tools/coverage.css",
+    "tools/coverage.js",
   ];
   for (const relativePath of required) {
     assert.ok(existsSync(join(dist, relativePath)), `missing ${relativePath}`);
@@ -48,11 +77,27 @@ test("build excludes obsolete development assets", () => {
 });
 
 test("generated extension pages do not use inline event handlers", () => {
-  for (const name of ["pose-editor.html", "record-mode.html"]) {
+  for (const name of ["pose-editor.html", "record-mode.html", "help.html"]) {
     const html = readFileSync(join(dist, "avatar", name), "utf8");
     assert.doesNotMatch(html, /\son(?:click|change|input)=/i);
     assert.doesNotMatch(html, /<script type="module">/i);
   }
+});
+
+test("coverage tool uses external scripts under extension CSP", () => {
+  const coverage = readFileSync(join(dist, "tools/coverage.html"), "utf8");
+  assert.doesNotMatch(coverage, /\son(?:click|change|input)=/i);
+  assert.doesNotMatch(coverage, /<script(?: type="module")?>/i);
+});
+
+test("visual review is a CSP-safe independent popup tool", () => {
+  const html = readFileSync(join(dist, "tools/motion-review.html"), "utf8");
+  const popup = readFileSync(join(dist, "popup/index.html"), "utf8");
+  const bundle = readFileSync(join(dist, "tools/motion-review.js"), "utf8");
+  assert.match(popup, /id="btnMotionReview"/);
+  assert.doesNotMatch(html, /\son\w+=/i);
+  assert.match(html, /<script type="module" src="motion-review.js"><\/script>/);
+  assert.doesNotMatch(bundle, /from\s+["']three["']/);
 });
 
 test("recording tool has no unresolved bare module imports", () => {

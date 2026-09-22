@@ -1,0 +1,149 @@
+:root {
+  font-family: system-ui, sans-serif;
+  color: #172b42;
+  background: #edf3f8;
+  color-scheme: light;
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+}
+main {
+  max-width: 1280px;
+  margin: auto;
+  padding: 24px;
+}
+h1,
+h2,
+h3 {
+  line-height: 1.3;
+}
+p {
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+.eyebrow {
+  color: #365b86;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+}
+.notice {
+  border-left: 4px solid #ce902f;
+  padding: 12px;
+  background: #fff6df;
+}
+section {
+  background: #fff;
+  padding: 20px;
+  border-radius: 12px;
+  margin-top: 16px;
+}
+.workspace {
+  display: grid;
+  grid-template-columns: minmax(300px, 1fr) minmax(340px, 1fr);
+  gap: 20px;
+}
+button,
+input,
+select {
+  font: inherit;
+  padding: 9px 12px;
+  border: 1px solid #879aaf;
+  border-radius: 6px;
+}
+button {
+  cursor: pointer;
+  color: #193d6c;
+  background: #f0f5ff;
+}
+button:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+button:focus-visible,
+input:focus-visible,
+select:focus-visible {
+  outline: 3px solid #3376cf;
+  outline-offset: 2px;
+}
+input[type="search"] {
+  width: 100%;
+  margin-top: 8px;
+}
+.catalog {
+  height: 330px;
+  overflow-y: auto;
+  border: 1px solid #d5dfe9;
+  border-radius: 6px;
+}
+.catalog label {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px;
+  border-bottom: 1px solid #edf2f7;
+  overflow-wrap: anywhere;
+}
+.catalog label[hidden] {
+  display: none;
+}
+.catalog input {
+  margin-top: 4px;
+}
+.actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 16px;
+}
+#review-canvas {
+  display: block;
+  width: 320px;
+  height: 360px;
+  max-width: 100%;
+  margin: 14px auto;
+  background: #e9f2f8;
+}
+#review-status {
+  min-height: 30px;
+  font-weight: 600;
+}
+.review-card {
+  border-top: 1px solid #bacbdc;
+  margin-top: 20px;
+  padding-top: 10px;
+}
+.comparison {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  align-items: start;
+}
+figure {
+  margin: 0;
+  min-width: 0;
+}
+figcaption {
+  padding: 10px 0;
+  font-weight: 600;
+}
+.comparison img {
+  display: block;
+  width: 100%;
+  border: 1px solid #cad9e5;
+}
+.diagnostic {
+  background: #f0f5fa;
+  padding: 12px;
+}
+@media (max-width: 780px) {
+  .workspace,
+  .comparison {
+    grid-template-columns: 1fr;
+  }
+  main {
+    padding: 12px;
+  }
+}

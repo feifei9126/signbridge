@@ -42,3 +42,18 @@ test("subtitle capture can stop and bind existing sources again", () => {
     FakeMutationObserver.instances.length = 0;
   }
 });
+
+test("subtitle reset cancels pending text and permits a repeated cue", async () => {
+  const received = [];
+  const capturer = new SubtitleCapturer({
+    onSubtitle: (result) => received.push(result.text),
+  });
+  capturer._checkText("你好");
+  capturer.reset();
+  await new Promise((resolve) => setTimeout(resolve, 80));
+  assert.deepEqual(received, []);
+  capturer._checkText("你好");
+  await new Promise((resolve) => setTimeout(resolve, 80));
+  assert.deepEqual(received, ["你好"]);
+  capturer.stop();
+});

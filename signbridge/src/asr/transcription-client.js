@@ -15,6 +15,7 @@ async function transcribeAudio(
   audioBlob,
   requestConfig,
   fetchImpl = globalThis.fetch,
+  { signal } = {},
 ) {
   if (!(audioBlob instanceof Blob) || audioBlob.size === 0) {
     throw transcriptionError("asr-empty-audio");
@@ -40,8 +41,10 @@ async function transcribeAudio(
       method: "POST",
       headers,
       body: form,
+      signal,
     });
   } catch (error) {
+    if (signal?.aborted) throw error;
     throw transcriptionError("asr-network-error", error?.message);
   }
 

@@ -16,6 +16,7 @@ let asrState = {
   error: null,
 };
 let creatingOffscreen = null;
+let asrRevision = 0;
 
 if (chrome.storage.local.setAccessLevel) {
   chrome.storage.local
@@ -64,10 +65,11 @@ async function ensureOffscreenDocument() {
   await creatingOffscreen;
 }
 
-async function sendToOffscreen(message) {
+async function sendToOffscreen(message, isCurrent = () => true) {
   await ensureOffscreenDocument();
   let lastError;
   for (let attempt = 0; attempt < 20; attempt += 1) {
+    if (!isCurrent()) return { ok: false, error: "capture-cancelled" };
     try {
       return await chrome.runtime.sendMessage({
         target: "offscreen",
@@ -120,113 +122,175 @@ async function deployLocalWhisper(model) {
   return sendToOffscreen({ type: "ASR_LOCAL_DEPLOY", model });
 }
 
+function stopContentSession(state) {
+  if (!state.sessionId || !Number.isInteger(state.tabId)) return;
+  chrome.tabs
+    .sendMessage(state.tabId, {
+      action: "audioSessionStop",
+      sessionId: state.sessionId,
+    })
+    .catch(() => {});
+}
+
 async function startAsr(message) {
   if (!Number.isInteger(message.tabId)) {
     return { ok: false, error: "invalid-capture-request" };
   }
-  const config = await getAsrConfig();
-  const requestConfig = providerRequestConfig(config);
-  if (
-    requestConfig.provider === "cloud" &&
-    requestConfig.endpoint.startsWith("https://api.openai.com/") &&
-    !requestConfig.apiKey
-  ) {
-    return { ok: false, error: "asr-cloud-key-required" };
-  }
-  if (requestConfig.provider === "cloud") {
-    const hasEndpointPermission = await chrome.permissions.contains({
-      origins: [endpointPermissionPattern(requestConfig.endpoint)],
-    });
-    if (!hasEndpointPermission) {
-      return { ok: false, error: "asr-host-permission-required" };
-    }
-  } else {
-    const localStatus = await localWhisperStatus();
-    if (
-      localStatus?.status !== "ready" ||
-      localStatus?.model !== requestConfig.model
-    ) {
-      return { ok: false, error: "local-whisper-not-deployed" };
-    }
-  }
-  let streamId;
-  try {
-    streamId = await chrome.tabCapture.getMediaStreamId({
-      targetTabId: message.tabId,
-    });
-  } catch (error) {
-    return {
-      ok: false,
-      error: "tab-audio-capture-failed",
-      message: error?.message || String(error),
-    };
-  }
+  const stopping = stopAsr();
+  const revision = asrRevision;
   const sessionId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-  asrState = {
+  const state = {
     status: "starting",
     tabId: message.tabId,
-    provider: requestConfig.provider,
+    provider: null,
     sessionId,
     error: null,
   };
-  const response = await sendToOffscreen({
-    type: "ASR_CAPTURE_START",
-    sessionId,
-    tabId: message.tabId,
-    streamId,
-    requestConfig,
-  });
-  if (!response?.ok) {
-    asrState.status = "error";
-    asrState.error = response?.error || "capture-start-failed";
+  asrState = state;
+  const isCurrent = () => revision === asrRevision && asrState === state;
+  const cancelled = () => ({ ok: false, error: "capture-cancelled" });
+  function failed(error) {
+    if (!isCurrent()) return cancelled();
+    stopContentSession(state);
+    asrState = { ...state, status: "error", sessionId: null, error };
+    return { ok: false, ...asrState };
   }
-  return { ...asrState, ok: Boolean(response?.ok) };
+  try {
+    await stopping;
+    if (!isCurrent()) return cancelled();
+    const config = await getAsrConfig();
+    if (!isCurrent()) return cancelled();
+    const requestConfig = providerRequestConfig(config);
+    state.provider = requestConfig.provider;
+    if (requestConfig.provider === "cloud") {
+      if (
+        requestConfig.endpoint.startsWith("https://api.openai.com/") &&
+        !requestConfig.apiKey
+      ) {
+        return failed("asr-cloud-key-required");
+      }
+      const granted = await chrome.permissions.contains({
+        origins: [endpointPermissionPattern(requestConfig.endpoint)],
+      });
+      if (!isCurrent()) return cancelled();
+      if (!granted) return failed("asr-host-permission-required");
+    } else {
+      const localStatus = await localWhisperStatus();
+      if (!isCurrent()) return cancelled();
+      if (
+        localStatus?.status !== "ready" ||
+        localStatus?.model !== requestConfig.model
+      ) {
+        return failed("local-whisper-not-deployed");
+      }
+    }
+    let streamId;
+    try {
+      streamId = await chrome.tabCapture.getMediaStreamId({
+        targetTabId: message.tabId,
+      });
+    } catch {
+      return failed("tab-audio-capture-failed");
+    }
+    if (!isCurrent()) return cancelled();
+    const opened = await chrome.tabs.sendMessage(message.tabId, {
+      action: "audioSessionStart",
+      sessionId,
+    });
+    if (!isCurrent()) return cancelled();
+    if (!opened?.ok) return failed("capture-cancelled");
+    const response = await sendToOffscreen(
+      {
+        type: "ASR_CAPTURE_START",
+        sessionId,
+        tabId: message.tabId,
+        streamId,
+        requestConfig,
+      },
+      isCurrent,
+    );
+    if (!isCurrent()) return cancelled();
+    if (!response?.ok) return failed(response?.error || "capture-start-failed");
+    state.status = "running";
+    return { ok: true, ...state };
+  } catch (error) {
+    return failed(error?.message || "capture-start-failed");
+  }
 }
 
 async function stopAsr() {
-  try {
-    if (await hasOffscreenDocument()) {
+  const revision = ++asrRevision;
+  const previous = asrState;
+  asrState = {
+    status: "stopped",
+    tabId: null,
+    provider: null,
+    sessionId: null,
+    error: null,
+  };
+  stopContentSession(previous);
+  if (await hasOffscreenDocument()) {
+    if (revision === asrRevision) {
       await chrome.runtime.sendMessage({
         target: "offscreen",
         type: "ASR_CAPTURE_STOP",
       });
     }
-  } finally {
-    asrState = {
-      status: "stopped",
-      tabId: null,
-      provider: null,
-      sessionId: null,
-      error: null,
-    };
   }
   return { ok: true, ...asrState };
 }
 
 async function currentAsrStatus() {
+  const revision = asrRevision;
+  const state = asrState;
   if (await hasOffscreenDocument()) {
     try {
       const status = await chrome.runtime.sendMessage({
         target: "offscreen",
         type: "ASR_CAPTURE_STATUS",
       });
-      if (status?.status === "running") {
-        asrState.status = "running";
+      if (revision !== asrRevision || state !== asrState)
+        return { ok: true, ...asrState };
+      if (
+        status?.sessionId &&
+        (status.sessionId === state.sessionId || asrRevision === 0)
+      ) {
+        asrState.status = status.status;
         asrState.tabId = status.tabId;
         asrState.provider = status.provider;
         asrState.sessionId = status.sessionId;
+      } else if (
+        status?.status === "stopped" &&
+        state.sessionId &&
+        state.status !== "starting" &&
+        state.status !== "loading-model"
+      ) {
+        stopContentSession(state);
+        asrRevision += 1;
+        asrState = {
+          status: state.error ? "error" : "stopped",
+          tabId: null,
+          provider: state.provider,
+          sessionId: null,
+          error: state.error,
+        };
       }
     } catch {}
   }
   return { ok: true, ...asrState };
 }
 
-async function handleRuntimeMessage(message) {
+async function handleRuntimeMessage(message, sender) {
   if (message?.target === "offscreen") return null;
   switch (message?.type) {
     case "ASR_START":
       return startAsr(message);
     case "ASR_STOP":
+      return stopAsr();
+    case "ASR_STOP_TAB":
+      if (!Number.isInteger(sender?.tab?.id)) return { ok: false };
+      if (asrRevision === 0) await currentAsrStatus();
+      if (sender.tab.id !== asrState.tabId) return { ok: true };
       return stopAsr();
     case "ASR_GET_STATUS":
       return currentAsrStatus();
@@ -237,18 +301,28 @@ async function handleRuntimeMessage(message) {
     case "ASR_LOCAL_DEPLOY_STATE":
       return saveLocalWhisperState(message.state);
     case "ASR_CAPTURE_STATE":
-      if (!asrState.sessionId) {
-        asrState.sessionId = message.sessionId;
-        asrState.tabId = message.tabId;
-        asrState.provider = message.provider;
+      if (!asrState.sessionId && asrRevision === 0) await currentAsrStatus();
+      if (
+        !asrState.sessionId ||
+        message.sessionId !== asrState.sessionId ||
+        message.tabId !== asrState.tabId
+      )
+        return { ok: false };
+      if (message.status === "stopped") {
+        stopContentSession(asrState);
+        asrRevision += 1;
+        asrState.sessionId = null;
+        asrState.tabId = null;
       }
-      if (message.sessionId !== asrState.sessionId) return { ok: false };
       asrState.status = message.status;
       asrState.error = message.error || null;
       return { ok: true };
     case "ASR_TRANSCRIPT":
+      if (!asrState.sessionId && asrRevision === 0) await currentAsrStatus();
       if (
+        !asrState.sessionId ||
         message.sessionId !== asrState.sessionId ||
+        message.tabId !== asrState.tabId ||
         !message.text ||
         !Number.isInteger(message.tabId)
       ) {
@@ -257,6 +331,7 @@ async function handleRuntimeMessage(message) {
       await chrome.tabs.sendMessage(message.tabId, {
         action: "audioTranscript",
         text: message.text,
+        sessionId: message.sessionId,
       });
       return { ok: true };
     default:
@@ -264,9 +339,9 @@ async function handleRuntimeMessage(message) {
   }
 }
 
-chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message?.target === "offscreen") return false;
-  handleRuntimeMessage(message)
+  handleRuntimeMessage(message, sender)
     .then((response) => sendResponse(response))
     .catch((error) => {
       console.error("[SignBridge] ASR message failed:", error);
@@ -276,7 +351,11 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 });
 
 chrome.tabs.onRemoved.addListener((tabId) => {
-  if (tabId === asrState.tabId) stopAsr().catch(() => {});
+  async function stopClosedTab() {
+    if (asrRevision === 0) await currentAsrStatus();
+    if (tabId === asrState.tabId) await stopAsr();
+  }
+  stopClosedTab().catch(() => {});
 });
 
 console.log("[SignBridge] Service Worker initialized");

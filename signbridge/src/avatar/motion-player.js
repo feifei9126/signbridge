@@ -22,16 +22,23 @@ function createMotionPlayer(
     setTimer = setTimeout,
     clearTimer = clearTimeout,
     now = () => performance.now(),
+    maxPendingMotions = 2,
+    maxPendingAgeMs = 6000,
+    onComplete = () => {},
   } = {},
 ) {
   let queue = [];
   let timerId = null;
   let frameId = null;
   let playing = false;
+  let pendingMotions = [];
+  let currentKey = null;
 
   function stop({ reset = false } = {}) {
     playing = false;
     queue = [];
+    pendingMotions = [];
+    currentKey = null;
     if (timerId !== null) clearTimer(timerId);
     if (frameId !== null) cancelFrame(frameId);
     timerId = null;
@@ -40,10 +47,20 @@ function createMotionPlayer(
   }
 
   function playNext() {
+    if (frameId !== null) cancelFrame(frameId);
+    frameId = null;
+    timerId = null;
+    if (playing && queue.length === 0) {
+      pendingMotions = pendingMotions.filter(
+        (motion) => now() - motion.receivedAt <= maxPendingAgeMs,
+      );
+      const next = pendingMotions.shift();
+      queue = next?.frames || [];
+      currentKey = next?.key ?? null;
+    }
     if (!playing || queue.length === 0) {
       playing = false;
-      frameId = null;
-      timerId = null;
+      onComplete();
       return;
     }
 
@@ -76,8 +93,33 @@ function createMotionPlayer(
     return true;
   }
 
+  function enqueue(motion, { key = null } = {}) {
+    const frames = normalizeMotionFrames(motion);
+    if (frames.length === 0) return false;
+    if (
+      key !== null &&
+      (key === currentKey || pendingMotions.some((item) => item.key === key))
+    ) {
+      return false;
+    }
+    if (!playing) {
+      queue = frames;
+      currentKey = key;
+      playing = true;
+      playNext();
+    } else {
+      pendingMotions = pendingMotions.filter(
+        (item) => now() - item.receivedAt <= maxPendingAgeMs,
+      );
+      pendingMotions.push({ frames, key, receivedAt: now() });
+      while (pendingMotions.length > maxPendingMotions) pendingMotions.shift();
+    }
+    return true;
+  }
+
   return {
     play,
+    enqueue,
     stop,
     get isPlaying() {
       return playing;

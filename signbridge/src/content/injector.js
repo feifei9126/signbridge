@@ -36,6 +36,8 @@
   let iframeReady = false;
   let injectPromise = null;
   let resolveIframeLoaded = null;
+  let overlayRevision = 0;
+  let audioSessionId = null;
   const pendingIframeMessages = [];
 
   function isVideoSite() {
@@ -71,18 +73,21 @@
       return Promise.resolve();
     }
     if (injectPromise) return injectPromise;
-    injectPromise = inject().finally(() => {
-      injectPromise = null;
+    const pending = inject().finally(() => {
+      if (injectPromise === pending) injectPromise = null;
     });
+    injectPromise = pending;
     return injectPromise;
   }
 
   async function inject() {
+    const revision = overlayRevision;
     if (!document.body) {
       await new Promise((resolve) => {
         document.addEventListener("DOMContentLoaded", resolve, { once: true });
       });
     }
+    if (revision !== overlayRevision) return;
 
     const existing = document.getElementById("signbridge-overlay");
     if (existing) existing.remove();
@@ -136,19 +141,27 @@
     iframe.setAttribute("allow", "autoplay");
     container.appendChild(iframe);
     document.body.appendChild(container);
+    const currentIframe = iframe;
 
     iframeReady = false;
     const loaded = new Promise((resolve) => {
       resolveIframeLoaded = resolve;
     });
+    let timeoutId;
     await Promise.race([
       loaded,
       new Promise((resolve) => {
-        setTimeout(resolve, 10000);
+        timeoutId = setTimeout(resolve, 10000);
       }),
     ]);
+    clearTimeout(timeoutId);
 
-    if (!iframe?.isConnected) return;
+    if (
+      revision !== overlayRevision ||
+      iframe !== currentIframe ||
+      !currentIframe.isConnected
+    )
+      return;
     injectPageAgent();
     postMessageToIframe("INIT", {
       modelUrl: chrome.runtime.getURL("avatar/model.glb"),
@@ -202,14 +215,27 @@
   }
 
   function removeOverlay() {
-    postMessageToPage("SIGNBRIDGE_STOP");
-    active = false;
+    stopTranslation();
+    overlayRevision += 1;
+    resolveIframeLoaded?.();
+    injectPromise = null;
     container?.remove();
     container = null;
     iframe = null;
     iframeReady = false;
     resolveIframeLoaded = null;
     pendingIframeMessages.length = 0;
+  }
+
+  function stopTranslation() {
+    active = false;
+    audioSessionId = null;
+    pendingIframeMessages.length = 0;
+    postMessageToPage("SIGNBRIDGE_STOP");
+    postMessageToIframe("PLAYBACK_RESET");
+    chrome.runtime.sendMessage({ type: "ASR_STOP_TAB" }).catch((error) => {
+      console.warn("[SB-CS] Audio stop failed:", error.message);
+    });
   }
 
   function postMessageToPage(type, data) {
@@ -265,9 +291,16 @@
     if (
       event.source === window &&
       message.source === "signbridge-page" &&
+      active &&
       (message.type === "SUBTITLE_CAPTURED" || message.type === "SUBTITLE_TEXT")
     ) {
       postMessageToIframe("SUBTITLE_TEXT", { text: message.text });
+    } else if (
+      event.source === window &&
+      message.source === "signbridge-page" &&
+      message.type === "PLAYBACK_RESET"
+    ) {
+      postMessageToIframe("PLAYBACK_RESET");
     }
   }
 
@@ -300,21 +333,39 @@
       }
     } else if (action === "start" || action === "SIGNBRIDGE_START") {
       active = true;
+      const revision = overlayRevision;
       await ensureInjected();
-      if (iframeReady) postMessageToPage("SIGNBRIDGE_START");
+      if (active && revision === overlayRevision && iframeReady) {
+        postMessageToPage("SIGNBRIDGE_START");
+      }
     } else if (action === "stop" || action === "SIGNBRIDGE_STOP") {
-      active = false;
-      postMessageToPage("SIGNBRIDGE_STOP");
-    } else if (action === "audioTranscript") {
+      stopTranslation();
+    } else if (action === "audioSessionStart") {
+      if (!message.sessionId) return { ok: false };
+      active = true;
+      audioSessionId = message.sessionId;
       await ensureInjected();
-      if (message.text) {
+      if (!active || audioSessionId !== message.sessionId) return { ok: false };
+      if (iframeReady) postMessageToPage("SIGNBRIDGE_START");
+    } else if (action === "audioSessionStop") {
+      if (audioSessionId === message.sessionId) audioSessionId = null;
+    } else if (action === "audioTranscript") {
+      if (!active || !audioSessionId || message.sessionId !== audioSessionId) {
+        return { ok: true, ignored: true, active, ready: iframeReady };
+      }
+      await ensureInjected();
+      if (active && message.sessionId === audioSessionId && message.text) {
         postMessageToIframe("SUBTITLE_TEXT", { text: message.text });
         postMessageToPage("SPEECH_TEXT", { text: message.text });
       }
     } else if (action === "sendText" || action === "SEND_TEXT") {
+      const revision = overlayRevision;
       await ensureInjected();
-      if (message.text) {
-        postMessageToIframe("SUBTITLE_TEXT", { text: message.text });
+      if (revision === overlayRevision && message.text) {
+        postMessageToIframe("SUBTITLE_TEXT", {
+          text: message.text,
+          manual: true,
+        });
       }
     } else if (action === "updateConfig" || action === "SET_CONFIG") {
       updateConfig(message.config || {});

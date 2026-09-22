@@ -38,6 +38,8 @@ class SignBridgePopup {
       settingsBtn: document.getElementById("btnSettings"),
       btnPoseEditor: document.getElementById("btnPoseEditor"),
       btnRecordMode: document.getElementById("btnRecordMode"),
+      btnCoverage: document.getElementById("btnCoverage"),
+      btnMotionReview: document.getElementById("btnMotionReview"),
       textInput: document.getElementById("textInput"),
       btnSendText: document.getElementById("btnSendText"),
       btnHelp: document.getElementById("btnHelp"),
@@ -101,6 +103,14 @@ class SignBridgePopup {
     this.elements.btnRecordMode?.addEventListener("click", () => {
       chrome.tabs.create({
         url: chrome.runtime.getURL("avatar/record-mode.html"),
+      });
+    });
+    this.elements.btnCoverage?.addEventListener("click", () => {
+      chrome.tabs.create({ url: chrome.runtime.getURL("tools/coverage.html") });
+    });
+    this.elements.btnMotionReview?.addEventListener("click", () => {
+      chrome.tabs.create({
+        url: chrome.runtime.getURL("tools/motion-review.html"),
       });
     });
     this.elements.btnAudio?.addEventListener("click", () =>
@@ -174,6 +184,10 @@ class SignBridgePopup {
       return;
     }
     this._isActive = response.active ?? requestedActive;
+    if (!this._isActive) {
+      this._audioEnabled = false;
+      this._updateAudioUI();
+    }
     this.config = await setConfig({ enabled: this._isActive });
     this._updateUI();
   }
@@ -196,6 +210,8 @@ class SignBridgePopup {
           return;
         }
         this._audioEnabled = true;
+        this._isActive = true;
+        this._updateUI();
         this._updateAudioUI();
       } catch (error) {
         console.error("[SignBridge] Tab audio capture failed:", error);

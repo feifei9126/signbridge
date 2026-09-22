@@ -218,6 +218,11 @@ export class SubtitleCapturer {
     return [...this._sources];
   }
 
+  reset() {
+    clearTimeout(this._debounceTimer);
+    this._lastText = "";
+  }
+
   stop() {
     this._active = false;
     clearTimeout(this._debounceTimer);

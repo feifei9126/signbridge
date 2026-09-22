@@ -1,6 +1,7 @@
 <!doctype html>
 <html lang="zh-CN">
   <head>
+    <link rel="stylesheet" href="motion-library.css" />
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="icon" href="../icons/icon16.png" />
@@ -60,8 +61,15 @@
         display: flex;
         flex-direction: column;
         border-left: 1px solid #333;
-        overflow: hidden;
+        overflow-y: auto;
         flex-shrink: 0;
+      }
+      #panel > * {
+        flex-shrink: 0;
+      }
+      #panel #bones-scroll {
+        min-height: 250px;
+        max-height: 50vh;
       }
       #panel h2 {
         padding: 14px 16px 8px;
@@ -261,14 +269,7 @@
         </select>
       </div>
 
-      <h3>动作库</h3>
-      <div class="toolbar">
-        <input id="lib-name" value="default" aria-label="动作库名称" />
-        <button id="btn-show-all">查看</button>
-        <button id="btn-dl">下载</button>
-        <button id="btn-refresh-lib">刷新</button>
-      </div>
-      <div id="lib-list" class="toolbar"></div>
+      <section id="motion-library"></section>
 
       <h3>骨骼参数 (弧度)</h3>
       <div id="bones-scroll"></div>

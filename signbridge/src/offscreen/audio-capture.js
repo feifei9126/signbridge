@@ -7,14 +7,10 @@ import {
 } from "../asr/local-whisper.js";
 import { decodeAudioBlob, hasAudibleSignal } from "../asr/audio-pcm.js";
 
-let captureStream = null;
-let audioContext = null;
-let mediaRecorder = null;
-let chunkTimer = null;
 let session = null;
+let captureRevision = 0;
 let queuedAudio = null;
 let processingAudio = false;
-let consecutiveFailures = 0;
 let deploymentTask = null;
 
 function recorderMimeType() {
@@ -25,37 +21,58 @@ function recorderMimeType() {
   );
 }
 
-function sendState(status, extra = {}) {
-  if (!session) return;
+function sendState(status, extra = {}, owner = session) {
+  if (!owner) return;
+  owner.status = status;
   chrome.runtime
     .sendMessage({
       target: "worker",
       type: "ASR_CAPTURE_STATE",
-      sessionId: session.id,
-      tabId: session.tabId,
-      provider: session.requestConfig.provider,
+      sessionId: owner.id,
+      tabId: owner.tabId,
+      provider: owner.requestConfig.provider,
       status,
       ...extra,
     })
     .catch(() => {});
 }
 
+function isCurrent(owner) {
+  return owner === session && owner.running;
+}
+
+function cancelledCapture() {
+  return { ok: false, error: "capture-cancelled" };
+}
+
 async function startCapture(message) {
-  await stopCapture(false);
-  session = {
+  const stopping = stopCapture(false);
+  const revision = captureRevision;
+  await stopping;
+  if (revision !== captureRevision) return cancelledCapture();
+  const owner = {
     id: message.sessionId,
     tabId: message.tabId,
     requestConfig: message.requestConfig,
     running: true,
+    status: "starting",
+    stream: null,
+    context: null,
+    recorder: null,
+    timer: null,
+    failures: 0,
+    abortController: new globalThis.AbortController(),
   };
+  session = owner;
   sendState("starting");
 
   try {
-    if (session.requestConfig.provider === "local") {
+    if (owner.requestConfig.provider === "local") {
       sendState("loading-model");
-      await prepareLocalWhisper(session.requestConfig.model);
+      await prepareLocalWhisper(owner.requestConfig.model);
     }
-    captureStream = await navigator.mediaDevices.getUserMedia({
+    if (!isCurrent(owner)) return cancelledCapture();
+    const stream = await navigator.mediaDevices.getUserMedia({
       audio: {
         mandatory: {
           chromeMediaSource: "tab",
@@ -64,21 +81,35 @@ async function startCapture(message) {
       },
       video: false,
     });
-
-    audioContext = new globalThis.AudioContext();
-    const source = audioContext.createMediaStreamSource(captureStream);
-    source.connect(audioContext.destination);
-    if (audioContext.state === "suspended") {
-      await audioContext.resume();
+    if (!isCurrent(owner)) {
+      stream.getTracks().forEach((track) => track.stop());
+      return cancelledCapture();
     }
+    owner.stream = stream;
 
-    for (const track of captureStream.getAudioTracks()) {
-      track.addEventListener("ended", () => stopCapture(), { once: true });
+    const context = new globalThis.AudioContext();
+    owner.context = context;
+    const source = context.createMediaStreamSource(stream);
+    source.connect(context.destination);
+    if (context.state === "suspended") {
+      await context.resume();
+    }
+    if (!isCurrent(owner)) return cancelledCapture();
+
+    for (const track of stream.getAudioTracks()) {
+      track.addEventListener(
+        "ended",
+        () => {
+          if (isCurrent(owner)) stopCapture().catch(() => {});
+        },
+        { once: true },
+      );
     }
     sendState("running");
-    startRecordingChunk();
+    startRecordingChunk(owner);
     return { ok: true };
   } catch (error) {
+    if (!isCurrent(owner)) return cancelledCapture();
     sendState("error", {
       error: error?.code || error?.name || "audio-capture-failed",
       message: error?.message || String(error),
@@ -91,34 +122,38 @@ async function startCapture(message) {
   }
 }
 
-function startRecordingChunk() {
-  if (!session?.running || !captureStream?.active) return;
+function startRecordingChunk(owner) {
+  if (!isCurrent(owner) || !owner.stream?.active) return;
   const chunks = [];
   const mimeType = recorderMimeType();
-  mediaRecorder = new globalThis.MediaRecorder(
-    captureStream,
+  const recorder = new globalThis.MediaRecorder(
+    owner.stream,
     mimeType ? { mimeType } : undefined,
   );
-  mediaRecorder.addEventListener("dataavailable", (event) => {
+  owner.recorder = recorder;
+  recorder.addEventListener("dataavailable", (event) => {
     if (event.data.size > 0) chunks.push(event.data);
   });
-  mediaRecorder.addEventListener(
+  recorder.addEventListener(
     "stop",
     () => {
-      clearTimeout(chunkTimer);
-      chunkTimer = null;
+      if (!isCurrent(owner) || owner.recorder !== recorder) return;
+      clearTimeout(owner.timer);
+      owner.timer = null;
       if (chunks.length > 0) {
         queueAudio(
-          new Blob(chunks, { type: mediaRecorder?.mimeType || mimeType }),
+          new Blob(chunks, { type: recorder.mimeType || mimeType }),
+          owner,
         );
       }
-      if (session?.running) startRecordingChunk();
+      startRecordingChunk(owner);
     },
     { once: true },
   );
-  mediaRecorder.addEventListener(
+  recorder.addEventListener(
     "error",
     (event) => {
+      if (!isCurrent(owner)) return;
       sendState("error", {
         error: event.error?.name || "media-recorder-error",
         message: event.error?.message || "MediaRecorder failed",
@@ -127,19 +162,17 @@ function startRecordingChunk() {
     },
     { once: true },
   );
-  mediaRecorder.start();
-  chunkTimer = setTimeout(() => {
-    if (mediaRecorder?.state === "recording") mediaRecorder.stop();
-  }, session.requestConfig.chunkSeconds * 1000);
+  recorder.start();
+  owner.timer = setTimeout(() => {
+    if (isCurrent(owner) && recorder.state === "recording") recorder.stop();
+  }, owner.requestConfig.chunkSeconds * 1000);
 }
 
-function queueAudio(blob) {
-  if (!session?.running) return;
+function queueAudio(blob, owner) {
+  if (!isCurrent(owner)) return;
   queuedAudio = {
     blob,
-    sessionId: session.id,
-    tabId: session.tabId,
-    requestConfig: session.requestConfig,
+    owner,
   };
   if (!processingAudio) processAudioQueue();
 }
@@ -149,41 +182,49 @@ async function processAudioQueue() {
   while (queuedAudio) {
     const item = queuedAudio;
     queuedAudio = null;
-    if (!session?.running || item.sessionId !== session.id) continue;
+    const { owner } = item;
+    if (!isCurrent(owner)) continue;
     try {
       let result;
-      if (item.requestConfig.provider === "local") {
-        const samples = await decodeAudioBlob(item.blob, audioContext);
+      if (owner.requestConfig.provider === "local") {
+        const samples = await decodeAudioBlob(item.blob, owner.context);
+        if (!isCurrent(owner)) continue;
         result = hasAudibleSignal(samples)
-          ? await transcribeLocalAudio(samples, item.requestConfig)
+          ? await transcribeLocalAudio(samples, owner.requestConfig)
           : { text: "" };
       } else {
-        result = await transcribeAudio(item.blob, item.requestConfig);
+        result = await transcribeAudio(
+          item.blob,
+          owner.requestConfig,
+          globalThis.fetch,
+          {
+            signal: owner.abortController.signal,
+          },
+        );
       }
-      if (!session?.running || item.sessionId !== session.id) continue;
-      consecutiveFailures = 0;
+      if (!isCurrent(owner)) continue;
+      owner.failures = 0;
       if (result.text) {
         chrome.runtime
           .sendMessage({
             target: "worker",
             type: "ASR_TRANSCRIPT",
-            sessionId: item.sessionId,
-            tabId: item.tabId,
+            sessionId: owner.id,
+            tabId: owner.tabId,
             text: result.text,
           })
           .catch(() => {});
       }
       sendState("running");
     } catch (error) {
-      if (!session?.running || item.sessionId !== session.id) continue;
-      consecutiveFailures += 1;
+      if (!isCurrent(owner)) continue;
+      owner.failures += 1;
       sendState("error", {
         error: error?.code || "asr-request-failed",
         message: error?.message || String(error),
       });
-      if (consecutiveFailures >= 3) {
+      if (owner.failures >= 3) {
         await stopCapture(false);
-        break;
       }
     }
   }
@@ -191,34 +232,37 @@ async function processAudioQueue() {
 }
 
 async function stopCapture(notify = true) {
-  if (session) session.running = false;
-  clearTimeout(chunkTimer);
-  chunkTimer = null;
-  if (mediaRecorder && mediaRecorder.state !== "inactive") {
-    try {
-      mediaRecorder.stop();
-    } catch {}
-  }
-  mediaRecorder = null;
-  captureStream?.getTracks().forEach((track) => track.stop());
-  captureStream = null;
-  if (audioContext) {
-    try {
-      await audioContext.close();
-    } catch {}
-  }
-  audioContext = null;
-  queuedAudio = null;
-  consecutiveFailures = 0;
-  if (notify && session) sendState("stopped");
+  captureRevision += 1;
+  const owner = session;
   session = null;
+  queuedAudio = null;
+  if (!owner) return { ok: true };
+  owner.running = false;
+  owner.abortController.abort();
+  clearTimeout(owner.timer);
+  owner.timer = null;
+  if (owner.recorder && owner.recorder.state !== "inactive") {
+    try {
+      owner.recorder.stop();
+    } catch {}
+  }
+  owner.recorder = null;
+  owner.stream?.getTracks().forEach((track) => track.stop());
+  owner.stream = null;
+  if (notify) sendState("stopped", {}, owner);
+  if (owner.context) {
+    try {
+      await owner.context.close();
+    } catch {}
+  }
+  owner.context = null;
   return { ok: true };
 }
 
 function captureStatus() {
   return {
     ok: true,
-    status: session?.running ? "running" : "stopped",
+    status: session?.status ?? "stopped",
     sessionId: session?.id ?? null,
     tabId: session?.tabId ?? null,
     provider: session?.requestConfig?.provider ?? null,

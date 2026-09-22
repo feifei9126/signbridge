@@ -7,7 +7,12 @@ import * as THREE from "./three.module.js";
 import { GLTFLoader } from "./jsm/loaders/GLTFLoader.js";
 import { createHumanoidRig } from "./humanoid-rig.js";
 import { createMotionPlayer } from "./motion-player.js";
-import { translateText } from "./sign-language-data.js";
+import {
+  normalizeText,
+  translateText,
+  compileTranslationMatchers,
+} from "./sign-language-data.js";
+import { createMotionLibrary, selectEnabledMotions } from "./motion-library.js";
 
 let renderer, scene, camera;
 let rig = null;
@@ -19,16 +24,65 @@ let modelLoading = false;
 let renderFrameId = null;
 let breathingFrameId = null;
 let blinkTimerId = null;
-let subtitleTimerId = null;
+let translationMatchers = compileTranslationMatchers();
+let unsubscribeMotions = null;
+let motionLibraryVersion = 0;
+let motionLibraryIdentity = "[]";
+
+async function loadMotionLibrary() {
+  try {
+    const library = createMotionLibrary(rig);
+    async function refresh() {
+      const version = ++motionLibraryVersion;
+      try {
+        const { entries, invalidCount } = await library.list();
+        if (version !== motionLibraryVersion || !modelReady) return;
+        const motions = selectEnabledMotions(entries);
+        const identity = JSON.stringify(motions);
+        if (identity !== motionLibraryIdentity) {
+          motionPlayer?.stop({ reset: true });
+          translationMatchers = compileTranslationMatchers(motions);
+          motionLibraryIdentity = identity;
+        }
+        console.log("[SB] Motion library:", {
+          enabled: motions.length,
+          invalid: invalidCount,
+        });
+      } catch (error) {
+        if (version !== motionLibraryVersion) return;
+        motionPlayer?.stop({ reset: true });
+        translationMatchers = compileTranslationMatchers();
+        motionLibraryIdentity = "[]";
+        console.warn("[SB] Motion library unavailable:", error.message);
+      }
+    }
+    unsubscribeMotions = library.subscribe(refresh);
+    await refresh();
+  } catch (error) {
+    console.warn("[SB] Motion library unavailable:", error.message);
+  }
+}
 
 // ===== 字幕 → 手语 =====
 
-function textToAnimation(text) {
+function textToAnimation(text, manual = false) {
   if (!text) return false;
-  const result = translateText(text);
+  const result = translateText(text, 12, translationMatchers);
   if (!result) return false;
-  if (!result.frames) return false;
-  return motionPlayer?.play(result) || false;
+  console.log("[SB] Translation coverage:", {
+    matches: result.matches.map((match) => match.text),
+    motionIds: result.matches.map((match) => match.id),
+    unmatched: result.unmatched,
+    truncated: result.truncated,
+    remainingText: result.remainingText,
+  });
+  if (!result.matches.length) return false;
+  if (manual) return motionPlayer?.play(result) || false;
+  return (
+    motionPlayer?.enqueue(result, {
+      key: normalizeText(text).toLowerCase(),
+    }) || false
+  );
 }
 
 // ===== 初始化 =====
@@ -71,7 +125,7 @@ function init(modelUrl) {
   const loader = new GLTFLoader();
   loader.load(
     modelUrl,
-    (gltf) => {
+    async (gltf) => {
       console.log("[SB] Model loaded");
       let primaryMesh = null;
       gltf.scene.traverse((child) => {
@@ -111,6 +165,8 @@ function init(modelUrl) {
 
       modelReady = true;
       modelLoading = false;
+      await loadMotionLibrary();
+      if (!modelReady) return;
       startIdleAnimations();
       setupMouseControls();
       notify("READY", {});
@@ -292,9 +348,11 @@ window.addEventListener("message", (ev) => {
       break;
     case "SUBTITLE_TEXT":
       if (modelReady && ev.data.text) {
-        clearTimeout(subtitleTimerId);
-        subtitleTimerId = setTimeout(() => textToAnimation(ev.data.text), 250);
+        textToAnimation(ev.data.text, ev.data.manual === true);
       }
+      break;
+    case "PLAYBACK_RESET":
+      motionPlayer?.stop({ reset: true });
       break;
     case "RESIZE":
       if (renderer) {
@@ -308,11 +366,13 @@ window.addEventListener("message", (ev) => {
 window.addEventListener("pagehide", disposeAvatar, { once: true });
 
 function disposeAvatar() {
+  modelReady = false;
+  motionLibraryVersion += 1;
+  unsubscribeMotions?.();
   motionPlayer?.stop();
   if (renderFrameId) cancelAnimationFrame(renderFrameId);
   if (breathingFrameId) cancelAnimationFrame(breathingFrameId);
   if (blinkTimerId) clearTimeout(blinkTimerId);
-  clearTimeout(subtitleTimerId);
   modelRoot?.traverse((object) => {
     object.geometry?.dispose?.();
     const materials = Array.isArray(object.material)

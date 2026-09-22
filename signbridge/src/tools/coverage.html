@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>SignBridge</title>
+    <link rel="stylesheet" href="coverage.css" />
+  </head>
+  <body>
+    <main>
+      <header>
+        <p class="eyebrow">SignBridge</p>
+        <h1 data-i18n="coverageTitle"></h1>
+        <p data-i18n="coverageIntro"></p>
+      </header>
+      <section aria-labelledby="input-title">
+        <h2 id="input-title" data-i18n="coverageInput"></h2>
+        <label for="coverage-text" data-i18n="coverageTextLabel"></label>
+        <textarea
+          id="coverage-text"
+          rows="8"
+          maxlength="50000"
+          aria-describedby="coverage-limits"
+        ></textarea>
+        <p id="coverage-limits" class="muted" data-i18n="coverageLimits"></p>
+        <div class="actions">
+          <label for="coverage-format" data-i18n="coverageFormat"></label>
+          <select id="coverage-format">
+            <option value="text" data-i18n="coveragePlainText"></option>
+            <option value="srt">SRT</option>
+            <option value="vtt">WebVTT</option>
+          </select>
+          <label for="coverage-file" data-i18n="coverageImport"></label>
+          <input type="file" id="coverage-file" accept=".txt,.srt,.vtt" />
+          <button id="coverage-analyze" data-i18n="coverageAnalyze"></button>
+          <button id="coverage-clear" data-i18n="coverageClear"></button>
+        </div>
+        <p id="coverage-status" role="status" aria-live="polite"></p>
+        <p id="coverage-catalog" class="muted"></p>
+      </section>
+      <section aria-labelledby="batch-title">
+        <h2 id="batch-title" data-i18n="batchTitle"></h2>
+        <p data-i18n="batchIntro"></p>
+        <form id="batch-add-form" class="actions">
+          <label for="batch-word" data-i18n="batchManual"></label>
+          <input id="batch-word" type="text" maxlength="100" required />
+          <button type="submit" data-i18n="batchAdd"></button>
+        </form>
+        <div class="actions">
+          <button id="batch-refresh" data-i18n="batchRefresh"></button>
+          <button id="batch-review" data-i18n="reviewTitle"></button>
+          <button id="batch-export" data-i18n="batchExport" disabled></button>
+          <button id="batch-clear" data-i18n="batchClear"></button>
+        </div>
+        <p id="batch-status" role="status" aria-live="polite"></p>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th scope="col" data-i18n="coverageWord"></th>
+                <th scope="col" data-i18n="batchState"></th>
+                <th scope="col" data-i18n="coverageMake"></th>
+              </tr>
+            </thead>
+            <tbody id="batch-rows"></tbody>
+          </table>
+        </div>
+        <p class="muted" data-i18n="batchPrivacy"></p>
+      </section>
+      <section id="coverage-results" hidden>
+        <h2 data-i18n="coverageResults"></h2>
+        <p id="coverage-summary" class="summary"></p>
+        <p data-i18n="coverageMetricHelp"></p>
+        <p id="coverage-truncation"></p>
+        <h3 data-i18n="coverageUnknownTitle"></h3>
+        <p data-i18n="coverageDraftHelp"></p>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th scope="col" data-i18n="coverageWord"></th>
+                <th scope="col" data-i18n="coverageFrequency"></th>
+                <th scope="col" data-i18n="coverageExamples"></th>
+                <th scope="col" data-i18n="coverageMake"></th>
+              </tr>
+            </thead>
+            <tbody id="coverage-unknown"></tbody>
+          </table>
+        </div>
+        <p id="coverage-unknown-note" class="muted"></p>
+        <h3 data-i18n="coverageDetailsTitle"></h3>
+        <div id="coverage-details"></div>
+        <p class="muted" data-i18n="coverageDisplayLimit"></p>
+        <div class="actions">
+          <label
+            ><input type="checkbox" id="coverage-include-text" /><span
+              data-i18n="coverageIncludeText"
+            ></span
+          ></label>
+          <button
+            id="coverage-export"
+            data-i18n="coverageExport"
+            disabled
+          ></button>
+        </div>
+        <p class="muted" data-i18n="coveragePrivacy"></p>
+      </section>
+    </main>
+    <script type="module" src="coverage.js"></script>
+  </body>
+</html>

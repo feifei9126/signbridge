@@ -172,6 +172,10 @@ async function build() {
     throw new Error("Missing model.glb. Put it in src/avatar/model.glb.");
   }
   copyFileSync(model, dp("avatar/model.glb"));
+  copyFileSync(
+    join(ROOT, "src/avatar/motion-library.css"),
+    dp("avatar/motion-library.css"),
+  );
   console.log(`  ✓ ${model.replace(`${ROOT}/`, "")} → avatar/model.glb`);
 
   // avatar-frame.html
@@ -234,10 +238,20 @@ async function build() {
 
   await buildPoseEditor();
   await buildRecordMode();
+  for (const tool of ["coverage", "motion-review"]) {
+    for (const extension of ["html", "css"]) {
+      copyFileSync(
+        join(ROOT, `src/tools/${tool}.${extension}`),
+        dp(`tools/${tool}.${extension}`),
+      );
+    }
+    await bundle(`tools/${tool}.js`, `tools/${tool}.js`);
+  }
 
   const helpSrc = join(ROOT, "src/avatar/help.html");
   if (existsSync(helpSrc)) {
     copyFileSync(helpSrc, dp("avatar/help.html"));
+    await bundle("avatar/help.js", "avatar/help.js");
     console.log("  ✓ avatar/help.html");
   }
 
@@ -276,19 +290,8 @@ async function buildPoseEditor() {
 
 async function buildRecordMode() {
   const source = readFileSync(join(TOOLS, "record-mode.html"), "utf8");
-  const match = source.match(/<script type="module">([\s\S]*?)<\/script>/m);
-  if (!match) throw new Error("Record mode module script is missing.");
-  const script = match[1]
-    .replace(
-      'from "../dist/avatar/jsm/loaders/GLTFLoader.js"',
-      'from "three/examples/jsm/loaders/GLTFLoader.js"',
-    )
-    .replace(
-      'const modelUrl = "../dist/avatar/model.glb";',
-      'const modelUrl = "./model.glb";',
-    );
   let html = source.replace(
-    match[0],
+    '<script type="module" src="../src/tools/record-mode.js"></script>',
     '<script type="module" src="record-bundle.js"></script>',
   );
   html = html.replace(
@@ -300,12 +303,7 @@ async function buildRecordMode() {
     .replaceAll("../signbridge/dist/avatar/", "./");
   writeFileSync(dp("avatar/record-mode.html"), html);
   await esbuild.build({
-    stdin: {
-      contents: script,
-      resolveDir: TOOLS,
-      sourcefile: "record-mode-entry.js",
-      loader: "js",
-    },
+    entryPoints: [join(ROOT, "src/tools/record-mode.js")],
     outfile: dp("avatar/record-bundle.js"),
     bundle: true,
     format: "esm",
