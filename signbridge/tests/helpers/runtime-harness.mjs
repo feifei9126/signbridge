@@ -1,9 +1,10 @@
 import { build } from "esbuild";
 import vm from "node:vm";
+import { fileURLToPath } from "node:url";
 
 export async function bundleRuntime(entry, dependencies = {}) {
   const result = await build({
-    entryPoints: [new URL(entry, import.meta.url).pathname],
+    entryPoints: [fileURLToPath(new URL(entry, import.meta.url))],
     bundle: true,
     format: "iife",
     write: false,

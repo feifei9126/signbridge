@@ -209,3 +209,7 @@ npm run verify
 [MIT](LICENSE) © SignBridge Contributors
 
 MIT 适用于项目代码；第三方模型、纹理、依赖和外部素材仍须遵循各自许可证。请勿把代码开源理解为所有素材都可以任意再分发，提交或发布动作资产前需确认来源与授权。
+
+## 黑客松演示网页
+
+在线演示：<https://feifei9126.github.io/signbridge/>。展示页包含约一分钟的实际操作录屏、工作流程和已构建的 Chrome 扩展下载包，适合直接分享给评委。静态页面源码、更新方法见 [docs/README.md](docs/README.md)；网页供观看介绍与下载，实时手语功能需在 Chrome 中安装扩展。

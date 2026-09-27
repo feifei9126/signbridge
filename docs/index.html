@@ -1,0 +1,400 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#101d31" />
+    <meta
+      name="description"
+      content="SignBridge 黑客松演示：将网页视频字幕或标签页声音转为可检查的 3D 中国手语动作。观看真实演示，下载 Chrome 扩展体验。"
+    />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="SignBridge · 让视频多一种被理解的方式" />
+    <meta
+      property="og:description"
+      content="字幕或视频声音，连接可检查的 3D 中国手语动作。观看演示并体验 Chrome 扩展。"
+    />
+    <meta
+      property="og:image"
+      content="https://feifei9126.github.io/signbridge/images/signbridge-demo.png"
+    />
+    <meta
+      property="og:url"
+      content="https://feifei9126.github.io/signbridge/"
+    />
+    <meta name="color-scheme" content="light" />
+    <title>SignBridge · 让视频多一种被理解的方式</title>
+    <link rel="icon" href="assets/avatar.png" type="image/png" />
+    <link rel="preload" href="assets/video-poster.jpg" as="image" />
+    <link rel="stylesheet" href="site.css" />
+    <script src="site.js" defer></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">跳到主要内容</a>
+    <header class="site-header">
+      <div class="container nav-row">
+        <a class="brand" href="#top" aria-label="SignBridge 首页">
+          <span class="brand-mark" aria-hidden="true">S<span>↗</span></span>
+          <span>SignBridge<span class="brand-dot">.</span></span>
+        </a>
+        <nav class="main-nav" aria-label="页面导航">
+          <a href="#demo">看演示</a>
+          <a href="#how">项目亮点</a>
+          <a href="#try">亲自体验</a>
+        </nav>
+        <a
+          class="nav-source"
+          href="https://github.com/feifei9126/signbridge"
+          target="_blank"
+          rel="noopener noreferrer"
+          >GitHub <span aria-hidden="true">↗</span></a
+        >
+      </div>
+    </header>
+
+    <main id="main">
+      <section class="hero" id="top" aria-labelledby="hero-title">
+        <div class="hero-glow hero-glow-one" aria-hidden="true"></div>
+        <div class="hero-glow hero-glow-two" aria-hidden="true"></div>
+        <div class="container hero-grid">
+          <div class="hero-copy">
+            <p class="eyebrow hero-eyebrow">
+              <span class="status-dot" aria-hidden="true"></span> HACKATHON DEMO
+              <span class="eyebrow-divider">/</span> 开源无障碍项目
+            </p>
+            <h1 id="hero-title">
+              让视频，<br />多一种<span class="highlight">被理解</span
+              ><br />的方式<span class="hero-period">。</span>
+            </h1>
+            <p class="hero-lead">
+              看得见字幕，也能看见手语。SignBridge
+              读取网页视频字幕或标签页声音，让 3D
+              虚拟人在页面上播放已收录的中国手语动作。
+            </p>
+            <div class="hero-actions">
+              <a class="button button-primary" href="#demo"
+                ><span class="play-icon" aria-hidden="true">▶</span> 观看 1
+                分钟演示</a
+              >
+              <a class="button button-ghost" href="#try"
+                >下载扩展 <span aria-hidden="true">↗</span></a
+              >
+            </div>
+            <p class="hero-caption">
+              Chrome 扩展 · 本地 Whisper 可选 · 词典驱动的辅助原型
+            </p>
+          </div>
+          <div
+            class="hero-visual"
+            aria-label="SignBridge 在视频页面上显示 3D 手语虚拟人的实际界面截图"
+          >
+            <div class="visual-orbit orbit-one" aria-hidden="true"></div>
+            <div class="visual-orbit orbit-two" aria-hidden="true"></div>
+            <div class="browser-window">
+              <div class="browser-topbar">
+                <span class="browser-dots" aria-hidden="true"
+                  ><i></i><i></i><i></i
+                ></span>
+                <span class="browser-address"
+                  >视频播放中 · SignBridge 正在工作</span
+                >
+                <span class="browser-symbol" aria-hidden="true">↗</span>
+              </div>
+              <img
+                src="images/signbridge-demo.png"
+                alt="视频字幕旁出现 SignBridge 的 3D 中国手语虚拟人浮窗"
+                width="1280"
+                height="720"
+                fetchpriority="high"
+              />
+            </div>
+            <div class="visual-label">
+              <span class="visual-label-icon" aria-hidden="true">✳</span
+              ><span
+                ><strong>手语，就在视频旁</strong
+                ><small>真实扩展界面截图</small></span
+              >
+            </div>
+          </div>
+        </div>
+        <div class="container hero-footer">
+          <span>01 / 看见另一种可能</span
+          ><a href="#demo">向下探索 <span aria-hidden="true">↓</span></a>
+        </div>
+      </section>
+
+      <section
+        class="demo-section section-space"
+        id="demo"
+        aria-labelledby="demo-title"
+      >
+        <div class="container">
+          <div class="section-intro demo-intro">
+            <div>
+              <p class="eyebrow light-eyebrow">
+                <span class="index-mark">01</span> SEE IT IN ACTION
+              </p>
+              <h2 id="demo-title">
+                先看它<span class="accent-text">如何工作。</span>
+              </h2>
+            </div>
+            <p>
+              这是实际扩展的操作录屏：从视频页面上的手语浮窗，到动作库和编辑工具。视频约
+              68 秒，点击下方节点可直接跳转。
+            </p>
+          </div>
+          <div class="demo-layout">
+            <div class="video-shell">
+              <div class="video-topline">
+                <span class="video-live"
+                  ><span class="status-dot" aria-hidden="true"></span> PRODUCT
+                  WALKTHROUGH</span
+                ><span>01:08 · 实际操作录屏</span>
+              </div>
+              <video
+                id="demo-video"
+                controls
+                playsinline
+                preload="metadata"
+                poster="assets/video-poster.jpg"
+                aria-label="SignBridge 扩展的实际操作演示视频"
+              >
+                <source src="assets/signbridge-demo.mp4" type="video/mp4" />
+                您的浏览器不支持视频播放。<a href="assets/signbridge-demo.mp4"
+                  >下载演示视频</a
+                >。
+              </video>
+              <div class="video-bottomline">
+                <span>按播放键开始观看 · 可使用视频控件开启全屏</span
+                ><a href="assets/signbridge-demo.mp4" download
+                  >下载视频 <span aria-hidden="true">↓</span></a
+                >
+              </div>
+            </div>
+            <aside class="chapters" aria-label="演示视频章节">
+              <div class="chapters-heading">
+                <span>演示导览</span><span aria-hidden="true">↘</span>
+              </div>
+              <button
+                class="chapter is-active"
+                type="button"
+                data-time="0"
+                aria-label="从开头观看：网页视频与手语浮窗"
+              >
+                <span class="chapter-time">00:00</span
+                ><span class="chapter-text"
+                  ><strong>视频旁的手语浮窗</strong
+                  ><small>字幕与 3D 虚拟人同屏</small></span
+                ><span class="chapter-arrow" aria-hidden="true">↗</span>
+              </button>
+              <button
+                class="chapter"
+                type="button"
+                data-time="16"
+                aria-label="跳转到 16 秒：动作库浏览"
+              >
+                <span class="chapter-time">00:16</span
+                ><span class="chapter-text"
+                  ><strong>浏览已有动作</strong
+                  ><small>检查已收录的词条</small></span
+                ><span class="chapter-arrow" aria-hidden="true">↗</span>
+              </button>
+              <button
+                class="chapter"
+                type="button"
+                data-time="39"
+                aria-label="跳转到 39 秒：姿势编辑器"
+              >
+                <span class="chapter-time">00:39</span
+                ><span class="chapter-text"
+                  ><strong>制作与调整动作</strong
+                  ><small>可视化姿势编辑工具</small></span
+                ><span class="chapter-arrow" aria-hidden="true">↗</span>
+              </button>
+              <button
+                class="chapter"
+                type="button"
+                data-time="58"
+                aria-label="跳转到 58 秒：更多项目画面"
+              >
+                <span class="chapter-time">00:58</span
+                ><span class="chapter-text"
+                  ><strong>走向更多视频</strong
+                  ><small>让观看多一种可能</small></span
+                ><span class="chapter-arrow" aria-hidden="true">↗</span>
+              </button>
+              <div class="chapters-note">
+                <span aria-hidden="true">✦</span>
+                <p>
+                  字幕优先；没有可读取字幕时，可使用标签页声音识别。实际效果取决于网站、设备与已收录词条。
+                </p>
+              </div>
+            </aside>
+          </div>
+        </div>
+      </section>
+
+      <section
+        class="how-section section-space"
+        id="how"
+        aria-labelledby="how-title"
+      >
+        <div class="container">
+          <div class="section-intro how-intro">
+            <div>
+              <p class="eyebrow light-eyebrow">
+                <span class="index-mark">02</span> HOW IT WORKS
+              </p>
+              <h2 id="how-title">
+                从声音与文字，<br />到<span class="accent-text"
+                  >看得见的表达。</span
+                >
+              </h2>
+            </div>
+            <p>
+              不用换掉你正在看的视频网站。在熟悉的网页中，多一层可调整位置的 3D
+              手语浮窗。
+            </p>
+          </div>
+          <div class="flow" aria-label="SignBridge 工作流程">
+            <article class="flow-card">
+              <span class="flow-number">01 / 输入</span>
+              <div class="flow-graphic input-graphic" aria-hidden="true">
+                <span class="caption-line"></span
+                ><span class="caption-line short"></span
+                ><span class="waveform">▂▅▃▆▄▇▃▅</span>
+              </div>
+              <h3>听见或读到</h3>
+              <p>读取网页可用字幕；没有字幕时，可识别当前标签页的声音。</p>
+            </article>
+            <span class="flow-connector" aria-hidden="true">→</span>
+            <article class="flow-card">
+              <span class="flow-number">02 / 匹配</span>
+              <div class="flow-graphic match-graphic" aria-hidden="true">
+                <span>你 好</span><span class="match-symbol">✦</span
+                ><span>动作库</span>
+              </div>
+              <h3>找到已知动作</h3>
+              <p>对照共享动作库匹配词条，缺词可以分析、补充和人工确认。</p>
+            </article>
+            <span class="flow-connector" aria-hidden="true">→</span>
+            <article class="flow-card avatar-card">
+              <span class="flow-number">03 / 呈现</span>
+              <div class="flow-graphic avatar-graphic">
+                <img
+                  src="assets/avatar.png"
+                  alt="蓝发的 3D 手语虚拟人形象"
+                  width="632"
+                  height="716"
+                  loading="lazy"
+                />
+              </div>
+              <h3>在视频旁播放</h3>
+              <p>Three.js 3D 虚拟人在网页浮窗中呈现已收录的中国手语动作。</p>
+            </article>
+          </div>
+          <p class="prototype-note">
+            <span aria-hidden="true">ⓘ</span>
+            当前是词典驱动的辅助原型，不能准确翻译任意语句，也不能替代字幕、专业翻译或人工沟通。
+          </p>
+        </div>
+      </section>
+
+      <section
+        class="try-section section-space"
+        id="try"
+        aria-labelledby="try-title"
+      >
+        <div class="container try-grid">
+          <div class="try-copy">
+            <p class="eyebrow try-eyebrow">
+              <span class="index-mark">03</span> TRY IT YOURSELF
+            </p>
+            <h2 id="try-title">
+              想亲自试试？<br /><span>三步就能开始。</span>
+            </h2>
+            <p>
+              提供已构建的 Chrome 扩展包。解压后加载，无需先安装 Node.js
+              或配置服务。建议先用“你好”“谢谢”测试动作。
+            </p>
+            <a
+              class="button button-primary download-button"
+              href="assets/signbridge-chrome-extension.zip"
+              download
+              >下载 Chrome 扩展 ZIP <span aria-hidden="true">↓</span></a
+            >
+            <span class="download-meta"
+              >适用于 Chrome 116+ · ZIP 约 7 MB · 本地加载</span
+            >
+          </div>
+          <ol class="install-steps">
+            <li>
+              <span class="step-number">01</span>
+              <div>
+                <h3>下载并解压</h3>
+                <p>
+                  点击下载，解压 ZIP。解压后的文件夹中应直接看到
+                  <code>manifest.json</code>。
+                </p>
+              </div>
+            </li>
+            <li>
+              <span class="step-number">02</span>
+              <div>
+                <h3>在 Chrome 中加载</h3>
+                <p>
+                  打开
+                  <code>chrome://extensions</code
+                  >，开启“开发者模式”，点击“加载已解压的扩展程序”，选中刚解压的文件夹。
+                </p>
+              </div>
+            </li>
+            <li>
+              <span class="step-number">03</span>
+              <div>
+                <h3>打开视频试一试</h3>
+                <p>
+                  进入视频网站，点击 SignBridge
+                  图标。先手动输入“你好”或“谢谢”；需要语音识别时再按提示配置本地
+                  Whisper。
+                </p>
+              </div>
+            </li>
+          </ol>
+        </div>
+      </section>
+
+      <section class="closing" aria-label="开源项目地址">
+        <div class="container closing-row">
+          <div>
+            <p class="eyebrow">BUILD THE BRIDGE TOGETHER</p>
+            <h2>让更多表达，<span>被看见。</span></h2>
+            <p>代码开源，欢迎一起完善手语动作、真实场景适配和使用体验。</p>
+          </div>
+          <a
+            class="button button-dark"
+            href="https://github.com/feifei9126/signbridge"
+            target="_blank"
+            rel="noopener noreferrer"
+            >查看 GitHub 项目 <span aria-hidden="true">↗</span></a
+          >
+        </div>
+      </section>
+    </main>
+    <footer class="site-footer">
+      <div class="container footer-row">
+        <a class="brand footer-brand" href="#top"
+          ><span class="brand-mark" aria-hidden="true">S<span>↗</span></span
+          ><span>SignBridge<span class="brand-dot">.</span></span></a
+        >
+        <p>让网页视频多一种无障碍观看方式。</p>
+        <a
+          href="https://github.com/feifei9126/signbridge/blob/main/LICENSE"
+          target="_blank"
+          rel="noopener noreferrer"
+          >MIT License <span aria-hidden="true">↗</span></a
+        >
+      </div>
+    </footer>
+  </body>
+</html>

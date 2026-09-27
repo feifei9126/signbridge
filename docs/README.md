@@ -1,0 +1,39 @@
+# 黑客松展示页
+
+本目录是 SignBridge 的静态演示网页，用 GitHub Pages 从 `main` 分支的 `/docs` 目录发布。配置 Pages 后的公开地址：<https://feifei9126.github.io/signbridge/>。
+
+页面提供实际操作录屏、功能说明和预构建 Chrome 扩展下载。它自身不是扩展运行环境；实时字幕、标签页音频捕获和 3D 浮窗需要先在 Chrome 中加载扩展。
+
+## 本地预览
+
+在仓库根目录运行 `python3 -m http.server 8000 --directory docs`，打开 <http://localhost:8000/>。网站不需要 npm 或前端构建。
+
+## 更新演示视频与下载包
+
+原始视频来自用户提供的素材文件夹；为方便网页播放，已经转换为 H.264/AAC，分辨率为 1280 × 720。重新转换的例子：
+
+```bash
+ffmpeg -i /path/to/source.mp4 -vf 'scale=-2:720' -c:v libx264 -preset veryfast -crf 29 -pix_fmt yuv420p -c:a aac -b:a 80k -movflags +faststart docs/assets/signbridge-demo.mp4
+```
+
+扩展源码更新后，重新构建并替换网页下载包，保持包内 `manifest.json` 在 ZIP 根目录：
+
+```bash
+cd signbridge
+npm ci
+npm run build
+cd dist
+zip -FS -qr ../../docs/assets/signbridge-chrome-extension.zip . -x '*.DS_Store'
+```
+
+页面素材与包可公开下载。上传新素材前确认有公开展示和分发权限；录屏中若有个人隐私需先编辑。若不方便公开 ZIP，移除下载按钮并改为仓库构建说明。
+
+## 首次发布
+
+将本次提交推送到 GitHub 后，在仓库 Settings → Pages 中选择 Deploy from a branch、`main` 分支与 `/docs` 目录并保存。等待 GitHub 的 Pages 构建完成，再检查页面、视频和 ZIP 的公网访问。预期地址不表示已经发布成功。
+
+## 离线演示
+
+可以直接打开本目录的 `index.html`；页面样式、脚本、截图、视频和扩展包均在本地，不依赖外部字体或 JavaScript CDN。GitHub 链接和扩展首次下载 Whisper 模型仍需要网络。
+
+本次扩展包由源码提交 `8510c788ebdfb1e7f4932f900ebf597e80219cbf` 构建（2026-09-27）；演示站点变更不改变扩展运行代码。

@@ -16,3 +16,6 @@ signbridge/scripts/clean-glb.mjs
 signbridge_backup_*/
 .agents/
 *.backup
+
+# Intentional downloadable build for the public demo site
+!docs/assets/signbridge-chrome-extension.zip
