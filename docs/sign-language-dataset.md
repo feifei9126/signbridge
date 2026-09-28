@@ -105,6 +105,12 @@ Mac 上可以运行本地 Vision OCR，抽样取画面下方 32% 的烧录字幕
 
 `label_ready` 仅表示指定人工审核字段齐全；`model_training_ready` 在本版始终为 false，同时产物保留原视频的 `authorization_status`。此版不检测多个人的数量、不验证字幕语义、不插值缺失帧、不拟合 SMPL-X、不导入虚拟人动作。
 
+## 已核对批次的动作重建
+
+用户于 2026-09-28 确认当前 16 段已经人工核对。确认记录保存在新版本 `local-data/sign-language-reviewed-v4`；逐帧拟合输入为 `local-data/sign-language-smplx-input-v1`。
+
+详见 [从已核对视频到 SMPL-X 动作](sign-language-motion.md)：包括审核来源、SMPLer-X 运行工具、模型文件要求、真实结果的 SOKE 133 维转换及其限制。原候选版本保持原有审核字段，追溯时应同时查看新核对记录。
+
 ## 核验与下一步
 
 1. 查阅具体授权约定与拟用范围；查看每段视频起止位置，确认只有目标表演者且完整表达被包含。
