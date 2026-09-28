@@ -25,17 +25,31 @@ uv pip install --python .venv-sign-data/bin/python -r signbridge/src/tools/requi
 .venv-sign-data/bin/python signbridge/src/tools/sign-data.py scan \
   --source-root "/Users/mac/Desktop/手语" \
   --output local-data/sign-language-pilot \
-  --authorization-note "用户说明部分视频已获授权；逐文件授权范围待核对"
+  --authorization-confirmed \
+  --authorization-note "2026-09-28 用户确认所提供视频全部获得授权"
 ```
 
 此命令输出：
 
-- `sources.json`：相对路径、SHA-256、时长、分辨率、帧率、逐文件授权待核对状态。
+- `sources.json`：相对路径、SHA-256、时长、分辨率、帧率、逐文件授权记录（用户确认）。
 - `videos.csv`：可用表格软件打开的素材清单。
 - `overview/*.jpg`：每个视频四个时间点的抽样图。
 - `segments-template.csv`：空白片段标注模板。
 
-已有清单不会被覆盖，源目录也不允许作为输出目录。文件摘要用于后续检查视频是否变化。用户仅说明部分视频已获授权，不能推断目录内所有视频均有训练与发布许可；清单中的 `scope_unverified` 表示该文件的授权范围待核对。仅在扫描的每个文件均已确认有处理许可时使用 `--authorization-confirmed`，该选项也不代替查验授权范围。当前试点只在本地进行数据整理，任何文件进入训练集、用于产品或公开发布前，都需逐项核对相应许可。视频和派生数据保持在忽略提交的 `local-data/` 内。
+已有清单不会被覆盖，源目录也不允许作为输出目录。文件摘要用于后续检查视频是否变化。用户于 2026-09-28 确认所提供全部视频已经授权；现有 13 个源文件均记录为 `user_reported`，表示根据用户陈述记录，未单独审核许可文本或推断任意公开分发权限。视频和派生数据保存在忽略提交的 `local-data/` 中。已有清单请直接复用；`scan` 要求全新输出目录，不覆盖原清单。
+
+## 从视频画面采集候选字幕（macOS）
+
+Mac 上可以运行本地 Vision OCR，抽样取画面下方 32% 的烧录字幕。Vision 支持指定识别语言和精确识别模式；本工具传入简体中文与英文，输出原始 OCR 行、置信度、抽帧图和近似时间戳。OCR 有漏字、错字，且字幕出现时间不等于手语动作起止时间。
+
+```bash
+.venv-sign-data/bin/python signbridge/src/tools/sign-data.py ocr \
+  --manifest local-data/sign-language-pilot/sources.json \
+  --source-id source-23efbaded8944f2f --start 252 --end 302 \
+  --fps 1 --output local-data/sign-language-ocr-greetings
+```
+
+输出 `captions.jsonl`、`provenance.json`、`frames/`。新扫描区间使用新的输出目录；OCR 仅接受清单中有用户授权记录且哈希未变化的源文件。优先从单人镜头里选取连续句子，并在 `segments-v3.csv` 中保留 OCR 释义为 `text_candidate`；所有审核字段保持待审核。
 
 ## 标注片段
 
@@ -80,11 +94,20 @@ uv pip install --python .venv-sign-data/bin/python -r signbridge/src/tools/requi
 
 缺失点保留 NaN，分别记录 detection mask，不使用零坐标伪装有效点。检测率表示模型返回关键点的帧占比，不是精度，也不代表手语正确；下垂到画外的手、遮挡和运动模糊可能造成缺失。镜像状态会记录，但此版不执行左右手纠正。逐帧时间戳对应重采样后的片段时间及其在原视频中的名义采样时间，不是原始文件的逐帧 PTS。
 
+可复核数据包后运行完整解码及形状/mask 校验：
+
+```bash
+.venv-sign-data/bin/python signbridge/src/tools/sign-data.py audit \
+  --batch local-data/sign-language-candidates-v3
+```
+
+此命令输出 `verification.json`，逐帧读取原片段和叠加片段，检查关键点数组及缺失标记一致性。结构校验通过不表示语义或动作正确。
+
 `label_ready` 仅表示指定人工审核字段齐全；`model_training_ready` 在本版始终为 false，同时产物保留原视频的 `authorization_status`。此版不检测多个人的数量、不验证字幕语义、不插值缺失帧、不拟合 SMPL-X、不导入虚拟人动作。
 
 ## 核验与下一步
 
-1. 逐文件核对许可范围，标记允许训练及派生数据使用的文件；查看每段视频起止位置，确认只有目标表演者且完整表达被包含。
+1. 查阅具体授权约定与拟用范围；查看每段视频起止位置，确认只有目标表演者且完整表达被包含。
 2. 手语使用者核对含义、语序、双手关系和面部/身体表达，填写 verified 文本与审核记录。
 3. 单独检查动作期间的手部缺失与误检，必要时重新裁剪、提取或弃用。
 4. 制作一小批通过审核的词汇与整句样本，再评估 SMPL-X 拟合及虚拟人重定向的可行性。
@@ -101,4 +124,6 @@ npx prettier --check src/
 node --test tests/*.test.mjs
 ```
 
-Python 测试覆盖候选字幕不会自动变成已核验释义、边界与非有限数值、重复 ID、路径穿越、审核字段、按视频内容/表演者/会话阻止跨集合泄漏。真实视频试点另行检查解码、NPZ shape、缺失值 mask 和叠加预览；不将这些检查当成语言学验收。
+Python 测试覆盖 OCR 源文件授权记录与时间范围、候选字幕不会自动变成已核验释义、边界与非有限数值、重复 ID、路径穿越、审核字段、按视频内容/表演者/会话阻止跨集合泄漏。真实视频试点另行检查解码、NPZ shape、缺失值 mask 和叠加预览；不将这些检查当成语言学验收。
+
+本批 16 个候选片段的本地核验页位于 `local-data/sign-language-candidates-v3/review.html`；16 段不等于 16 条已可用训练标签。

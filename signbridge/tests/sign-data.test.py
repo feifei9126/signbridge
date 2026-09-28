@@ -86,6 +86,42 @@ class SignDataTests(unittest.TestCase):
         rows = data.validate_segments(self.manifest, [first, second])
         self.assertEqual([row["split"] for row in rows], ["train", "test"])
 
+    def test_ocr_requires_recorded_user_authorization(self):
+        self.manifest["sources"][0]["authorization_status"] = "scope_unverified"
+        with self.assertRaisesRegex(ValueError, "authorization"):
+            data.validate_ocr_range(self.manifest, "s1", 1, 3)
+        self.manifest["sources"][0]["authorization_status"] = "user_reported"
+        self.assertEqual(data.validate_ocr_range(self.manifest, "s1", 1, 3)["source_id"], "s1")
+
+    def test_ocr_range_rejects_unknown_source_and_invalid_times(self):
+        self.manifest["sources"][0]["authorization_status"] = "user_reported"
+        with self.assertRaisesRegex(ValueError, "Unknown source"):
+            data.validate_ocr_range(self.manifest, "missing", 1, 3)
+        for start, end in [(-1, 3), (5, 4), (0, 11), (0, float("nan")), (0, float("inf"))]:
+            with self.subTest(start=start, end=end), self.assertRaisesRegex(ValueError, "Invalid OCR"):
+                data.validate_ocr_range(self.manifest, "s1", start, end)
+
+    def test_audit_rejects_falsely_filled_hand_and_incorrect_masks(self):
+        import numpy as np
+        shapes = {"pose_image": (33, 4), "pose_world": (33, 4),
+                  "left_hand_image": (21, 3), "right_hand_image": (21, 3),
+                  "face_image": (468, 3)}
+        arrays = {key: np.full((2, *shape), np.nan, dtype=np.float32) for key, shape in shapes.items()}
+        arrays.update({key + "_detected": np.zeros(2, dtype=bool) for key in shapes})
+        arrays["timestamps_seconds"] = np.array([0., 0.04])
+        arrays["source_timestamps_seconds"] = np.array([10., 10.04])
+        data.validate_landmark_arrays(arrays, 2)
+        arrays["left_hand_image"][0, 0, :] = 0
+        with self.assertRaisesRegex(ValueError, "partial points"):
+            data.validate_landmark_arrays(arrays, 2)
+        arrays["left_hand_image"][0, :, :] = 0
+        with self.assertRaisesRegex(ValueError, "mask disagrees"):
+            data.validate_landmark_arrays(arrays, 2)
+        arrays["left_hand_image"][0, :, :] = np.nan
+        arrays["timestamps_seconds"][1] = 0
+        with self.assertRaisesRegex(ValueError, "time series"):
+            data.validate_landmark_arrays(arrays, 2)
+
     def test_source_path_cannot_leave_source_directory(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary) / "source"

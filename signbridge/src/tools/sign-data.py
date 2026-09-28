@@ -296,6 +296,8 @@ def review_html(records, output):
         e = html.escape
         cards.append(f'''<section><h2>{e(row.get('text_candidate', ''))}</h2>
 <p>{e(sid)} · 原视频 {row['start_seconds']:.2f}–{row['end_seconds']:.2f} 秒 · 待核验</p>
+<p>检测返回帧：左手 {row.get('hand_detection_frames', {}).get('left_hand_image', '—')} / {row['frames']}；
+右手 {row.get('hand_detection_frames', {}).get('right_hand_image', '—')} / {row['frames']}。请关注手部参与动作时的缺失。</p>
 <div class="pair"><div><h3>原片段</h3><video controls preload="metadata" src="samples/{sid}/clip.mp4"></video></div>
 <div><h3>关键点提取预览</h3><video controls preload="metadata" src="samples/{sid}/overlay.mp4"></video></div></div>
 <button type="button">同步播放／暂停</button><p>候选释义来自画面文字，尚未确认手语含义、边界和镜像方向。</p></section>''')
@@ -357,6 +359,8 @@ def prepare(args):
              "-crf", "18", "-pix_fmt", "yuv420p", "-movflags", "+faststart", str(clip)])
         quality = landmarks(clip, directory, row["start_seconds"])
         record = {**row, "authorization_status": source["authorization_status"],
+                  "hand_detection_frames": {side: quality["detections"][side]["detected_frames"]
+                                            for side in ["left_hand_image", "right_hand_image"]},
                   "label_ready": label_ready(row), "model_training_ready": False,
                   "representation": "mediapipe-landmarks-v1", "source_sha256": source["sha256"],
                   "frames": quality["frames"], "fps": quality["fps"],
@@ -368,6 +372,138 @@ def prepare(args):
                           "detections": quality["detections"]}, ensure_ascii=False), flush=True)
     (output / "prepared.jsonl").write_text("".join(json.dumps(r, ensure_ascii=False) + "\n" for r in records))
     review_html(records, output / "review.html")
+
+
+def validate_ocr_range(manifest, source_id, start, end):
+    source = next((s for s in manifest["sources"] if s["source_id"] == source_id), None)
+    if source is None:
+        raise ValueError(f"Unknown source: {source_id}")
+    if not (math.isfinite(start) and math.isfinite(end) and
+            0 <= start < end <= source["duration_seconds"]):
+        raise ValueError("Invalid OCR time range")
+    if source.get("authorization_status") != "user_reported":
+        raise ValueError("OCR source has no recorded user authorization")
+    return source
+
+
+def ocr(args):
+    """Sample burned-in lower captions for human review; frame times are approximate."""
+    manifest = json.loads(args.manifest.read_text())
+    source = validate_ocr_range(manifest, args.source_id, args.start, args.end)
+    path = source_path(manifest, source)
+    output = args.output.resolve()
+    if output.is_relative_to(Path(manifest["source_root"]).resolve()):
+        raise ValueError("Keep generated data outside the source directory")
+    if output.exists() and any(output.iterdir()):
+        raise ValueError("Output directory is not empty; choose a new output directory")
+    if args.fps <= 0 or args.fps > 4:
+        raise ValueError("OCR sampling rate must be between 1 and 4 FPS")
+    if sha256_file(path) != source["sha256"]:
+        raise ValueError("Source has changed since inventory")
+    frames = output / "frames"
+    frames.mkdir(parents=True, exist_ok=True)
+    run(["ffmpeg", "-v", "error", "-ss", str(args.start), "-i", str(path),
+         "-t", str(args.end - args.start), "-vf",
+         f"fps={args.fps},crop=iw:ih*0.32:0:ih*0.68", "-q:v", "2",
+         str(frames / "frame-%05d.jpg")])
+    images = sorted(frames.glob("frame-*.jpg"))
+    if not images:
+        raise ValueError("No OCR frames extracted")
+    swift_tool = Path(__file__).with_name("sign-text-ocr.swift")
+    result = run(["swift", str(swift_tool), *map(str, images)])
+    lines = [json.loads(line) for line in result.stdout.decode().splitlines()]
+    if len(lines) != len(images):
+        raise ValueError("OCR results do not match decoded frames")
+    with (output / "captions.jsonl").open("w") as stream:
+        for index, record in enumerate(lines):
+            # ffmpeg fps resampling may shift first/last sample by up to half a frame.
+            value = {"source_id": args.source_id,
+                     "source_time_approx_seconds": args.start + index / args.fps,
+                     "sampling_fps": args.fps, "image": str(images[index].relative_to(output)),
+                     "lines": record["lines"], "review_status": "ocr_candidate_only"}
+            stream.write(json.dumps(value, ensure_ascii=False) + "\n")
+    write_json(output / "provenance.json", {
+        "source_id": args.source_id, "source_sha256": source["sha256"],
+        "authorization_status": source["authorization_status"],
+        "time_range_seconds": [args.start, args.end], "sampling_fps": args.fps,
+        "images": len(images), "extractor": "macOS Vision VNRecognizeTextRequest",
+        "region": "bottom 32% of image", "timestamps": "nominal, check original footage for boundaries",
+        "limitations": ["OCR text is not verified sign meaning", "Frame sampling can miss brief captions",
+                        "Captions can lag or precede signing", "Only bottom captions inspected"],
+    })
+    print(json.dumps({"frames": len(images), "output": str(output / "captions.jsonl")}, ensure_ascii=False))
+
+
+def validate_landmark_arrays(arrays, frames):
+    import numpy as np
+    shapes = {"pose_image": (33, 4), "pose_world": (33, 4),
+              "left_hand_image": (21, 3), "right_hand_image": (21, 3),
+              "face_image": (468, 3)}
+    for name, shape in shapes.items():
+        values, mask = arrays[name], arrays[name + "_detected"]
+        if values.shape != (frames, *shape) or mask.shape != (frames,) or mask.dtype != np.bool_:
+            raise ValueError(f"Wrong landmark shape or mask for {name}")
+        actual = np.isfinite(values[:, :, :3]).all(axis=(1, 2))
+        if not np.array_equal(actual, mask):
+            raise ValueError(f"Landmark detection mask disagrees with values for {name}")
+        if np.any(~mask & np.isfinite(values[:, :, :3]).any(axis=(1, 2))):
+            raise ValueError(f"Missing detection contains partial points for {name}")
+    for key in ("timestamps_seconds", "source_timestamps_seconds"):
+        values = arrays[key]
+        if values.shape != (frames,) or not np.isfinite(values).all() or np.any(np.diff(values) <= 0):
+            raise ValueError(f"Invalid time series: {key}")
+
+
+def audit(args):
+    """Fully decode sample videos and compare them to saved NPZ arrays."""
+    import cv2
+    import numpy as np
+
+    batch = args.batch.resolve()
+    records = [json.loads(line) for line in (batch / "prepared.jsonl").read_text().splitlines()
+               if line.strip()]
+    if not records:
+        raise ValueError("No prepared samples")
+    checked, total = [], 0
+    for record in records:
+        artifacts = {}
+        for name, relative in record["artifacts"].items():
+            path = (batch / relative).resolve()
+            if not path.is_relative_to(batch) or not path.is_file():
+                raise ValueError("Invalid sample artifact path")
+            artifacts[name] = path
+        frames = int(record["frames"])
+        with np.load(artifacts["landmarks.npz"], allow_pickle=False) as arrays:
+            validate_landmark_arrays(arrays, frames)
+            detected = {key: int(arrays[key + "_detected"].sum()) for key in
+                        ["left_hand_image", "right_hand_image", "pose_image", "face_image"]}
+        quality = json.loads(artifacts["quality.json"].read_text())
+        if quality["frames"] != frames or any(
+            detected[key] != quality["detections"][key]["detected_frames"] for key in detected
+        ):
+            raise ValueError("Quality counts disagree with NPZ")
+        for key in ("clip.mp4", "overlay.mp4"):
+            capture = cv2.VideoCapture(str(artifacts[key]))
+            if not capture.isOpened():
+                raise ValueError(f"Cannot open {key}")
+            count = 0
+            while True:
+                decoded, _ = capture.read()
+                if not decoded:
+                    break
+                count += 1
+            capture.release()
+            if count != frames:
+                raise ValueError(f"Fully decoded {key}: {count} frames vs {frames}")
+        total += frames
+        checked.append({"segment_id": record["segment_id"], "frames": frames,
+                        "hand_detected_frames": {key: detected[key] for key in
+                                                 ("left_hand_image", "right_hand_image")},
+                        "decode_shape_and_mask": "passed", "model_training_ready": False})
+    report = {"checked_samples": len(checked), "total_frames": total,
+              "results": checked, "note": "Structural check only; no semantic or signing accuracy approval"}
+    write_json(batch / "verification.json", report)
+    print(json.dumps({"checked_samples": len(checked), "total_frames": total}))
 
 
 def main():
@@ -387,6 +523,17 @@ def main():
     preparer.add_argument("--fps", type=int, default=25, choices=range(1, 61))
     preparer.add_argument("--max-side", type=int, default=1280, choices=range(320, 3841))
     preparer.set_defaults(action=prepare)
+    scanner_ocr = commands.add_parser("ocr", help="Sample burned-in captions offline (macOS only)")
+    scanner_ocr.add_argument("--manifest", type=Path, required=True)
+    scanner_ocr.add_argument("--source-id", required=True)
+    scanner_ocr.add_argument("--start", type=float, required=True)
+    scanner_ocr.add_argument("--end", type=float, required=True)
+    scanner_ocr.add_argument("--fps", type=int, default=1)
+    scanner_ocr.add_argument("--output", type=Path, required=True)
+    scanner_ocr.set_defaults(action=ocr)
+    auditor = commands.add_parser("audit", help="Fully decode videos and validate saved landmarks")
+    auditor.add_argument("--batch", type=Path, required=True)
+    auditor.set_defaults(action=audit)
     validator = commands.add_parser("validate")
     validator.add_argument("--manifest", type=Path, required=True)
     validator.add_argument("--segments", type=Path, required=True)
