@@ -19,3 +19,8 @@ signbridge_backup_*/
 
 # Intentional downloadable build for the public demo site
 !docs/assets/signbridge-chrome-extension.zip
+
+# Local authorized sign videos and derived dataset artifacts
+/local-data/
+.venv-sign-data/
+__pycache__/

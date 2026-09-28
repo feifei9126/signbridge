@@ -138,6 +138,7 @@ flowchart LR
 - [第四阶段动作库备份与安全批量导入](docs/phase4-motion-packs.md)
 - [第五阶段动作可视化验收与截图回归](docs/phase5-motion-review.md)
 - [第六阶段小批量补词、实际试用与发布验收](docs/phase6-acceptance.md)
+- [手语视频的数据准备：清单、片段与关键点核验](docs/sign-language-dataset.md)
 - [添加和调试手语动作](docs/gesture-authoring.md)
 - [常见问题](docs/faq.md)
 - [贡献指南](CONTRIBUTING.md)
