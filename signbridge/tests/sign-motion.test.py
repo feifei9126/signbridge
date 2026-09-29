@@ -182,6 +182,15 @@ class MotionTests(unittest.TestCase):
         self.assertEqual(cmd[cmd.index("--end") + 1], "5")
         self.assertNotIn("--multi_person", cmd)
 
+    def test_preflight_does_not_require_training_only_vitpose_weights(self):
+        root = self.root / "SMPLer-X"
+        with patch.object(motion.subprocess, "run") as process:
+            process.return_value.returncode = 0
+            process.return_value.stdout = '{"missing_modules": [], "cuda_available": false}\n'
+            report = motion.preflight(root, Path("/python"), "smpler_x_h32")
+        self.assertFalse(any("vitpose_huge" in name for name in report["missing_files"]))
+        self.assertIn(str(root / "pretrained_models/smpler_x_h32.pth.tar"), report["missing_files"])
+
     def test_soke_dimensions_order_and_shape_removal(self):
         path = self.root / "native.npz"
         np.savez(path, **self.native_fixture())

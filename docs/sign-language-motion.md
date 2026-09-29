@@ -21,7 +21,7 @@ SMPLer-X 用作首批全身、双手、脸部重建的基线，直接从视频�
 | SMPLer-X | `064baef0e4ab5277a3297691bc1d46ea5412586f` | `main/inference.py` |
 | SOKE | `5cbc55d84b5a7cbf05a9cf020c468052e8d94d00` | `mGPT/data/humanml/load_data.py` |
 
-依赖源码已放在 `local-data/deps/SMPLer-X`，权重和人体文件仍未安装。SMPLer-X 的官方推理使用 CUDA；此工具目前调用原实现，未提供 MPS 适配。
+依赖源码已放在 `local-data/deps/SMPLer-X`。官方 Faster R-CNN 检测权重及配置已下载并校验；H32 主权重和账户下载的人体文件尚未安装。SMPLer-X 的官方推理使用 CUDA；此工具目前调用原实现，未提供 MPS 适配。
 
 ## 保存人工核对
 
@@ -55,17 +55,57 @@ SMPLer-X 用作首批全身、双手、脸部重建的基线，直接从视频�
 
 ## GPU 环境和模型文件
 
-在有 NVIDIA CUDA 的机器上，根据固定版本 SMPLer-X 的官方 README 安装其 Python 3.8、PyTorch 1.12、CUDA 11.3、mmcv-full 1.7.1、mmpose 及其余依赖。控制本工具使用 Python 3.10–3.12 和数据准备依赖；通过 `--python` 指定独立的 SMPLer-X 环境解释器。不要将 Mac 的虚拟环境直接拷贝到 Linux。
+在有 NVIDIA CUDA 的机器上，根据固定版本 SMPLer-X 的官方 README 安装其 Python 3.8、PyTorch 1.12、CUDA 11.3、mmcv-full 1.7.1、随源码附带的 mmpose 及其余依赖。控制本工具使用 Python 3.10–3.12 和数据准备依赖；通过 `--python` 指定独立的 SMPLer-X 环境解释器。不要将 Mac 的虚拟环境直接拷贝到 Linux。
 
 首先准备以下文件。精确缺失列表由 `fit --dry-run` 输出到 `run.json`。
 
-- `pretrained_models/smpler_x_h32.pth.tar`：官方 H32 预训练重建模型。
-- `pretrained_models/vitpose_huge.pth`：H32 配置引用的 ViTPose 编码器权重。选择 S32/B32/L32 时对应 `vitpose_small.pth`、`vitpose_base.pth`、`vitpose_large.pth` 和相应 SMPLer-X 权重。
-- `pretrained_models/mmdet/`：官方 Faster R-CNN 权重及对应配置。
-- `common/utils/human_model_files/smplx/`：`SMPLX_NEUTRAL.pkl`、`SMPLX_NEUTRAL.npz`、`SMPLX_MALE.npz`、`SMPLX_FEMALE.npz`、`SMPLX_to_J14.pkl`、`MANO_SMPLX_vertex_ids.pkl`、`SMPL-X__FLAME_vertex_ids.npy`。
-- `common/utils/human_model_files/smpl/`：`SMPL_NEUTRAL.pkl`、`SMPL_MALE.pkl`、`SMPL_FEMALE.pkl`。原代码导入时也创建这些模型，因此不能只放 neutral SMPL-X。
+- `pretrained_models/smpler_x_h32.pth.tar`：使用官方发布的修正相机估计版 `smpler_x_h32_correct.pth.tar`，下载工具核对 Hugging Face 元数据中的 LFS SHA-256、尺寸及源码版本，再保存为推理脚本要求的文件名。当前电脑访问该地址超时，**尚未取得该权重**。
+- `pretrained_models/mmdet/`：官方 Faster R-CNN 权重及固定配置；本机已校验 SHA-256。推理时**不需要**训练用 `vitpose_huge.pth`：固定源码的 `get_model('test')` 从完整 SMPLer-X 权重初始化网络，ViTPose 单独权重只在 `mode == 'train'` 时加载。
+- `common/utils/human_model_files/smplx/`：`SMPLX_NEUTRAL.npz`、`SMPLX_MALE.npz`、`SMPLX_FEMALE.npz`、`SMPLX_to_J14.pkl`、`MANO_SMPLX_vertex_ids.pkl`、`SMPL-X__FLAME_vertex_ids.npy`。固定版本的 `smplx.create` 默认读取 `.npz`，推理不需要 `SMPLX_NEUTRAL.pkl`。
+- `common/utils/human_model_files/smpl/`：`SMPL_NEUTRAL.pkl`、`SMPL_MALE.pkl`、`SMPL_FEMALE.pkl`；原代码导入时也创建这些模型。
+
+下载公开检测资源并复验：
+
+```bash
+.venv-sign-data/bin/python signbridge/src/tools/sign-gpu.py assets \
+  --smplerx-root local-data/deps/SMPLer-X
+```
+
+如果运行主权重所在网站在 GPU 机器上可访问，加入 `--download-model`。它先取官方 LFS 校验值，然后按该仓库的固定 revision 下载并校验哈希；连接失败不会保存未经验证的 `.part`。主权重和检测权重均不提交 Git。
 
 人体文件从官方 SMPL/SMPL-X 下载账户获取；视频授权不等同于人体模型文件的许可。SOKE 仓库的 `license.txt` 是 CC BY-NC-ND 4.0，当前按研究验证处理，商业使用与派生分发需要另外确认适用许可。
+
+## 搬运到 GPU 机器
+
+已生成忽略 Git 的 `local-data/sign-language-gpu-stage-v1/`，包含 16 段 3116 帧的图片、视频与来源记录、固定源码及 `.git`、已经校验的检测权重与配置、运行工具、`stage.json` 和整包 `SHA256SUMS`。推荐私下复制到无空格路径（例如 `/srv/sign-language-gpu-stage-v1`）；人体模型文件需要从各自官方账户取得后，按上面目录放入该机器的 `SMPLer-X/common/utils/human_model_files/`。本机没有将视频或数据包上传到第三方服务。
+
+GPU 机器上安装两个独立环境（示例为 Linux、NVIDIA CUDA 11.3 的官方旧版栈；依赖组合需要在实际 GPU 机器上验证）：
+
+```bash
+cd /srv/sign-language-gpu-stage-v1
+python3.10 -m venv /srv/signbridge-driver-venv
+/srv/signbridge-driver-venv/bin/python -m pip install 'numpy<2' opencv-python-headless
+conda create -n smplerx python=3.8 -y
+conda install -n smplerx pytorch==1.12.0 torchvision==0.13.0 torchaudio==0.12.0 cudatoolkit=11.3 -c pytorch -y
+conda run -n smplerx python -m pip install numpy==1.23.5
+conda run -n smplerx python -m pip install mmcv-full==1.7.1 -f https://download.openmmlab.com/mmcv/dist/cu113/torch1.12.0/index.html
+conda run -n smplerx python -m pip install -r SMPLer-X/requirements.txt
+conda run -n smplerx python -m pip install -v -e ./SMPLer-X/main/transformer_utils
+```
+
+对应 Python 3.8 和 CUDA 版本来自固定 SMPLer-X README；驱动 Python 3.10 用于输入核验、执行和导入；旧版栈把 NumPy 固定为 1.23.5，安装完成后仍需在 GPU 机器上检查依赖兼容。主权重可在能访问 Hugging Face 的机器上下载：
+
+```bash
+/srv/signbridge-driver-venv/bin/python tools/sign-gpu.py verify --stage .
+/srv/signbridge-driver-venv/bin/python tools/sign-gpu.py assets --smplerx-root SMPLer-X --download-model
+/srv/signbridge-driver-venv/bin/python tools/sign-gpu.py stage --batch batch --smplerx-root SMPLer-X \
+  --output ../sign-language-gpu-stage-v2
+cd ../sign-language-gpu-stage-v2
+../sign-language-gpu-stage-v1//srv/signbridge-driver-venv/bin/python tools/sign-gpu.py verify --stage .
+export PYOPENGL_PLATFORM=egl MPLBACKEND=Agg
+```
+
+下载主权重后执行 `stage` 生成新目录和新 SHA256SUMS；原交付目录只在修改前可通过完整性检查。驱动解释器放在交付目录外，避免破坏原包的文件清单；`fit` 指向新目录下的工具和输入即可。安装人体模型也会改变清单；应保留经校验的原交付目录作为对照，两个人体模型下载需遵守各自许可，不在未经允许时分享带有人体模型文件的目录。
 
 先检查环境。`--python` 的路径替换为该机器的真实 CUDA 环境路径，输出使用一个新目录：
 
@@ -80,6 +120,19 @@ SMPLer-X 用作首批全身、双手、脸部重建的基线，直接从视频�
 ```
 
 `run.json` 包含 CUDA/依赖/权重检查与真实命令。`commands.txt` 使用正确的 shell 引号；源代码目录固定在 `main`。官方 `--end` 参数表示**帧数**，不是最后帧的编号。
+
+在打包目录中，先跑两段试验（把 SMPLer-X 环境解释器路径换为实际路径）：
+
+```bash
+/srv/signbridge-driver-venv/bin/python tools/sign-motion.py fit \
+  --batch batch --smplerx-root SMPLer-X \
+  --python /path/to/miniconda/envs/smplerx/bin/python \
+  --segment-id pilot-greeting-hello-001 \
+  --segment-id pilot-hospital-cough-003 \
+  --dry-run --output ../fits-plan-v1
+```
+
+环境检查通过后，去掉 `--dry-run`、改用 `--output ../fits-pilot-v1` 才会运行实际重建。`fit` 默认设置 EGL 和无交互 Matplotlib，并拒绝上游 `cp` 无法安全处理的带空格路径。不要将 fit 输出放在 batch 或源码里面。
 
 ## 先拟合两段
 
@@ -129,6 +182,7 @@ SOKE 按 root(3)、body(63)、left hand(45)、right hand(45)、jaw(3)、shape(10
 
 ```bash
 .venv-sign-data/bin/python signbridge/tests/sign-motion.test.py
+.venv-sign-data/bin/python signbridge/tests/sign-gpu.test.py
 .venv-sign-data/bin/python signbridge/tests/sign-data.test.py
 cd signbridge && npm run verify
 ```

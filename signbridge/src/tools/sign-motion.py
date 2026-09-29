@@ -3,6 +3,7 @@
 import argparse
 import csv
 import importlib.util
+import os
 import json
 import pickle
 import re
@@ -271,10 +272,8 @@ def fitting_command(task, batch, root, python, output, model):
 
 
 def preflight(root, python, model):
-    vitpose = {"smpler_x_s32": "vitpose_small.pth", "smpler_x_b32": "vitpose_base.pth",
-               "smpler_x_l32": "vitpose_large.pth", "smpler_x_h32": "vitpose_huge.pth"}[model]
     required = ["main/inference.py", f"main/config/config_{model}.py",
-                f"pretrained_models/{model}.pth.tar", f"pretrained_models/{vitpose}",
+                f"pretrained_models/{model}.pth.tar",
                 "pretrained_models/mmdet/faster_rcnn_r50_fpn_1x_coco_20200130-047c8118.pth",
                 "pretrained_models/mmdet/mmdet_faster_rcnn_r50_fpn_coco.py"]
     body = "common/utils/human_model_files"
@@ -318,6 +317,9 @@ def fit(args):
             raise ValueError("Unknown requested fitting segment")
     output = new_output(args.output, (batch, root))
     python = args.python.absolute()
+    # Upstream Config.prepare_dirs uses an unquoted shell cp with root and exp_name.
+    if any(ch.isspace() for ch in str(root) + str(output)):
+        raise ValueError("SMPLer-X source and output paths must not contain whitespace (upstream cp)")
     check = preflight(root, python, args.model)
     jobs = [{"segment_id": t["segment_id"], "cwd": str(root / "main"),
              "argv": fitting_command(t, batch, root, python, output, args.model)} for t in tasks]
@@ -346,7 +348,11 @@ def fit(args):
     for job in jobs:
         log = output / (job["segment_id"] + ".log")
         with log.open("w") as stream:
-            result = subprocess.run(job["argv"], cwd=job["cwd"], stdout=stream, stderr=subprocess.STDOUT)
+            env = os.environ.copy()
+            env.setdefault("PYOPENGL_PLATFORM", "egl")
+            env.setdefault("MPLBACKEND", "Agg")
+            result = subprocess.run(job["argv"], cwd=job["cwd"], env=env,
+                                    stdout=stream, stderr=subprocess.STDOUT)
         if result.returncode:
             plan.update(status="failed", failed_job=job["segment_id"], exit_code=result.returncode)
             data.write_json(output / "run.json", plan)
