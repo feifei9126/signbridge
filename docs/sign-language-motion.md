@@ -59,7 +59,7 @@ SMPLer-X 用作首批全身、双手、脸部重建的基线，直接从视频�
 
 首先准备以下文件。精确缺失列表由 `fit --dry-run` 输出到 `run.json`。
 
-- `pretrained_models/smpler_x_h32.pth.tar`：使用官方发布的修正相机估计版 `smpler_x_h32_correct.pth.tar`，下载工具核对 Hugging Face 元数据中的 LFS SHA-256、尺寸及源码版本，再保存为推理脚本要求的文件名。当前电脑访问该地址超时，**尚未取得该权重**。
+- `pretrained_models/smpler_x_h32.pth.tar`：使用官方发布的修正相机估计版 `smpler_x_h32_correct.pth.tar`，下载工具核对 Hugging Face 元数据中的 LFS SHA-256、尺寸及源码版本，再保存为推理脚本要求的文件名。本地下载完成情况以 `pretrained_models/signbridge-public-assets.json` 的记录及权重文件实际存在为准；模型大小约 7.94 GB。
 - `pretrained_models/mmdet/`：官方 Faster R-CNN 权重及固定配置；本机已校验 SHA-256。推理时**不需要**训练用 `vitpose_huge.pth`：固定源码的 `get_model('test')` 从完整 SMPLer-X 权重初始化网络，ViTPose 单独权重只在 `mode == 'train'` 时加载。
 - `common/utils/human_model_files/smplx/`：`SMPLX_NEUTRAL.npz`、`SMPLX_MALE.npz`、`SMPLX_FEMALE.npz`、`SMPLX_to_J14.pkl`、`MANO_SMPLX_vertex_ids.pkl`、`SMPL-X__FLAME_vertex_ids.npy`。固定版本的 `smplx.create` 默认读取 `.npz`，推理不需要 `SMPLX_NEUTRAL.pkl`。
 - `common/utils/human_model_files/smpl/`：`SMPL_NEUTRAL.pkl`、`SMPL_MALE.pkl`、`SMPL_FEMALE.pkl`；原代码导入时也创建这些模型。
@@ -71,7 +71,7 @@ SMPLer-X 用作首批全身、双手、脸部重建的基线，直接从视频�
   --smplerx-root local-data/deps/SMPLer-X
 ```
 
-如果运行主权重所在网站在 GPU 机器上可访问，加入 `--download-model`。它先取官方 LFS 校验值，然后按该仓库的固定 revision 下载并校验哈希；连接失败不会保存未经验证的 `.part`。主权重和检测权重均不提交 Git。
+加入 `--download-model` 可下载公开的 SMPLer-X 主权重。工具会从官方 Hugging Face LFS 元数据读取 `sha256`（或旧版 `oid`）和仓库 revision，下载后校验哈希；断线或校验失败不会保存未经验证的 `.part`。主权重和检测权重均不提交 Git。SMPL、SMPL-X 和 ExPose 的人体模型文件仍须通过各自的官方登录账户获取。
 
 人体文件从官方 SMPL/SMPL-X 下载账户获取；视频授权不等同于人体模型文件的许可。SOKE 仓库的 `license.txt` 是 CC BY-NC-ND 4.0，当前按研究验证处理，商业使用与派生分发需要另外确认适用许可。
 

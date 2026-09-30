@@ -52,7 +52,16 @@ class GpuTests(unittest.TestCase):
             {"rfilename": gpu.MODEL_FILENAME, "lfs": {"oid": digest, "size": 123}}]}
         with patch.object(gpu.urllib.request, "urlopen", return_value=io.BytesIO(json.dumps(record).encode())):
             self.assertEqual(gpu.model_metadata(), ("c" * 40, digest, 123))
+        record["siblings"][0]["lfs"]["sha256"] = digest
         record["siblings"][0]["lfs"].pop("oid")
+        with patch.object(gpu.urllib.request, "urlopen", return_value=io.BytesIO(json.dumps(record).encode())):
+            self.assertEqual(gpu.model_metadata(), ("c" * 40, digest, 123))
+        record["siblings"][0]["lfs"]["oid"] = "d" * 64
+        with patch.object(gpu.urllib.request, "urlopen", return_value=io.BytesIO(json.dumps(record).encode())):
+            with self.assertRaisesRegex(ValueError, "lacks the model SHA-256"):
+                gpu.model_metadata()
+        record["siblings"][0]["lfs"].pop("oid")
+        record["siblings"][0]["lfs"].pop("sha256")
         with patch.object(gpu.urllib.request, "urlopen", return_value=io.BytesIO(json.dumps(record).encode())):
             with self.assertRaisesRegex(ValueError, "lacks the model SHA-256"):
                 gpu.model_metadata()

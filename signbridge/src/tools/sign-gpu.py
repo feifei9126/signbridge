@@ -69,8 +69,11 @@ def model_metadata():
     if len(matches) != 1:
         raise ValueError("Corrected H32 checkpoint is absent or ambiguous")
     record = matches[0]
-    expected = record.get("lfs", {}).get("oid")
-    size = record.get("lfs", {}).get("size")
+    lfs = record.get("lfs", {})
+    # Hugging Face has returned both "oid" and "sha256" across API versions.
+    digests = [lfs[key] for key in ("sha256", "oid") if key in lfs]
+    expected = digests[0] if len(set(digests)) == 1 else None
+    size = lfs.get("size")
     if not isinstance(expected, str) or not re.fullmatch(r"[0-9a-f]{64}", expected):
         raise ValueError("Hugging Face LFS metadata lacks the model SHA-256")
     if not isinstance(size, int) or size <= 0:
