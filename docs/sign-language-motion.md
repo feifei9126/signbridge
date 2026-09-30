@@ -71,18 +71,18 @@ SMPLer-X 用作首批全身、双手、脸部重建的基线，直接从视频�
   --smplerx-root local-data/deps/SMPLer-X
 ```
 
-加入 `--download-model` 可下载公开的 SMPLer-X 主权重。工具会从官方 Hugging Face LFS 元数据读取 `sha256`（或旧版 `oid`）和仓库 revision，下载后校验哈希；断线或校验失败不会保存未经验证的 `.part`。主权重和检测权重均不提交 Git。SMPL、SMPL-X 和 ExPose 的人体模型文件仍须通过各自的官方登录账户获取。
+加入 `--download-model` 可下载公开的 SMPLer-X 主权重。工具会从官方 Hugging Face LFS 元数据读取 `sha256`（或旧版 `oid`）和仓库 revision，下载后校验哈希；断线或校验失败不会保存未经验证的 `.part`。主权重和检测权重均不提交 Git。
 
-人体文件从官方 SMPL/SMPL-X 下载账户获取；视频授权不等同于人体模型文件的许可。SOKE 仓库的 `license.txt` 是 CC BY-NC-ND 4.0，当前按研究验证处理，商业使用与派生分发需要另外确认适用许可。
+本地研究验证的人体文件取自 SMPLer-X 作者公开演示仓库 `caizhongang/SMPLer-X`（Hugging Face Space），固定修订 `2de1f98db5c59da6326dc8fac4c00c78010fa6e5`；九个必需文件分别按仓库 LFS SHA-256 和大小核对，来源记录保存在忽略 Git 的 `common/utils/human_model_files/signbridge-body-assets.json`。运行 `.venv-sign-data/bin/python signbridge/src/tools/sign-gpu.py body --smplerx-root local-data/deps/SMPLer-X` 可复验已经下载的文件，或在另一台可联网的机器上按固定修订重新下载。这是作者演示仓库提供的副本，并非从用户的 SMPL-X 登录账户获取；下载可访问不代表已取得 SMPL、SMPL-X 或 ExPose 用于产品的许可。视频授权不等同于人体模型文件的许可。SOKE 仓库的 `license.txt` 是 CC BY-NC-ND 4.0，当前按研究验证处理，商业使用与派生分发需要另外确认适用许可。
 
 ## 搬运到 GPU 机器
 
-已生成忽略 Git 的 `local-data/sign-language-gpu-stage-v1/`，包含 16 段 3116 帧的图片、视频与来源记录、固定源码及 `.git`、已经校验的检测权重与配置、运行工具、`stage.json` 和整包 `SHA256SUMS`。推荐私下复制到无空格路径（例如 `/srv/sign-language-gpu-stage-v1`）；人体模型文件需要从各自官方账户取得后，按上面目录放入该机器的 `SMPLer-X/common/utils/human_model_files/`。本机没有将视频或数据包上传到第三方服务。
+本地忽略 Git 的 `local-data/sign-language-gpu-stage-v2/` 包含 16 段 3116 帧的输入、固定源码与 `.git`、检测权重、已校验的 SMPLer-X H32 主权重、九个人体文件、来源记录、运行工具及整包 `SHA256SUMS`。已在本机生成并复验。旧版 `sign-language-gpu-stage-v1` 仅包含公开检测资源。可将 v2 私下复制到无空格目录（如 `/srv/sign-language-gpu-stage-v2`）后运行下列命令；复制到云端或向他人分发含有人体模型的包之前须核对相应许可及账号授权。当前没有将视频或数据包上传到第三方服务。
 
-GPU 机器上安装两个独立环境（示例为 Linux、NVIDIA CUDA 11.3 的官方旧版栈；依赖组合需要在实际 GPU 机器上验证）：
+GPU 机器上安装两个独立环境（示例为 Linux、NVIDIA CUDA 11.3 的旧版栈；依赖组合还需要在实际 GPU 机器上验证）：
 
 ```bash
-cd /srv/sign-language-gpu-stage-v1
+cd /srv/sign-language-gpu-stage-v2
 python3.10 -m venv /srv/signbridge-driver-venv
 /srv/signbridge-driver-venv/bin/python -m pip install 'numpy<2' opencv-python-headless
 conda create -n smplerx python=3.8 -y
@@ -93,19 +93,14 @@ conda run -n smplerx python -m pip install -r SMPLer-X/requirements.txt
 conda run -n smplerx python -m pip install -v -e ./SMPLer-X/main/transformer_utils
 ```
 
-对应 Python 3.8 和 CUDA 版本来自固定 SMPLer-X README；驱动 Python 3.10 用于输入核验、执行和导入；旧版栈把 NumPy 固定为 1.23.5，安装完成后仍需在 GPU 机器上检查依赖兼容。主权重可在能访问 Hugging Face 的机器上下载：
+对应的 Python 3.8 和 CUDA 版本来自固定 SMPLer-X README；驱动 Python 3.10 用于输入核验、执行和导入；旧版栈把 NumPy 固定为 1.23.5。v2 已包含权重和人体文件，无需再次下载。复制后在交接包目录复验：
 
 ```bash
 /srv/signbridge-driver-venv/bin/python tools/sign-gpu.py verify --stage .
-/srv/signbridge-driver-venv/bin/python tools/sign-gpu.py assets --smplerx-root SMPLer-X --download-model
-/srv/signbridge-driver-venv/bin/python tools/sign-gpu.py stage --batch batch --smplerx-root SMPLer-X \
-  --output ../sign-language-gpu-stage-v2
-cd ../sign-language-gpu-stage-v2
-../sign-language-gpu-stage-v1//srv/signbridge-driver-venv/bin/python tools/sign-gpu.py verify --stage .
 export PYOPENGL_PLATFORM=egl MPLBACKEND=Agg
 ```
 
-下载主权重后执行 `stage` 生成新目录和新 SHA256SUMS；原交付目录只在修改前可通过完整性检查。驱动解释器放在交付目录外，避免破坏原包的文件清单；`fit` 指向新目录下的工具和输入即可。安装人体模型也会改变清单；应保留经校验的原交付目录作为对照，两个人体模型下载需遵守各自许可，不在未经允许时分享带有人体模型文件的目录。
+驱动解释器放在交接包目录外，避免破坏 `SHA256SUMS`；`fit` 指向交接包内的工具和输入。Mac 上的 `local-data/sign-language-fit-plan-mac-v6/run.json` 已确认所需文件全部齐全，仍缺 NVIDIA CUDA 和该机器上的推理依赖；下载文件不等于运行了动作拟合。
 
 先检查环境。`--python` 的路径替换为该机器的真实 CUDA 环境路径，输出使用一个新目录：
 

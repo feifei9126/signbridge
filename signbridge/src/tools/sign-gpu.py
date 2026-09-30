@@ -29,6 +29,15 @@ PUBLIC_ASSETS = (
 )
 MODEL_REPO = "caizhongang/SMPLer-X"
 MODEL_FILENAME = "smpler_x_h32_correct.pth.tar"
+BODY_SPACE = "caizhongang/SMPLer-X"
+BODY_REVISION = "2de1f98db5c59da6326dc8fac4c00c78010fa6e5"
+BODY_PREFIX = "common/utils/human_model_files/"
+BODY_NAMES = (
+    "smpl/SMPL_NEUTRAL.pkl", "smpl/SMPL_MALE.pkl", "smpl/SMPL_FEMALE.pkl",
+    "smplx/SMPLX_NEUTRAL.npz", "smplx/SMPLX_MALE.npz", "smplx/SMPLX_FEMALE.npz",
+    "smplx/MANO_SMPLX_vertex_ids.pkl", "smplx/SMPL-X__FLAME_vertex_ids.npy",
+    "smplx/SMPLX_to_J14.pkl",
+)
 
 
 def checked_download(url, path, expected):
@@ -79,6 +88,56 @@ def model_metadata():
     if not isinstance(size, int) or size <= 0:
         raise ValueError("Hugging Face LFS metadata lacks the model size")
     return revision, expected, size
+
+
+def body_metadata():
+    """Read pinned SMPLer-X author's public demo assets without unpickling model files."""
+    url = (f"https://huggingface.co/api/spaces/{BODY_SPACE}/tree/{BODY_REVISION}/"
+           f"{BODY_PREFIX.rstrip('/')}?recursive=true")
+    with urllib.request.urlopen(url, timeout=40) as response:
+        entries = json.load(response)
+    if not isinstance(entries, list):
+        raise ValueError("Body asset inventory is invalid")
+    records = {}
+    for name in BODY_NAMES:
+        path = BODY_PREFIX + name
+        matches = [row for row in entries if row.get("path") == path and row.get("type") == "file"]
+        if len(matches) != 1:
+            raise ValueError(f"Body asset absent or ambiguous in pinned demo: {path}")
+        item = matches[0]
+        lfs = item.get("lfs") or {}
+        digests = [lfs[key] for key in ("sha256", "oid") if key in lfs]
+        sha = digests[0] if digests and len(set(digests)) == 1 else None
+        size = lfs.get("size")
+        if (not isinstance(sha, str) or not re.fullmatch(r"[0-9a-f]{64}", sha) or
+                not isinstance(size, int) or size <= 0 or item.get("size") != size):
+            raise ValueError(f"Body asset missing LFS SHA-256 or size: {path}")
+        records[name] = {"sha256": sha, "bytes": size}
+    return records
+
+
+def body_assets(args):
+    root = args.smplerx_root.resolve()
+    if get_revision(root) != motion.SMPLERX_COMMIT:
+        raise ValueError("SMPLer-X source revision differs from pinned inference source")
+    records = body_metadata()
+    manifest = root / BODY_PREFIX / "signbridge-body-assets.json"
+    assets = []
+    for name in BODY_NAMES:
+        relative = BODY_PREFIX + name
+        source = f"https://huggingface.co/spaces/{BODY_SPACE}/resolve/{BODY_REVISION}/{relative}"
+        record = records[name]
+        path = root / relative
+        state = checked_download(source, path, record["sha256"])
+        if path.stat().st_size != record["bytes"]:
+            raise ValueError(f"Body asset size differs from pinned LFS metadata: {relative}")
+        assets.append({"path": relative, "sha256": record["sha256"],
+                       "bytes": record["bytes"], "source": source, "state": state})
+    manifest.parent.mkdir(parents=True, exist_ok=True)
+    manifest.write_text(json.dumps({"schema": "signbridge-body-assets-v1", "space": BODY_SPACE,
+                                    "revision": BODY_REVISION, "assets": assets}, indent=2) + "\n")
+    print(json.dumps({"verified_body_files": len(assets), "manifest": str(manifest)}))
+    return 0
 
 
 def get_revision(root):
@@ -139,6 +198,36 @@ def verify_assets(root):
     return info
 
 
+def verify_body_assets(root):
+    """Check each local body asset against the recorded, pinned demo revision."""
+    folder = root / BODY_PREFIX
+    manifest = folder / "signbridge-body-assets.json"
+    files_present = any((folder / name).exists() for name in BODY_NAMES)
+    if not files_present and not manifest.exists():
+        return None  # Older detector-only handoffs contain no body assets.
+    if not manifest.is_file():
+        raise ValueError("Body asset provenance is missing; run body before staging")
+    info = json.loads(manifest.read_text())
+    if (info.get("schema") != "signbridge-body-assets-v1" or
+            info.get("space") != BODY_SPACE or info.get("revision") != BODY_REVISION):
+        raise ValueError("Body asset provenance differs from pinned demo revision")
+    assets = info.get("assets")
+    if not isinstance(assets, list) or len(assets) != len(BODY_NAMES):
+        raise ValueError("Body asset provenance is incomplete")
+    records = {item.get("path"): item for item in assets if isinstance(item, dict)}
+    if set(records) != {BODY_PREFIX + name for name in BODY_NAMES}:
+        raise ValueError("Body asset provenance contains unexpected or repeated paths")
+    for name in BODY_NAMES:
+        relative = BODY_PREFIX + name
+        item = records[relative]
+        if not isinstance(item.get("sha256"), str) or not re.fullmatch(r"[0-9a-f]{64}", item["sha256"]):
+            raise ValueError(f"Body asset hash is invalid: {relative}")
+        path = motion.artifact(root, relative)
+        if path.stat().st_size != item.get("bytes") or data.sha256_file(path) != item["sha256"]:
+            raise ValueError(f"Body asset hash changed: {relative}")
+    return info
+
+
 def validate_source(batch, root):
     if batch == root or batch.is_relative_to(root) or root.is_relative_to(batch):
         raise ValueError("Source and batch must be separate directories")
@@ -146,6 +235,7 @@ def validate_source(batch, root):
     if get_revision(root) != motion.SMPLERX_COMMIT:
         raise ValueError("Unexpected SMPLer-X source revision")
     assets_info = verify_assets(root)
+    verify_body_assets(root)
     return tasks, assets_info
 
 
@@ -219,6 +309,9 @@ def main():
     asset_command.add_argument("--smplerx-root", type=Path, required=True)
     asset_command.add_argument("--download-model", action="store_true", help="Fetch corrected H32 via LFS SHA-256")
     asset_command.set_defaults(action=assets)
+    body_command = commands.add_parser("body", help="Download/verify demo body assets for local research")
+    body_command.add_argument("--smplerx-root", type=Path, required=True)
+    body_command.set_defaults(action=body_assets)
     stage_command = commands.add_parser("stage", help="Create a local portable GPU handoff")
     stage_command.add_argument("--batch", type=Path, required=True)
     stage_command.add_argument("--smplerx-root", type=Path, required=True)

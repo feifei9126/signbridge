@@ -66,6 +66,47 @@ class GpuTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "lacks the model SHA-256"):
                 gpu.model_metadata()
 
+    def test_body_assets_require_pinned_lfs_metadata_and_reverify_existing_files(self):
+        payloads = {gpu.BODY_PREFIX + name: ("demo:" + name).encode()
+                    for name in gpu.BODY_NAMES}
+        entries = [{"path": name, "type": "file", "size": len(payload),
+                    "lfs": {"sha256": hashlib.sha256(payload).hexdigest(),
+                            "size": len(payload)}} for name, payload in payloads.items()]
+        args = SimpleNamespace(smplerx_root=self.root)
+
+        def fetch(request, timeout=40):
+            url = request if isinstance(request, str) else request.full_url
+            if url.startswith("https://huggingface.co/api/spaces/"):
+                return io.BytesIO(json.dumps(entries).encode())
+            name = url.split("/common/utils/human_model_files/", 1)[1]
+            return io.BytesIO(payloads[gpu.BODY_PREFIX + name])
+
+        with patch.object(gpu, "get_revision", return_value=gpu.motion.SMPLERX_COMMIT), \
+             patch.object(gpu.urllib.request, "urlopen", side_effect=fetch):
+            self.assertEqual(gpu.body_assets(args), 0)
+            manifest = json.loads((self.root / gpu.BODY_PREFIX / "signbridge-body-assets.json").read_text())
+            self.assertEqual(len(manifest["assets"]), len(gpu.BODY_NAMES))
+            self.assertEqual(manifest["revision"], gpu.BODY_REVISION)
+            self.assertEqual(gpu.body_assets(args), 0)
+            self.assertTrue(all(a["state"] == "verified_existing" for a in json.loads(
+                (self.root / gpu.BODY_PREFIX / "signbridge-body-assets.json").read_text())["assets"]))
+            first = self.root / gpu.BODY_PREFIX / gpu.BODY_NAMES[0]
+            first.write_bytes(b"changed")
+            with self.assertRaisesRegex(ValueError, "different SHA-256"):
+                gpu.body_assets(args)
+            self.assertEqual(first.read_bytes(), b"changed")
+
+            first.write_bytes(payloads[gpu.BODY_PREFIX + gpu.BODY_NAMES[0]])
+            self.assertEqual(len(gpu.verify_body_assets(self.root)["assets"]), len(gpu.BODY_NAMES))
+            first.write_bytes(b"changed")
+            with self.assertRaisesRegex(ValueError, "Body asset hash changed"):
+                gpu.verify_body_assets(self.root)
+            first.write_bytes(payloads[gpu.BODY_PREFIX + gpu.BODY_NAMES[0]])
+
+            entries[0]["lfs"].pop("sha256")
+            with self.assertRaisesRegex(ValueError, "missing LFS SHA-256"):
+                gpu.body_metadata()
+
     def test_stage_rechecks_copied_batch_and_detects_modified_file(self):
         fixture = fixtures.MotionTests(methodName="test_command_uses_one_based_images_and_end_as_frame_count")
         fixture.setUp()
