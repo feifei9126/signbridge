@@ -1,6 +1,6 @@
 # 从已核对视频到 SMPL-X 动作
 
-本阶段把已核对的句子与视频边界保存为新版本，导出逐帧图片，运行 SMPLer-X 的人体重建，并把**真实拟合结果**转换成 SOKE 使用的 133 维表示。重建工具和转换工具已实现；当前 Mac 的运行检查未通过，尚未生成用户视频的 SMPL-X 动作，也尚未训练手语模型。
+本阶段把已核对的句子与视频边界保存为新版本，导出逐帧图片，运行 SMPLer-X 的人体重建，并把**真实拟合结果**转换成 SOKE 使用的 133 维表示。**截至 2026-10-07，两段真实 GPU 重建及严格参数导入已完成，但视觉抽检发现错误手型，仍不可训练。** 当前增加受控关键帧手部试修；尚未执行真实试修、处理剩余 14 段或训练手语模型。
 
 ## 已准备的数据
 
@@ -21,7 +21,7 @@ SMPLer-X 用作首批全身、双手、脸部重建的基线，直接从视频�
 | SMPLer-X | `064baef0e4ab5277a3297691bc1d46ea5412586f` | `main/inference.py` |
 | SOKE | `5cbc55d84b5a7cbf05a9cf020c468052e8d94d00` | `mGPT/data/humanml/load_data.py` |
 
-依赖源码已放在 `local-data/deps/SMPLer-X`。官方 Faster R-CNN 检测权重及配置已下载并校验；H32 主权重和账户下载的人体文件尚未安装。SMPLer-X 的官方推理使用 CUDA；此工具目前调用原实现，未提供 MPS 适配。
+依赖源码已放在 `local-data/deps/SMPLer-X`，GPU 交接包包含固定版本源码、H32 主权重、Faster R-CNN 检测权重和已记录来源的人体文件。服务器的 RTX 4090、CUDA 扩展、人体文件加载及 EGL 离屏渲染已实测；旧版 torchgeometry 布尔掩码兼容修复亦已验证。不得为试修升级这套已跑通的环境。SMPLer-X 的官方推理使用 CUDA；此工具目前调用原实现，未提供 MPS 适配。
 
 ## 保存人工核对
 
@@ -173,12 +173,78 @@ SOKE 按 root(3)、body(63)、left hand(45)、right hand(45)、jaw(3)、shape(10
 
 这些文件完成数据接口转换；SOKE 的完整自定义数据集配置、训练划分和训练流程仍待接入。沿用预训练 tokenizer 时应沿用其 mean/std，不要用这 16 段重新定义归一化。镜像、跨课程表演者身份和重建动作需分别核对后，才能设为训练可用。
 
+## 2026-10-07 手部重建关键帧试修
+
+### 现有结果与问题
+
+- 两段重建分别为 `pilot-greeting-hello-001`（166/166 帧）和 `pilot-hospital-cough-003`（218/218 帧）；133 维导入、帧序、有限值及来源摘要检查通过。
+- 原生网格抽检中，“你好”第 91 帧的并拢双指被重建成多指展开；“咳嗽”第 159 帧的握拳竖拇指也被重建成多指展开。错误已经存在于 SMPLer-X 叠加预览，不能靠修改 133 维导入顺序来解决。
+- 抽检及局部连续帧证据不是全片质量通过证明。镜像方向仍为 `unknown`，接触、时序、手语语义仍待验收，`training_ready=false`。
+
+### 试修方法与保护范围
+
+工具位于仓库的 `signbridge/src/tools/sign-hand-refine.py`。Python 3.8+；依赖 NumPy/SciPy/Pillow，GPU 模式另使用现有 torch、vendored smplx、pyrender 和 trimesh，不安装新依赖或下载新模型。
+
+1. 只试修第 91、159 帧中**已经检测且视觉核对过的三只手**：第一帧双手、第二帧右手。第二帧缺失的左手观测不填零、不插值；不扩大到全序列。
+2. 校验输入约定及 SHA-256、固定源码提交、完成任务、原生完整 axis-angle 参数、相机的准确图片/人物归属和 neutral 模型来源。正文档对应的 `run.json` SHA-256 为 `20f320c5bb3f4082e60d73b9f19ee3972a534785135f9098e34291f030526908`。
+3. 稀疏 LBS 仅计算 55 个关节和 10 个指尖。每帧先与原生 CUDA SMPL-X 关节/指尖逐项比较，最大绝对坐标误差必须 ≤ `5e-5` 米；手部均值只加一次，`use_pca=False, flat_hand_mean=False`。不通过则停止，不继续优化。
+4. 每只手从同一个原始帧独立拟合，只修改该手 45 个手指旋转分量及对应手腕旋转，固定相机、根部、形状、表情、其他身体关节及另一只手。目标是手腕相对和绝对 2D 投影，附原始姿态先验和旋转改变量限制；**不使用 MediaPipe 相对 z 作为米制 3D 监督**。
+5. 候选要求优化正常收敛、手腕相对 RMSE 至少改善 20%、绝对/指尖误差不变差，以及旋转变化限制通过。不通过的手保留 baseline，原始优化提案单独保存。独立拟合结果合并后，再逐手检查实际投影（含 pose blend shape 的跨手影响），也不允许原本被拒绝的手变差；合并检查失败则整帧回退 baseline。像素误差下降只是候选门槛，不能证明深度、解剖姿态、握拳接触或手语语义正确。
+6. 使用原生 CUDA SMPL-X 完整网格重新渲染原始/候选 A/B，渲染器总在 `finally` 中释放。保存全图和手部近景供视觉复核；不修改原重建、导入数据或训练状态。
+
+输出目录必须新建且位于所有来源目录之外。`report.json` 记录原生数值对照、每手指标、来源摘要、失败原因；`baseline.npz` / `candidate.npz` 保留原数据类型；`*-optimizer-proposal.npz` 是未经接受或可能被拒绝的提案。`*-hand-compare.jpg` 为原图、原生 baseline、保存的候选近景；门槛失败时第三栏可能仍是 baseline，须结合报告查看，不能把第三栏当成修正成功。始终 `full_sequence_refined=false, training_ready=false`。
+
+### Mac 一条命令启动、收取证据
+
+自动化入口位于 `signbridge/src/tools/sign-hand-pilot.py`，只使用 Python 标准库、系统 `ssh/scp`。在 **Mac 终端**运行（不是在服务器提示符下）：
+
+```bash
+/Users/mac/Documents/ChatGPT/signbridge/.venv-sign-data/bin/python \
+  /Users/mac/Documents/ChatGPT/signbridge/signbridge/src/tools/sign-hand-pilot.py run
+```
+
+连接 `root@connect.cqa1.seetacloud.com:22210` 时，密码由 SSH 在用户终端读取，不交给助手或保存进状态文件。只上传小型试修工具及启动文件，不上传视频、不解压 9.2 GB 大包、不重新推理。远端以 `flock` 防止并行重复运行，使用现有 GPU Python，后台执行，不因 Mac 连接断开而主动取消。
+
+- 原始结果只读：`/root/autodl-tmp/signbridge/pilot-job-20261007-122150-DECIeP/fits`。
+- 新目录：`/root/autodl-tmp/signbridge/hand-keyframe-pilot-<日期时间>-<随机后缀>/results`。
+- 本地状态及回传证据：`/Users/mac/Documents/ChatGPT/signbridge/local-data/hand-keyframe-runs/`；不提交 Git。
+- 默认等待 300 秒。若尚未结束，不重复 `run`；换为 `collect` 收取证据或 `status` 读日志。重复 `run` 只复用已确认仍运行或正在打包的状态，不静默重启已完成试修。上传/启动阶段写入状态文件；若上传失败、启动未确认、进程中断或打包失败，明确报错并保留记录，不能把“未启动”误称为“后台仍运行”，也不自动重启。
+
+```bash
+/Users/mac/Documents/ChatGPT/signbridge/.venv-sign-data/bin/python \
+  /Users/mac/Documents/ChatGPT/signbridge/signbridge/src/tools/sign-hand-pilot.py status
+
+/Users/mac/Documents/ChatGPT/signbridge/.venv-sign-data/bin/python \
+  /Users/mac/Documents/ChatGPT/signbridge/signbridge/src/tools/sign-hand-pilot.py collect
+```
+
+`plan` 可离线显示范围而不连接服务器；`--state /绝对路径/state.json` 可读取指定试修记录。回传包和所有内部文件逐一校验，拒绝路径穿越、符号链接、重名文件及过大的归档；失败运行也回传日志及可用报告。退出码 0 的含义最多是“关键帧候选待视觉审核”，不是“整段修复/训练完成”。
+
+直接 GPU 调用（上述启动器自动执行）：
+
+```bash
+/root/autodl-tmp/signbridge/envs/smplerx/bin/python /path/to/sign-hand-refine.py pilot \
+  --batch /root/autodl-tmp/signbridge/sign-language-gpu-stage-v2/batch \
+  --fits /root/autodl-tmp/signbridge/pilot-job-20261007-122150-DECIeP/fits \
+  --smplerx-root /root/autodl-tmp/signbridge/sign-language-gpu-stage-v2/SMPLer-X \
+  --fit-run-sha256 20f320c5bb3f4082e60d73b9f19ee3972a534785135f9098e34291f030526908 \
+  --max-nfev 120 --output /path/to/new/keyframe-results
+```
+
+### 本地验证与尚未完成事项
+
+独立完整 NumPy LBS 与稀疏 LBS 已通过合成旋转数值对照；也在已有真实 neutral 模型上作合成姿态对照（最大坐标误差约 `6.7e-16` 米）。这是 CPU 数学验证，不是用户视频修复或 CUDA 原生验收。新增测试覆盖缺失/NaN/错误帧/错误摘要/PCA/错误均值约定/路径覆盖的拒绝，受保护参数不变，合成拟合改善，单手和合并后门槛失败回退，渲染失败释放资源，上传/启动失败不误报运行，以及上传脚本/安全回传。新增手部工具测试 18 项、Mac 启动器测试 12 项均通过。
+
+真实 GPU 关键帧修正仍需用户终端登录运行；取得 A/B 后再判断路线是否可用。通过关键帧视觉验收后，才设计两段全长的手部重估及遮挡/时序处理。其余 14 段和训练继续暂停；不能将两帧候选直接导入为完整训练序列。
+
 ## 测试与来源
 
 ```bash
 .venv-sign-data/bin/python signbridge/tests/sign-motion.test.py
 .venv-sign-data/bin/python signbridge/tests/sign-gpu.test.py
 .venv-sign-data/bin/python signbridge/tests/sign-data.test.py
+.venv-sign-data/bin/python signbridge/tests/sign-hand-refine.test.py
+.venv-sign-data/bin/python signbridge/tests/sign-hand-pilot.test.py
 cd signbridge && npm run verify
 ```
 
