@@ -14,6 +14,7 @@ import pickletools
 import re
 import subprocess
 import sys
+import traceback
 import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
@@ -460,6 +461,27 @@ def render_overlay(image, vertices, faces, camera):
         renderer.delete()
 
 
+def renderer_preflight():
+    """Render a tiny real mesh before any GPU fitting, so missing GL libraries fail early."""
+    os.environ.setdefault("PYOPENGL_PLATFORM", "egl")
+    os.environ.setdefault("MPLBACKEND", "Agg")
+    require(os.environ["PYOPENGL_PLATFORM"] == "egl", "Use the already-verified EGL backend")
+    image = np.zeros((64, 64, 3), dtype=np.uint8)
+    # Native camera uses +z; render_overlay rotates to OpenGL -z. Wind toward camera.
+    vertices = np.asarray([[-0.35, -0.35, 2.0], [0.35, -0.35, 2.0],
+                           [0.35, 0.35, 2.0], [-0.35, 0.35, 2.0]], dtype=np.float64)
+    faces = np.asarray([[0, 2, 1], [0, 3, 2]], dtype=np.int64)
+    camera = {"focal": np.asarray([55.0, 55.0]), "princpt": np.asarray([32.0, 32.0])}
+    rendered = render_overlay(image, vertices, faces, camera)
+    require(rendered.shape == image.shape and rendered.dtype == np.uint8,
+            "Renderer returned invalid preflight image")
+    changed = np.any(rendered != image, axis=2)
+    pixels = int(np.count_nonzero(changed))
+    require(pixels > 0, "EGL renderer produced no visible pixels")
+    return {"ready": True, "backend": os.environ.get("PYOPENGL_PLATFORM"),
+            "rendered_pixels": pixels, "image_shape": list(rendered.shape)}
+
+
 def draw_targets(image, targets):
     from PIL import ImageDraw
     marked = image.copy()
@@ -514,6 +536,7 @@ def run(args):
               "full_sequence_refined": False, "new_network_inference": False, "source_sha256": {}, "cases": []}
     report_path = output / "report.json"
     write_json(report_path, report)
+    stage = "input_validation"
     try:
         inputs = [batch / "contract.json", batch / "tasks.jsonl", batch / "SHA256SUMS",
                   Path(__file__).resolve()]
@@ -541,6 +564,10 @@ def run(args):
             provenance = root / "common/utils/human_model_files/signbridge-body-assets.json"
             report["source_sha256"][str(provenance)] = sha256(provenance)
             report["checkpoint_inventory"] = checkpoint_head_inventory(root / "pretrained_models/smpler_x_h32.pth.tar")
+            stage = "render_preflight"
+            report["renderer_preflight"] = renderer_preflight()
+            print("Actual EGL render preflight passed; starting native checks and keyframe fitting.", flush=True)
+            stage = "native_runtime"
             model = SparseSMPLX(model_path)
             runtime = native_runtime(root)
             report["runtime"] = {"torch": runtime[0].__version__, "cuda": runtime[0].version.cuda,
@@ -549,6 +576,7 @@ def run(args):
                     "Native hand mean differs")
         for task, number, sides, image_path, observation in selected:
             segment = task["segment_id"]
+            stage = "frame_targets:" + segment
             folder = output / segment
             folder.mkdir()
             with Image.open(image_path) as opened:
@@ -567,7 +595,9 @@ def run(args):
                 meta = json.loads(meta_path.read_text())
                 camera = native_camera(meta, image_path)
                 report["source_sha256"].update({str(p): sha256(p) for p in (source_path, meta_path)})
+                stage = "baseline_parity:" + segment
                 case["baseline_native_parity_max_metres"] = parity(model, runtime, params)
+                stage = "hand_fitting:" + segment
                 case["hands"] = []
                 proposals = {}
                 for side in sides:
@@ -579,12 +609,14 @@ def run(args):
                 candidate, combined_passed = merge_hand_candidates(
                     model, params, proposals, case["hands"], targets, camera)
                 case["combined_projection_gate_passed"] = combined_passed
+                stage = "candidate_parity:" + segment
                 case["candidate_native_parity_max_metres"] = parity(model, runtime, candidate)
                 case["all_candidate_gates_passed"] = all(h["candidate_gate_passed"] for h in case["hands"])
                 case["candidate_policy"] = ("Failed hands retain baseline; a combined projection failure "
                                             "reverts the entire frame; raw proposals are not accepted outputs")
                 np.savez_compressed(folder / "baseline.npz", **params)
                 np.savez_compressed(folder / "candidate.npz", **candidate)
+                stage = "rendering:" + segment
                 _, vertices0 = native_forward(runtime, params)
                 _, vertices1 = native_forward(runtime, candidate)
                 base = Image.fromarray(render_overlay(np.asarray(image), vertices0, runtime[1].faces, camera))
@@ -605,6 +637,7 @@ def run(args):
                                     ["Original", "Baseline", "Candidate - NEEDS REVIEW"])
             print(json.dumps(case, ensure_ascii=False), flush=True)
             write_json(report_path, report)
+        stage = "source_digest_recheck"
         for name, digest in report["source_sha256"].items():
             require(sha256(name) == digest, "Source modified during pilot: " + name)
         report["source_files_unchanged"] = True
@@ -622,7 +655,9 @@ def run(args):
         print("Report: " + str(report_path), flush=True)
         return 2 if report["status"] == "candidate_gate_failed" else 0
     except Exception as exc:
-        report.update(status="failed", error=str(exc), training_ready=False)
+        report.update(status="failed", error=str(exc), error_type=type(exc).__name__,
+                      failure_stage=stage,
+                      traceback=traceback.format_exc(), training_ready=False)
         write_json(report_path, report)
         raise
 
@@ -643,6 +678,7 @@ def main():
     try:
         return run(args)
     except (ValueError, OSError, KeyError, ImportError) as exc:
+        traceback.print_exc()
         parser.exit(2, "error: " + str(exc) + "\n")
 
 

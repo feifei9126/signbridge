@@ -1,7 +1,8 @@
 """Mac launcher: upload only the hand tool, run an isolated GPU pilot, fetch evidence.
 
 Uses standard-library Python and the user's SSH client. Credentials stay in SSH.
-No dependency installation, new neural inference, full-sequence rewrite or training.
+Normal run does not install dependencies. Only the explicit prepare-render command may
+install the missing Ubuntu GLU runtime; no CUDA/Python upgrade, inference or training.
 """
 
 import argparse
@@ -237,6 +238,45 @@ def extract_verified(archive, checksum, destination):
     return destination
 
 
+def prepare_render(connection):
+    """Explicit, bounded OS-library repair; never start a fitting job."""
+    code = '''import ctypes
+import ctypes.util
+path = ctypes.util.find_library("GLU")
+if not path:
+    raise RuntimeError("libGLU.so.1 is still unavailable")
+ctypes.CDLL(path)
+import pyrender
+from OpenGL import platform
+if type(platform.PLATFORM).__name__ != "EGLPlatform":
+    raise RuntimeError("Expected EGLPlatform")
+print("GLU:", path)
+print("pyrender import and EGL backend selection passed; actual rendering is checked before fitting.")
+'''
+    command = r'''set -eu
+if ! ldconfig -p | grep -q 'libGLU.so.1'; then
+  export DEBIAN_FRONTEND=noninteractive LC_ALL=C
+  apt-get update
+  PLAN=$(apt-get -s --no-install-recommends --no-upgrade --no-remove install libglu1-mesa)
+  printf '%%s\n' "$PLAN"
+  if printf '%%s\n' "$PLAN" | awk '
+    $1 == "Remv" { unsafe = 1 }
+    $1 == "Inst" {
+      package = $2; sub(/:.*/, "", package)
+      if ((package != "libglu1-mesa" && package != "libopengl0") || $3 ~ /^\[/) unsafe = 1
+    }
+    END { exit !unsafe }'; then
+    echo 'Refusing changes outside new GLU/OpenGL runtime libraries; no packages installed.' >&2
+    exit 78
+  fi
+  apt-get install -y --no-install-recommends --no-upgrade --no-remove libglu1-mesa
+fi
+PYOPENGL_PLATFORM=egl MPLBACKEND=Agg %s -c %s
+''' % (shlex.quote(BASE + "/envs/smplerx/bin/python"), shlex.quote(code))
+    print("仅检查 GLU；缺失时安装 libglu1-mesa，不升级 CUDA/Python、不启动试修。", flush=True)
+    connection.ssh("bash -c " + shlex.quote(command), capture=False)
+
+
 def collect(connection, state, directory):
     job = job_path(state["remote_job"])
     folder = Path(tempfile.mkdtemp(prefix="download-", dir=directory))
@@ -255,6 +295,9 @@ def collect(connection, state, directory):
                 info.get("training_ready") is not False or info.get("full_sequence_refined") is not False):
             raise ValueError("Unexpected pilot report/training-ready claim")
         print("试修状态：" + info["status"], flush=True)
+        if info.get("error"):
+            print("失败原因：" + str(info["error"]), flush=True)
+            print("失败阶段：" + str(info.get("failure_stage", "旧报告未记录，请查看日志")), flush=True)
         for case in info.get("cases", []):
             if case.get("segment_id") not in ("pilot-greeting-hello-001", "pilot-hospital-cough-003"):
                 raise ValueError("Unexpected evidence segment")
@@ -268,7 +311,10 @@ def collect(connection, state, directory):
             raise ValueError("Exit code/report status disagree")
     elif exit_code == 0:
         raise ValueError("Successful process has no audit report")
-    print("本次只产生关键帧候选，整段视频尚未修正，尚未开始训练。", flush=True)
+    if exit_code == 0:
+        print("本次只产生关键帧候选，整段视频尚未修正，尚未开始训练。", flush=True)
+    else:
+        print("试修未完成；已保存的局部结果不能视为完整修正，尚未开始训练。", flush=True)
     return 0 if exit_code == 0 else 2
 
 
@@ -331,7 +377,7 @@ def launch(connection, directory):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=("run", "collect", "status", "plan"), nargs="?", default="run")
+    parser.add_argument("command", choices=("run", "collect", "status", "plan", "prepare-render"), nargs="?", default="run")
     parser.add_argument("--state", type=Path)
     parser.add_argument("--wait-seconds", type=int, default=300, choices=range(5, 901), metavar="5..900")
     args = parser.parse_args()
@@ -345,6 +391,10 @@ def main():
     with tempfile.TemporaryDirectory(prefix="sbh-", dir="/tmp") as temporary:
         connection = Connection(Path(temporary))
         try:
+            if args.command == "prepare-render":
+                prepare_render(connection)
+                print("GLU 加载与 pyrender 导入检查通过；实际离屏渲染将在试修前检查。", flush=True)
+                return 0
             if args.command == "run":
                 state = launch(connection, directory)
             else:

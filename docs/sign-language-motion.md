@@ -1,6 +1,6 @@
 # 从已核对视频到 SMPL-X 动作
 
-本阶段把已核对的句子与视频边界保存为新版本，导出逐帧图片，运行 SMPLer-X 的人体重建，并把**真实拟合结果**转换成 SOKE 使用的 133 维表示。**截至 2026-10-07，两段真实 GPU 重建及严格参数导入已完成，但视觉抽检发现错误手型，仍不可训练。** 当前增加受控关键帧手部试修；尚未执行真实试修、处理剩余 14 段或训练手语模型。
+本阶段把已核对的句子与视频边界保存为新版本，导出逐帧图片，运行 SMPLer-X 的人体重建，并把**真实拟合结果**转换成 SOKE 使用的 133 维表示。**截至 2026-10-07，两段真实 GPU 重建及严格参数导入已完成，但视觉抽检发现错误手型，仍不可训练。** 截至 2026-10-09，已执行真实关键帧试修：第 91 帧双手拟合通过数值候选门槛，但渲染缺少 GLU 导致任务中断，第 159 帧未执行。尚未取得完整 A/B、处理剩余 14 段或训练手语模型。
 
 ## 已准备的数据
 
@@ -187,7 +187,7 @@ SOKE 按 root(3)、body(63)、left hand(45)、right hand(45)、jaw(3)、shape(10
 
 1. 只试修第 91、159 帧中**已经检测且视觉核对过的三只手**：第一帧双手、第二帧右手。第二帧缺失的左手观测不填零、不插值；不扩大到全序列。
 2. 校验输入约定及 SHA-256、固定源码提交、完成任务、原生完整 axis-angle 参数、相机的准确图片/人物归属和 neutral 模型来源。正文档对应的 `run.json` SHA-256 为 `20f320c5bb3f4082e60d73b9f19ee3972a534785135f9098e34291f030526908`。
-3. 稀疏 LBS 仅计算 55 个关节和 10 个指尖。每帧先与原生 CUDA SMPL-X 关节/指尖逐项比较，最大绝对坐标误差必须 ≤ `5e-5` 米；手部均值只加一次，`use_pca=False, flat_hand_mean=False`。不通过则停止，不继续优化。
+3. **拟合前先做一次实际 EGL 小网格渲染，要求返回非空可见像素**；缺少 GLU、后端错误、空白输出等立即失败，不加载 CUDA 人体或进入优化。稀疏 LBS 仅计算 55 个关节和 10 个指尖。每帧先与原生 CUDA SMPL-X 关节/指尖逐项比较，最大绝对坐标误差必须 ≤ `5e-5` 米；手部均值只加一次，`use_pca=False, flat_hand_mean=False`。不通过则停止，不继续优化。
 4. 每只手从同一个原始帧独立拟合，只修改该手 45 个手指旋转分量及对应手腕旋转，固定相机、根部、形状、表情、其他身体关节及另一只手。目标是手腕相对和绝对 2D 投影，附原始姿态先验和旋转改变量限制；**不使用 MediaPipe 相对 z 作为米制 3D 监督**。
 5. 候选要求优化正常收敛、手腕相对 RMSE 至少改善 20%、绝对/指尖误差不变差，以及旋转变化限制通过。不通过的手保留 baseline，原始优化提案单独保存。独立拟合结果合并后，再逐手检查实际投影（含 pose blend shape 的跨手影响），也不允许原本被拒绝的手变差；合并检查失败则整帧回退 baseline。像素误差下降只是候选门槛，不能证明深度、解剖姿态、握拳接触或手语语义正确。
 6. 使用原生 CUDA SMPL-X 完整网格重新渲染原始/候选 A/B，渲染器总在 `finally` 中释放。保存全图和手部近景供视觉复核；不修改原重建、导入数据或训练状态。
@@ -208,7 +208,7 @@ SOKE 按 root(3)、body(63)、left hand(45)、right hand(45)、jaw(3)、shape(10
 - 原始结果只读：`/root/autodl-tmp/signbridge/pilot-job-20261007-122150-DECIeP/fits`。
 - 新目录：`/root/autodl-tmp/signbridge/hand-keyframe-pilot-<日期时间>-<随机后缀>/results`。
 - 本地状态及回传证据：`/Users/mac/Documents/ChatGPT/signbridge/local-data/hand-keyframe-runs/`；不提交 Git。
-- 默认等待 300 秒。若尚未结束，不重复 `run`；换为 `collect` 收取证据或 `status` 读日志。重复 `run` 只复用已确认仍运行或正在打包的状态，不静默重启已完成试修。上传/启动阶段写入状态文件；若上传失败、启动未确认、进程中断或打包失败，明确报错并保留记录，不能把“未启动”误称为“后台仍运行”，也不自动重启。
+- 默认等待 300 秒。若尚未结束，不重复 `run`；换为 `collect` 收取证据或 `status` 读日志。重复 `run` 只复用已确认仍运行或正在打包的状态，不静默重启已完成试修；仅当上一轮退出码明确非零且本地拟合工具摘要已变化，才允许新建隔离任务，不删除旧任务。上传/启动阶段写入状态文件；若上传失败、启动未确认、进程中断或打包失败，明确报错并保留记录，不能把“未启动”误称为“后台仍运行”，也不自动重启。
 
 ```bash
 /Users/mac/Documents/ChatGPT/signbridge/.venv-sign-data/bin/python \
@@ -233,9 +233,30 @@ SOKE 按 root(3)、body(63)、left hand(45)、right hand(45)、jaw(3)、shape(10
 
 ### 本地验证与尚未完成事项
 
-独立完整 NumPy LBS 与稀疏 LBS 已通过合成旋转数值对照；也在已有真实 neutral 模型上作合成姿态对照（最大坐标误差约 `6.7e-16` 米）。这是 CPU 数学验证，不是用户视频修复或 CUDA 原生验收。新增测试覆盖缺失/NaN/错误帧/错误摘要/PCA/错误均值约定/路径覆盖的拒绝，受保护参数不变，合成拟合改善，单手和合并后门槛失败回退，渲染失败释放资源，上传/启动失败不误报运行，以及上传脚本/安全回传。新增手部工具测试 18 项、Mac 启动器测试 12 项均通过。
+独立完整 NumPy LBS 与稀疏 LBS 已通过合成旋转数值对照；也在已有真实 neutral 模型上作合成姿态对照（最大坐标误差约 `6.7e-16` 米）。这是 CPU 数学验证，不是用户视频修复或 CUDA 原生验收。新增测试覆盖缺失/NaN/错误帧/错误摘要/PCA/错误均值约定/路径覆盖的拒绝，受保护参数不变，合成拟合改善，单手和合并后门槛失败回退，渲染失败释放资源，上传/启动失败不误报运行，以及上传脚本/安全回传。手部工具测试 20 项、Mac 启动器测试 17 项均通过，包括渲染预检失败必须在 CUDA 加载/拟合之前退出、非空像素检查、失败阶段及 traceback 记录、显式 GLU 准备不启动 GPU、真实 shell dry-run 模拟拒绝升级/移除/无关软件、失败回传不能声称已产生候选。
 
-真实 GPU 关键帧修正仍需用户终端登录运行；取得 A/B 后再判断路线是否可用。通过关键帧视觉验收后，才设计两段全长的手部重估及遮挡/时序处理。其余 14 段和训练继续暂停；不能将两帧候选直接导入为完整训练序列。
+真实 GPU 的第 91 帧拟合已执行并有部分候选参数，但尚未完成渲染和视觉审核；GLU 环境修复需用户终端登录执行，再取得完整两帧 A/B 后判断路线是否可用。通过关键帧视觉验收后，才设计两段全长的手部重估及遮挡/时序处理。其余 14 段和训练继续暂停；不能将两帧候选直接导入为完整训练序列。
+
+## 2026-10-09：GLU 渲染失败及受控修复
+
+已校验回传目录 `/Users/mac/Documents/ChatGPT/signbridge/local-data/hand-keyframe-runs/download-ln9bx0j6/verified`：任务为 `hand-keyframe-pilot-20261009-063407-oE5eJX`，退出码 2，错误 `Library "GLU" not found.`。此前的 `config` 导入问题已解决，不应重复修导入或重装 PyTorch。
+
+- 第 91 帧双手独立拟合及合并投影门槛通过；合并后左手局部 RMSE 从 `24.0127` 降到 `6.1112` 像素，右手从 `36.6505` 降到 `6.2813` 像素。
+- 原生 CUDA 最大坐标对照误差：baseline 约 `9.72e-7` 米，candidate 约 `9.40e-7` 米。
+- 已保存第 91 帧的 baseline/candidate/proposal NPZ，但尚无 baseline/candidate 渲染或手部对比图；第 159 帧未开始。**这只是对 MediaPipe 估计目标的 2D 数值改善，不是手型、深度或手语质量通过证明。**
+
+新增显式命令 `prepare-render`。正常 `run` 仍不自动安装依赖；此命令在远端检查 `libGLU.so.1`，仅当缺失时用 `apt-get` 安装 `libglu1-mesa`，带 `--no-install-recommends --no-upgrade --no-remove`。先检查英文 dry-run 计划，只允许新装 GLU 及必要的 `libopengl0`，拒绝其他包变更以及升级/移除已有软件；不升级 CUDA/Python、不开拟合/训练、不修改来源参数。检查完成后用现有 Python 验证 GLU 可加载、pyrender 可导入且选择 EGL；实际网格渲染在拟合工具的前置检查中验证。
+
+在 **Mac 终端**依次准备 GLU 和提交已更新的两帧试修，准备失败时 `&&` 会阻止启动：
+
+```bash
+/Users/mac/Documents/ChatGPT/signbridge/.venv-sign-data/bin/python \
+  /Users/mac/Documents/ChatGPT/signbridge/signbridge/src/tools/sign-hand-pilot.py prepare-render && \
+/Users/mac/Documents/ChatGPT/signbridge/.venv-sign-data/bin/python \
+  /Users/mac/Documents/ChatGPT/signbridge/signbridge/src/tools/sign-hand-pilot.py run
+```
+
+所有新失败报告包含 `error_type`、`failure_stage`、完整 `traceback`，`driver.log` 也记录 traceback。收取结果直接打印错误，不再在零候选的失败任务中固定宣称“本次只产生关键帧候选”。`prepare-render` 退出 0 只表示库加载/导入/后端选择通过，不等于实际渲染或手部修正已通过。
 
 ## 测试与来源
 

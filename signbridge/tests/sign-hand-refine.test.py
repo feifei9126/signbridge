@@ -458,6 +458,29 @@ class HandRefineTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "parity failed"):
                 hand.parity(model, None, params)
 
+    def test_renderer_preflight_requires_real_nonempty_pixels(self):
+        rendered = np.zeros((64, 64, 3), dtype=np.uint8)
+        rendered[24:40, 24:40] = 200
+        with patch.object(hand, "render_overlay", return_value=rendered) as render, \
+             patch.dict(hand.os.environ, PYOPENGL_PLATFORM="egl"):
+            result = hand.renderer_preflight()
+        self.assertTrue(result["ready"])
+        self.assertEqual(result["rendered_pixels"], 256)
+        self.assertEqual(result["backend"], "egl")
+        self.assertEqual(render.call_args.args[0].shape, (64, 64, 3))
+        vertices, faces = render.call_args.args[1:3]
+        self.assertTrue((vertices[:, 2] > 0).all())
+        for face in faces:
+            a, b, c = vertices[face]
+            self.assertLess(np.cross(b - a, c - a)[2], 0)
+        for invalid in (np.zeros_like(rendered), rendered.astype(float), rendered[:32]):
+            with patch.object(hand, "render_overlay", return_value=invalid), \
+                 patch.dict(hand.os.environ, PYOPENGL_PLATFORM="egl"), self.assertRaises(ValueError):
+                hand.renderer_preflight()
+        with patch.object(hand, "render_overlay", side_effect=ImportError('Library "GLU" not found.')), \
+             patch.dict(hand.os.environ, PYOPENGL_PLATFORM="egl"), self.assertRaisesRegex(ImportError, "GLU"):
+            hand.renderer_preflight()
+
     def test_renderer_is_deleted_on_failure(self):
         class FakeMesh:
             def apply_transform(self, _):
@@ -546,6 +569,7 @@ class HandRefineTests(unittest.TestCase):
              patch.object(hand, "checkpoint_head_inventory", return_value={"runtime_load_verified": False}), \
              patch.object(hand, "SparseSMPLX", return_value=model), \
              patch.object(hand, "native_runtime", return_value=runtime), \
+             patch.object(hand, "renderer_preflight", return_value={"ready": True}), \
              patch.object(hand, "native_forward", side_effect=forward), \
              patch.object(hand, "fit_hand", side_effect=fake_fit), \
              patch.object(hand, "render_overlay", side_effect=lambda image, *args: image), \
@@ -563,6 +587,31 @@ class HandRefineTests(unittest.TestCase):
             rejected = hand.read_native(output / segment / "right-optimizer-proposal.npz")
             self.assertNotEqual(rejected["right_hand_pose"][0, 0], 0)
             self.assertTrue((output / segment / "right-hand-compare.jpg").is_file())
+
+        # Same audited inputs, but missing GLU: this must fail before CUDA load or fitting.
+        args.output = self.root / "gpu-preflight-failure"
+        with patch.object(hand, "verify_model_assets", return_value=model_path), \
+             patch.object(hand, "checkpoint_head_inventory", return_value={"runtime_load_verified": False}), \
+             patch.object(hand, "SparseSMPLX", return_value=model), \
+             patch.object(hand, "native_runtime", return_value=runtime) as native, \
+             patch.object(hand, "native_forward", side_effect=forward), \
+             patch.object(hand, "fit_hand", side_effect=fake_fit) as fitting, \
+             patch.object(hand, "renderer_preflight", side_effect=ImportError('Library "GLU" not found.')), \
+             patch.object(hand, "render_overlay", side_effect=lambda image, *args: image), \
+             patch.object(hand.subprocess, "check_output", return_value=hand.COMMIT + "\n"), \
+             contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+            with self.assertRaisesRegex(ImportError, "GLU"):
+                hand.run(args)
+        native.assert_not_called()
+        fitting.assert_not_called()
+        failed = json.loads((args.output / "report.json").read_text())
+        self.assertEqual(failed["status"], "failed")
+        self.assertEqual(failed["failure_stage"], "render_preflight")
+        self.assertEqual(failed["error_type"], "ImportError")
+        self.assertIn("Traceback", failed["traceback"])
+        self.assertIn("GLU", failed["traceback"])
+        self.assertEqual(failed["cases"], [])
+        self.assertFalse(failed["training_ready"])
 
 
 if __name__ == "__main__":

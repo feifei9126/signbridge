@@ -6,6 +6,7 @@ import importlib.util
 import io
 import json
 import os
+import shlex
 import subprocess
 import tarfile
 import tempfile
@@ -281,6 +282,105 @@ class HandPilotTests(unittest.TestCase):
         self.assertNotEqual(result["remote_job"], self.job)
         self.assertEqual(result["launch_phase"], "dispatched")
         self.assertTrue(any("mktemp" in command for command in commands))
+
+    def test_prepare_render_is_explicit_and_only_targets_glu(self):
+        calls = []
+        connection = types.SimpleNamespace(ssh=lambda command, capture=True: calls.append((command, capture)))
+        with contextlib.redirect_stdout(io.StringIO()):
+            pilot.prepare_render(connection)
+        self.assertEqual(len(calls), 1)
+        command, capture = calls[0]
+        self.assertFalse(capture)
+        self.assertIn("libGLU.so.1", command)
+        self.assertIn("libglu1-mesa", command)
+        self.assertIn("apt-get update", command)
+        self.assertIn("--no-upgrade", command)
+        self.assertIn("--no-remove", command)
+        self.assertIn("apt-get -s", command)
+        self.assertIn("Refusing changes outside", command)
+        self.assertIn("PYOPENGL_PLATFORM=egl", command)
+        self.assertIn("import pyrender", command)
+        self.assertNotIn("pip install", command)
+        self.assertNotIn("apt-get upgrade", command)
+        self.assertNotIn("train.py", command)
+        self.assertNotIn("inference.py", command)
+        self.assertNotIn("nohup", command)
+        subprocess.run(["bash", "-n", "-c", command], check=True)
+
+    def test_prepare_shell_refuses_upgrades_or_unrelated_packages_before_install(self):
+        calls = []
+        connection = types.SimpleNamespace(ssh=lambda command, capture=True: calls.append(command))
+        with contextlib.redirect_stdout(io.StringIO()):
+            pilot.prepare_render(connection)
+        shell = shlex.split(calls[0])[2]
+        commands = self.root / "prepare-commands"
+        commands.mkdir()
+        log = self.root / "os-actions.log"
+        for name, code in {
+            "ldconfig": '#!/bin/sh\nif [ "$HAVE_GLU" = 1 ]; then echo libGLU.so.1; fi\n',
+            "apt-get": '#!/bin/sh\necho "apt-get $*" >> "$ACTION_LOG"\ncase "$*" in *-s*) printf "%s\\n" "$SIMULATION" ;; esac\n',
+            "gpu-python": '#!/bin/sh\necho library-import-check >> "$ACTION_LOG"\n',
+        }.items():
+            path = commands / name
+            path.write_text(code)
+            path.chmod(0o700)
+        shell = shell.replace(pilot.BASE + "/envs/smplerx/bin/python", str(commands / "gpu-python"))
+        plans = [
+            ("Inst libglu1-mesa (9.0.1 test [amd64])", 0),
+            ("Inst libglu1-mesa (9.0.1 test [amd64])\nInst libopengl0 (1.3 test [amd64])", 0),
+            ("Inst libglu1-mesa [old] (new test [amd64])", 78),
+            ("Inst cuda-runtime (new test [amd64])", 78),
+            ("Remv libgl1 [old]", 78),
+        ]
+        for plan, expected in plans:
+            log.write_text("")
+            result = subprocess.run(["bash", "-c", shell], check=False, capture_output=True, text=True,
+                env={**os.environ, "PATH": str(commands) + ":" + os.environ["PATH"], "HAVE_GLU": "0",
+                     "SIMULATION": plan, "ACTION_LOG": str(log)})
+            with self.subTest(plan=plan):
+                self.assertEqual(result.returncode, expected, result.stderr)
+                actions = log.read_text()
+                install = "apt-get install -y"
+                self.assertEqual(install in actions, expected == 0)
+                self.assertEqual("library-import-check" in actions, expected == 0)
+        log.write_text("")
+        result = subprocess.run(["bash", "-c", shell], check=False, capture_output=True, text=True,
+            env={**os.environ, "PATH": str(commands) + ":" + os.environ["PATH"], "HAVE_GLU": "1",
+                 "SIMULATION": "must not run apt", "ACTION_LOG": str(log)})
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(log.read_text(), "library-import-check\n")
+
+    def test_prepare_command_does_not_launch_fit_or_require_previous_state(self):
+        connection = types.SimpleNamespace(close=lambda: None)
+        with patch.object(pilot, "REPO", self.root), \
+             patch.object(pilot, "Connection", return_value=connection), \
+             patch.object(pilot, "prepare_render") as prepare, \
+             patch.object(pilot, "launch", side_effect=AssertionError("no GPU launch")), \
+             patch.object(pilot, "load_state", side_effect=AssertionError("no state read")), \
+             patch("sys.argv", [str(SCRIPT), "prepare-render"]), contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(pilot.main(), 0)
+        prepare.assert_called_once_with(connection)
+
+    def test_failed_collect_displays_error_without_claiming_candidates_exist(self):
+        report = {"schema": "signbridge-hand-keyframe-pilot-v1", "status": "failed",
+                  "training_ready": False, "full_sequence_refined": False,
+                  "error": 'Library "GLU" not found.', "failure_stage": "render_preflight", "cases": []}
+        tool = b"# mock tool\n"
+        archive, checksum = self.archive({"sign-hand-refine.py": tool, "driver.log": b"GPU fixture failure",
+                                        "exit-code": b"2\n", "results/report.json": json.dumps(report).encode()})
+        state = self.state()
+        state["tool_sha256"] = hashlib.sha256(tool).hexdigest()
+        def copy(source, destination):
+            original = checksum if source.endswith(".sha256") else archive
+            Path(destination).write_bytes(original.read_bytes())
+        connection = types.SimpleNamespace(copy=copy)
+        with contextlib.redirect_stdout(io.StringIO()) as output:
+            self.assertEqual(pilot.collect(connection, state, self.root), 2)
+        text = output.getvalue()
+        self.assertIn("GLU", text)
+        self.assertIn("render_preflight", text)
+        self.assertNotIn("本次只产生关键帧候选", text)
+        self.assertIn("不能视为完整修正", text)
 
     def test_plan_has_no_connection(self):
         with patch.object(pilot, "Connection", side_effect=AssertionError("plan must be offline")):
