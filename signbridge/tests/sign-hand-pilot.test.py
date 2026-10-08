@@ -61,6 +61,21 @@ class HandPilotTests(unittest.TestCase):
         self.assertNotIn("train.py", script)
         self.assertNotIn("rm -", script)
 
+    def test_review_driver_is_read_only_and_has_no_optimizer_budget(self):
+        old_job = self.job.replace("Ab1c23", "Cd4e56")
+        script = pilot.driver(self.job, review_source=old_job, review_sha="a" * 64)
+        subprocess.run(["bash", "-n", "-c", script], check=True)
+        self.assertIn(" review ", script)
+        self.assertIn("--previous-results", script)
+        self.assertIn("--previous-report-sha256", script)
+        self.assertIn(old_job + "/results", script)
+        self.assertNotIn("--max-nfev", script)
+        self.assertNotIn('sign-hand-refine.py" pilot', script)
+        self.assertNotIn("pip install", script)
+        self.assertNotIn("apt-get", script)
+        with self.assertRaises(ValueError):
+            pilot.driver(self.job, review_source=old_job, review_sha="bad")
+
     def test_driver_packages_logs_and_evidence_after_gpu_failure(self):
         # Substitute only paths in the already-validated template, never execute GPU work.
         base = self.root / "remote"
@@ -381,6 +396,43 @@ class HandPilotTests(unittest.TestCase):
         self.assertIn("render_preflight", text)
         self.assertNotIn("本次只产生关键帧候选", text)
         self.assertIn("不能视为完整修正", text)
+
+    def test_review_launch_uses_new_state_without_replacing_fitting_latest(self):
+        directory = self.root / "review-launch"
+        directory.mkdir()
+        state = self.state()
+        pilot.write_json(directory / "latest.json", state)
+        latest_before = (directory / "latest.json").read_bytes()
+        new_job = self.job.replace("Ab1c23", "Cd4e56")
+        commands, copied = [], []
+        def ssh(command):
+            commands.append(command)
+            if "mktemp" in command:
+                return new_job + "\n"
+            if "sha256sum" in command:
+                return "a" * 64 + "  results/report.json\n"
+            return "finished\n" if "archive-ready" in command else ""
+        connection = types.SimpleNamespace(ssh=ssh, copy=lambda *args: copied.append(args))
+        with contextlib.redirect_stdout(io.StringIO()):
+            review = pilot.launch(connection, directory, review_source=state)
+        self.assertEqual(review["mode"], "review")
+        self.assertEqual(review["review_source_job"], self.job)
+        self.assertEqual(review["review_report_sha256"], "a" * 64)
+        self.assertEqual(review["remote_job"], new_job)
+        self.assertEqual((directory / "latest.json").read_bytes(), latest_before)
+        self.assertEqual(pilot.load_state(directory / "latest-review.json"), review)
+        driver = (directory / Path(new_job).name / "run.sh").read_text()
+        self.assertIn("--previous-results", driver)
+        self.assertEqual(len(copied), 3)
+        different_source = {**state, "remote_job": self.job.replace("Ab1c23", "Ef7g89")}
+        with self.assertRaisesRegex(ValueError, "source differs"):
+            pilot.launch(connection, directory, review_source=different_source)
+        self.assertEqual(len(copied), 3)
+        for mutation in ({"review_source_job": "/tmp/evil"}, {"review_report_sha256": "bad"}):
+            path = self.root / "invalid-review.json"
+            pilot.write_json(path, {**review, **mutation})
+            with self.assertRaises(ValueError):
+                pilot.load_state(path)
 
     def test_plan_has_no_connection(self):
         with patch.object(pilot, "Connection", side_effect=AssertionError("plan must be offline")):

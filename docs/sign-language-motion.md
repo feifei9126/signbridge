@@ -1,6 +1,6 @@
 # 从已核对视频到 SMPL-X 动作
 
-本阶段把已核对的句子与视频边界保存为新版本，导出逐帧图片，运行 SMPLer-X 的人体重建，并把**真实拟合结果**转换成 SOKE 使用的 133 维表示。**截至 2026-10-07，两段真实 GPU 重建及严格参数导入已完成，但视觉抽检发现错误手型，仍不可训练。** 截至 2026-10-09，已执行真实关键帧试修：第 91 帧双手拟合通过数值候选门槛，但渲染缺少 GLU 导致任务中断，第 159 帧未执行。尚未取得完整 A/B、处理剩余 14 段或训练手语模型。
+本阶段把已核对的句子与视频边界保存为新版本，导出逐帧图片，运行 SMPLer-X 的人体重建，并把**真实拟合结果**转换成 SOKE 使用的 133 维表示。**截至 2026-10-07，两段真实 GPU 重建及严格参数导入已完成，但视觉抽检发现错误手型，仍不可训练。** 截至 2026-10-09，已执行真实关键帧试修：第 91 帧双手拟合通过数值候选门槛，但渲染缺少 GLU 导致任务中断，第 159 帧未执行。后续任务 `hand-keyframe-pilot-20261009-065007-8f5GgO` 已完成两帧试修及 EGL 出图，但第 159 帧右手绝对误差变差导致候选被拒绝；现有灰色网格不易观察手指细节，仍需只读诊断图复核。尚未处理剩余 14 段或训练手语模型。
 
 ## 已准备的数据
 
@@ -257,6 +257,34 @@ SOKE 按 root(3)、body(63)、left hand(45)、right hand(45)、jaw(3)、shape(10
 ```
 
 所有新失败报告包含 `error_type`、`failure_stage`、完整 `traceback`，`driver.log` 也记录 traceback。收取结果直接打印错误，不再在零候选的失败任务中固定宣称“本次只产生关键帧候选”。`prepare-render` 退出 0 只表示库加载/导入/后端选择通过，不等于实际渲染或手部修正已通过。
+
+## 2026-10-09：候选门槛拒绝与只读复核
+
+最新回传目录 `/Users/mac/Documents/ChatGPT/signbridge/local-data/hand-keyframe-runs/download-trkzf8dr/verified` 的 `report.json` 表示 `candidate_gate_failed`，不是 `failed`。实际 EGL 预检、两帧优化、原生 CUDA 关节/指尖对照及完整网格渲染均已执行，来源摘要末尾复核通过。
+
+| 帧/手 | 局部 RMSE 原始 → 提案 | 绝对 RMSE 原始 → 提案 | 选择 |
+| --- | --- | --- | --- |
+| 第 91 帧左手 | 24.01 → 6.09 px | 25.81 → 8.69 px | 数值候选通过，非视觉批准 |
+| 第 91 帧右手 | 36.65 → 6.28 px | 27.18 → 19.99 px | 数值候选通过，非视觉批准 |
+| 第 159 帧右手 | 23.54 → 4.00 px | 16.05 → 19.24 px | 绝对误差变差，提案拒绝，candidate 保存 baseline |
+
+第 91 帧合并后局部 RMSE 为 6.11/6.28 px。第 159 帧虽然相对手腕的手型投影更接近观测，但绝对位置不变差门槛未通过，不应删除或放宽门槛。原图右手拇指竖起，灰色网格图无法可靠确认手指关节与遮挡；也不能把被拒绝帧第三栏未变化误解为优化完全没有发生。
+
+新增 `review`：**不调用 `fit_hand`、不修改已保存参数或候选选择、不新跑 SMPLer-X 网络**。它验证上一轮报告摘要、所有原始输入摘要、baseline 与原帧相等、受保护参数不变、合并候选与原选择策略相等，复算各手投影/手腕位置及原生 CUDA 对照，然后使用相同参数生成新的四栏诊断图：原图 / baseline / 已保存 candidate（拒绝时等于 baseline）/ 原始优化提案（NOT accepted）。
+
+诊断图用相机坐标下的面法向显式颜色和深度测试的 EGL unlit 渲染，提高几何可读性；不声称原灰色剪影的底层光照原因已确定。此着色不改变任何顶点/旋转、不是视频外观或物理灯光真值、不代替手语视觉验收。`review` 退出 0 只意味着已重新出图，**原始 `candidate_gate_failed` 与 `training_ready=false` 不变**。
+
+在 **Mac 终端**执行（不是再次 `run`，不需要重新补 GLU）：
+
+```bash
+/Users/mac/Documents/ChatGPT/signbridge/.venv-sign-data/bin/python \
+  /Users/mac/Documents/ChatGPT/signbridge/signbridge/src/tools/sign-hand-pilot.py review \
+  --state /Users/mac/Documents/ChatGPT/signbridge/local-data/hand-keyframe-runs/hand-keyframe-pilot-20261009-065007-8f5GgO/state.json
+```
+
+`latest-review.json` 与拟合的 `latest.json` 分开保存，旧报告和图片保留。后台运行未结束时用 `collect-review` 收取图像，用 `status-review` 看日志；不要重复 `review`。文件名为 `*-hand-review.jpg`；`report.json` 包含 `new_optimizer_run=false` 与 `source_pilot_status`。新出图未经远端实际运行验证，尚不能声明光照或手型已修好。
+
+手部工具本地测试 22 项、启动器测试 19 项覆盖只读复核无优化、原摘要/选择策略审计、独立状态、诊断面颜色不改几何，以及 EGL 渲染的明确着色旗标与资源释放。通过新诊断图后再决定是否扩大优化到相邻帧/腕部位置；不会以像素指标或两个关键帧作为完整训练序列验收。
 
 ## 测试与来源
 

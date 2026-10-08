@@ -43,9 +43,18 @@ def job_path(value):
     return value
 
 
-def driver(job):
+def driver(job, review_source=None, review_sha=None):
     """No untrusted shell substitution: only a validated, newly created job path."""
     job = job_path(job)
+    if review_source is not None:
+        job_path(review_source)
+        if not re.fullmatch(r"[0-9a-f]{64}", review_sha or ""):
+            raise ValueError("Unexpected prior report SHA")
+        mode = "review"
+        options = "--previous-results %s --previous-report-sha256 %s" % (
+            shlex.quote(review_source + "/results"), shlex.quote(review_sha))
+    else:
+        mode, options = "pilot", "--max-nfev 120"
     return """#!/usr/bin/env bash
 set -uo pipefail
 umask 077
@@ -63,11 +72,11 @@ else
   cd "$JOB" || exit 70
   echo "Only frames 91 and 159; original fits remain unchanged; training_ready=false."
   if sha256sum -c tool.sha256; then
-    "$BASE/envs/smplerx/bin/python" -u "$JOB/sign-hand-refine.py" pilot \\
+    "$BASE/envs/smplerx/bin/python" -u "$JOB/sign-hand-refine.py" %s \\
       --batch "$BASE/sign-language-gpu-stage-v2/batch" \\
       --fits %s \\
       --smplerx-root "$BASE/sign-language-gpu-stage-v2/SMPLer-X" \\
-      --fit-run-sha256 %s --max-nfev 120 --output "$JOB/results"
+      --fit-run-sha256 %s %s --output "$JOB/results"
     RC=$?
   else
     RC=74
@@ -93,7 +102,7 @@ else
   touch archive-failed
 fi
 exit "$RC"
-""" % (shlex.quote(job), shlex.quote(BASE), shlex.quote(FITS), shlex.quote(FIT_SHA))
+""" % (shlex.quote(job), shlex.quote(BASE), mode, shlex.quote(FITS), shlex.quote(FIT_SHA), options)
 
 
 class Connection:
@@ -125,6 +134,12 @@ def load_state(path):
             info.get("launch_phase", "legacy") not in ("legacy", "prepared", "uploading", "uploaded", "dispatching", "dispatched") or
             not re.fullmatch(r"[0-9a-f]{64}", info.get("tool_sha256", ""))):
         raise ValueError("Unexpected hand pilot state")
+    if info.get("mode", "pilot") not in ("pilot", "review"):
+        raise ValueError("Unexpected pilot mode")
+    if info.get("mode") == "review":
+        job_path(info.get("review_source_job", ""))
+        if not re.fullmatch(r"[0-9a-f]{64}", info.get("review_report_sha256", "")):
+            raise ValueError("Unexpected review source state")
     return info
 
 
@@ -289,6 +304,7 @@ def collect(connection, state, directory):
     print("服务器日志：" + str(results / "driver.log"), flush=True)
     exit_code = int((results / "exit-code").read_text().strip())
     report = results / "results/report.json"
+    info = {}
     if report.is_file():
         info = json.loads(report.read_text())
         if (info.get("schema") != "signbridge-hand-keyframe-pilot-v1" or
@@ -304,27 +320,49 @@ def collect(connection, state, directory):
             for side in case.get("observed_hands", []):
                 if side not in ("left", "right"):
                     raise ValueError("Unexpected evidence hand side")
-                image = results / "results" / case["segment_id"] / (side + "-hand-compare.jpg")
+                suffix = "-hand-review.jpg" if state.get("mode") == "review" else "-hand-compare.jpg"
+                image = results / "results" / case["segment_id"] / (side + suffix)
                 if image.is_file():
                     print("手部 A/B 对比：" + str(image), flush=True)
-        if exit_code == 0 and info["status"] != "keyframe_candidates_pending_visual_review":
+        expected_status = ("saved_parameters_rerendered_pending_review" if state.get("mode") == "review" else
+                           "keyframe_candidates_pending_visual_review")
+        if exit_code == 0 and info["status"] != expected_status:
             raise ValueError("Exit code/report status disagree")
+        if state.get("mode") == "review" and info.get("new_optimizer_run") is not False:
+            raise ValueError("Unexpected optimization in read-only review")
     elif exit_code == 0:
         raise ValueError("Successful process has no audit report")
-    if exit_code == 0:
+    if exit_code == 0 and state.get("mode") == "review":
+        print("只读重新出图完成；原候选门槛未改变，没有新优化或训练。", flush=True)
+    elif exit_code == 0:
         print("本次只产生关键帧候选，整段视频尚未修正，尚未开始训练。", flush=True)
+    elif info.get("status") == "candidate_gate_failed":
+        print("试修执行完成，但部分候选被质量门槛拒绝；不是程序崩溃，不可开始训练。", flush=True)
     else:
         print("试修未完成；已保存的局部结果不能视为完整修正，尚未开始训练。", flush=True)
     return 0 if exit_code == 0 else 2
 
 
-def launch(connection, directory):
+def launch(connection, directory, review_source=None):
     tool = Path(__file__).with_name("sign-hand-refine.py")
     if not tool.is_file():
         raise ValueError("Missing hand refinement tool")
-    latest = directory / "latest.json"
+    latest = directory / ("latest-review.json" if review_source else "latest.json")
+    review_source_job = review_source_sha = None
+    if review_source:
+        review_source_job = job_path(review_source["remote_job"])
+        if remote_status(connection, review_source_job) != "finished":
+            raise ValueError("Previous fitting run must be finished before read-only review")
+        result = connection.ssh("cd " + shlex.quote(review_source_job) + " && sha256sum results/report.json").strip()
+        review_source_sha, name = result.split("  ", 1)
+        if name != "results/report.json" or not re.fullmatch(r"[0-9a-f]{64}", review_source_sha):
+            raise ValueError("Unexpected previous report digest")
     if latest.is_file():
         previous = load_state(latest)
+        if review_source and (previous.get("mode") != "review" or
+                              previous.get("review_source_job") != review_source_job or
+                              previous.get("review_report_sha256") != review_source_sha):
+            raise ValueError("Existing review source differs; refusing stale evidence reuse")
         job = previous["remote_job"]
         status = remote_status(connection, job)
         if status in ("running", "finalizing"):
@@ -349,12 +387,14 @@ def launch(connection, directory):
     state = {"schema": "signbridge-hand-pilot-launch-v1", "remote_job": job, "host": HOST, "port": PORT,
              "fits": FITS, "fit_run_sha256": FIT_SHA, "tool_sha256": digest(tool), "training_ready": False,
              "launch_phase": "prepared"}
+    if review_source:
+        state.update(mode="review", review_source_job=review_source_job, review_report_sha256=review_source_sha)
     def save(phase):
         state["launch_phase"] = phase
         write_json(local / "state.json", state)
-        write_json(directory / "latest.json", state)
+        write_json(latest, state)
     save("prepared")
-    (local / "run.sh").write_text(driver(job))
+    (local / "run.sh").write_text(driver(job, review_source_job, review_source_sha))
     (local / "tool.sha256").write_text(digest(tool) + "  sign-hand-refine.py\n")
     try:
         save("uploading")
@@ -370,14 +410,15 @@ def launch(connection, directory):
         save(state["launch_phase"])
         raise ValueError("上传/启动未确认完成，已保留状态；不自动重启。请用 status 检查：" +
                          str(local / "state.json")) from exc
-    print("已提交服务器后台试修，请以服务器状态和报告确认实际运行：" + job, flush=True)
+    label = "已提交服务器只读复核，不运行优化：" if review_source else "已提交服务器后台试修，请以服务器状态和报告确认实际运行："
+    print(label + job, flush=True)
     print("状态记录：" + str(local / "state.json"), flush=True)
     return state
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=("run", "collect", "status", "plan", "prepare-render"), nargs="?", default="run")
+    parser.add_argument("command", choices=("run", "review", "collect", "collect-review", "status", "status-review", "plan", "prepare-render"), nargs="?", default="run")
     parser.add_argument("--state", type=Path)
     parser.add_argument("--wait-seconds", type=int, default=300, choices=range(5, 901), metavar="5..900")
     args = parser.parse_args()
@@ -397,10 +438,14 @@ def main():
                 return 0
             if args.command == "run":
                 state = launch(connection, directory)
+            elif args.command == "review":
+                source = load_state(args.state or directory / "latest.json")
+                state = launch(connection, directory, review_source=source)
             else:
-                state = load_state(args.state or directory / "latest.json")
+                default = "latest-review.json" if args.command.endswith("-review") else "latest.json"
+                state = load_state(args.state or directory / default)
             job = state["remote_job"]
-            if args.command == "status":
+            if args.command in ("status", "status-review"):
                 print("上传/启动阶段：" + state.get("launch_phase", "legacy"), flush=True)
                 print("服务器状态：" + remote_status(connection, job), flush=True)
                 connection.ssh("if [ -f " + shlex.quote(job + "/exit-code") + " ]; then cat " +
@@ -409,11 +454,13 @@ def main():
                                shlex.quote(job + "/driver.log") + "; else echo '日志尚未创建，未确认启动'; fi",
                                capture=False)
                 return 0
-            print("等待关键帧拟合和原生 A/B 渲染；密码仅由 SSH 在当前终端读取。", flush=True)
+            print("等待只读重新出图，不执行优化。" if state.get("mode") == "review" else
+                  "等待关键帧拟合和原生 A/B 渲染；密码仅由 SSH 在当前终端读取。", flush=True)
             if wait_for_archive(connection, job, args.wait_seconds):
                 return collect(connection, state, directory)
             print("任务/打包尚未结束，后台任务不会因本命令退出而停止，请勿重复运行 run。", flush=True)
-            print("稍后将命令末尾的 run 替换为 collect 下载；替换为 status 查看日志。", flush=True)
+            print("稍后使用 collect-review 下载；status-review 查看日志。" if state.get("mode") == "review" else
+                  "稍后将命令末尾的 run 替换为 collect 下载；替换为 status 查看日志。", flush=True)
             return 0
         finally:
             connection.close()

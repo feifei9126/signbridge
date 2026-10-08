@@ -438,13 +438,28 @@ def parity(model, runtime, params):
     return error
 
 
-def render_overlay(image, vertices, faces, camera):
+def diagnostic_face_colors(vertices, faces):
+    """Explicit camera-space Lambert colors; visualization only, no pose correction."""
+    triangles = np.asarray(vertices, dtype=np.float64)[faces]
+    normals = np.cross(triangles[:, 1] - triangles[:, 0], triangles[:, 2] - triangles[:, 0])
+    lengths = np.linalg.norm(normals, axis=1)
+    require(np.isfinite(normals).all() and (lengths > 1e-12).all(), "Invalid diagnostic triangles")
+    normals /= lengths[:, None]
+    light = np.asarray([-0.35, -0.45, -1.0])
+    light /= np.linalg.norm(light)
+    brightness = 0.25 + 0.75 * np.maximum(0, normals @ light)
+    rgb = np.rint(brightness[:, None] * [180, 220, 250]).astype(np.uint8)
+    return np.c_[rgb, np.full(len(rgb), 255, dtype=np.uint8)]
+
+
+def render_overlay(image, vertices, faces, camera, diagnostic=False):
     import pyrender
     import trimesh
-    mesh = trimesh.Trimesh(vertices=vertices, faces=faces, process=False)
+    colors = diagnostic_face_colors(vertices, faces) if diagnostic else None
+    mesh = trimesh.Trimesh(vertices=vertices, faces=faces, process=False, face_colors=colors)
     mesh.apply_transform(trimesh.transformations.rotation_matrix(np.pi, [1, 0, 0]))
-    material = pyrender.MetallicRoughnessMaterial(metallicFactor=0.0, alphaMode="OPAQUE",
-                                                 baseColorFactor=(1.0, 1.0, 0.9, 1.0))
+    material = None if diagnostic else pyrender.MetallicRoughnessMaterial(
+        metallicFactor=0.0, alphaMode="OPAQUE", baseColorFactor=(1.0, 1.0, 0.9, 1.0))
     scene = pyrender.Scene(ambient_light=(0.3, 0.3, 0.3))
     scene.add(pyrender.Mesh.from_trimesh(mesh, material=material, smooth=False))
     scene.add(pyrender.IntrinsicsCamera(fx=camera["focal"][0], fy=camera["focal"][1],
@@ -455,7 +470,8 @@ def render_overlay(image, vertices, faces, camera):
         scene.add(pyrender.DirectionalLight(color=[1, 1, 1], intensity=0.8), pose=pose)
     renderer = pyrender.OffscreenRenderer(viewport_width=image.shape[1], viewport_height=image.shape[0])
     try:
-        rgb, depth = renderer.render(scene, flags=pyrender.RenderFlags.RGBA)
+        flags = pyrender.RenderFlags.RGBA | (pyrender.RenderFlags.FLAT if diagnostic else 0)
+        rgb, depth = renderer.render(scene, flags=flags)
         return np.where((depth > 0)[:, :, None], rgb[:, :, :3], image).astype(np.uint8)
     finally:
         renderer.delete()
@@ -662,21 +678,166 @@ def run(args):
         raise
 
 
+def review_saved(args):
+    """Audit and rerender saved baseline/candidate/proposals; never call the optimizer."""
+    from PIL import Image
+    previous = args.previous_results.resolve()
+    prior_path = inside(previous, "report.json")
+    require(sha256(prior_path) == args.previous_report_sha256, "Previous report digest differs")
+    prior = json.loads(prior_path.read_text())
+    require(prior.get("schema") == "signbridge-hand-keyframe-pilot-v1" and
+            prior.get("status") in ("candidate_gate_failed", "keyframe_candidates_pending_visual_review") and
+            prior.get("training_ready") is False and prior.get("source_files_unchanged") is True and
+            prior.get("full_sequence_refined") is False, "Previous run is not auditable/completed")
+    batch, fits, root = args.batch.resolve(), args.fits.resolve(), args.smplerx_root.resolve()
+    selected = task_cases(batch)
+    prior_cases = {c["segment_id"]: c for c in prior["cases"]}
+    require(len(prior_cases) == len(prior["cases"]) == len(CASES) and
+            set(prior_cases) == {c[0] for c in CASES}, "Previous case scope differs")
+    output = new_output(args.output, [batch, fits, root, previous])
+    report = {"schema": "signbridge-hand-keyframe-pilot-v1", "status": "running",
+              "created_at": datetime.now(timezone.utc).isoformat(), "training_ready": False,
+              "full_sequence_refined": False, "new_network_inference": False, "new_optimizer_run": False,
+              "source_pilot_status": prior["status"], "render_style": "explicit face-normal colors, unlit depth-tested EGL",
+              "source_sha256": {str(prior_path): sha256(prior_path)}, "cases": []}
+    report_path = output / "report.json"
+    stage = "review_inputs"
+    write_json(report_path, report)
+    try:
+        # Anchor all original inputs to the pinned prior report, not just filenames.
+        allowed_roots = (batch, fits, root, previous.parent)
+        for name, digest in prior["source_sha256"].items():
+            path = Path(name).resolve()
+            require(path == Path(__file__).resolve() or
+                    any(path == source or source in path.parents for source in allowed_roots),
+                    "Unexpected previous source root")
+            require(sha256(path) == digest, "Previous source modified: " + name)
+            report["source_sha256"][str(path)] = digest
+        run_path = fits / "run.json"
+        require(sha256(run_path) == args.fit_run_sha256 == prior["source_sha256"].get(str(run_path)),
+                "Wrong original fitting run")
+        commit = subprocess.check_output(["git", "-C", str(root), "rev-parse", "HEAD"], text=True).strip()
+        require(commit == prior.get("smplerx_commit") == COMMIT, "Source commit differs")
+        model_path = verify_model_assets(root)
+        stage = "review_native_runtime"
+        model, runtime = SparseSMPLX(model_path), native_runtime(root)
+        require(np.allclose(runtime[1].pose_mean.detach().cpu().numpy().reshape(55, 3), model.mean),
+                "Native hand mean differs")
+        report["source_sha256"][str(Path(__file__).resolve())] = sha256(Path(__file__).resolve())
+        for task, number, sides, image_path, observation in selected:
+            segment = task["segment_id"]
+            stage = "review_frame:" + segment
+            old = prior_cases[segment]
+            require(old["frame_1based"] == number and old["observed_hands"] == list(sides) and
+                    np.isclose(old["timestamp_seconds"], (number - 1) / task["fps"], atol=1e-6),
+                    "Previous frame/hand scope differs")
+            folder = output / segment
+            folder.mkdir()
+            with Image.open(image_path) as opened:
+                image = opened.convert("RGB")
+            targets = {side: load_target(observation, task["frames"], number, side, *image.size, task["fps"])
+                       for side in sides}
+            source = inside(fits, segment + "/smplx/%05d_0.npz" % number)
+            meta = inside(fits, segment + "/meta/%05d_0.json" % number)
+            require(all(prior["source_sha256"].get(str(p)) == sha256(p)
+                        for p in (source, meta, image_path, observation)), "Previous frame source not anchored")
+            baseline = read_native(source)
+            files = {"baseline": inside(previous, segment + "/baseline.npz"),
+                     "candidate": inside(previous, segment + "/candidate.npz")}
+            files.update({side: inside(previous, segment + "/" + side + "-optimizer-proposal.npz") for side in sides})
+            params = {name: read_native(path) for name, path in files.items()}
+            require(all(np.array_equal(baseline[k], params["baseline"][k]) for k in baseline),
+                    "Saved baseline differs from original")
+            for side in sides:
+                preserved(baseline, params[side], (side,))
+            preserved(baseline, params["candidate"], sides)
+            camera = native_camera(json.loads(meta.read_text()), image_path)
+            metrics = json.loads(json.dumps(old["hands"]))
+            require([item["side"] for item in metrics] == list(sides), "Previous per-hand order differs")
+            for item in metrics:
+                item["candidate_gate_passed"] = item["optimizer_gate_passed"]
+            merged, _ = merge_hand_candidates(model, baseline, {s: params[s] for s in sides}, metrics, targets, camera)
+            require(all(np.array_equal(merged[k], params["candidate"][k]) for k in merged),
+                    "Saved candidate disagrees with original selection policy")
+            for item, original in zip(metrics, old["hands"]):
+                require(item["candidate_gate_passed"] == original["candidate_gate_passed"] and
+                        all(np.isclose(item["saved_candidate_after"][key], original["saved_candidate_after"][key],
+                                       atol=1e-3, rtol=1e-6) for key in item["saved_candidate_after"]),
+                        "Saved candidate metrics differ from prior report")
+            report["source_sha256"].update({str(path): sha256(path) for path in files.values()})
+            panels = {"original": image}
+            case = {"segment_id": segment, "frame_1based": number, "observed_hands": list(sides),
+                    "training_ready": False, "hands": [], "native_parity_max_metres": {}}
+            report["cases"].append(case)
+            for name, values in params.items():
+                case["native_parity_max_metres"][name] = parity(model, runtime, values)
+                _, vertices = native_forward(runtime, values)
+                stage = "review_rendering:" + segment
+                panels[name] = Image.fromarray(render_overlay(np.asarray(image), vertices, runtime[1].faces,
+                                                             camera, diagnostic=True))
+                panels[name].save(folder / (name + "-diagnostic.jpg"))
+            save_comparison(folder / "saved-review.jpg", [panels[n] for n in ("original", "baseline", "candidate")],
+                            ["Original", "Saved baseline", "Saved candidate - NOT approved"])
+            for side, target in targets.items():
+                before = reprojection_metrics(model.hand(baseline, side), target, camera)
+                proposed = reprojection_metrics(model.hand(params[side], side), target, camera)
+                saved = reprojection_metrics(model.hand(params["candidate"], side), target, camera)
+                old_hand = next(item for item in old["hands"] if item["side"] == side)
+                if "after" in old_hand:
+                    require(all(np.isclose(proposed[key], old_hand["after"][key], atol=1e-3, rtol=1e-6)
+                                for key in proposed), "Proposal metrics differ")
+                case["hands"].append({"side": side, "source_candidate_gate_passed": old_hand["candidate_gate_passed"],
+                                      "before": before, "saved_candidate": saved, "raw_proposal": proposed,
+                                      "wrist_error_pixels": {name: float(np.linalg.norm(
+                                          project(model.hand(values, side), camera)[0] - target[0, :2]))
+                                                             for name, values in params.items()},
+                                      "proposal_accepted_by_review": False})
+                low, high = target[:, :2].min(axis=0), target[:, :2].max(axis=0)
+                center = np.rint((low + high) / 2).astype(int)
+                radius = int(np.ceil(np.max(high - low) / 2 + 65))
+                crop = (center[0] - radius, center[1] - radius, center[0] + radius, center[1] + radius)
+                require(side in panels, "Missing raw proposal diagnostic panel")
+                selected_panels = [panels[name].crop(crop).resize((480, 480))
+                                   for name in ("original", "baseline", "candidate", side)]
+                save_comparison(folder / (side + "-hand-review.jpg"), selected_panels,
+                                ["Original", "Baseline", "Saved - NOT approved" if old_hand["candidate_gate_passed"]
+                                 else "Saved = baseline (REJECTED)", "Raw proposal - NOT accepted"])
+            write_json(report_path, report)
+        stage = "review_digest_recheck"
+        for name, digest in report["source_sha256"].items():
+            require(sha256(name) == digest, "Source changed during review: " + name)
+        report.update(status="saved_parameters_rerendered_pending_review", source_files_unchanged=True,
+                      limitations=["Visualization only; no optimizer and no new candidate acceptance",
+                                   "Normal-based color is diagnostic shading, not observed appearance or physical lighting",
+                                   "Original candidate gates and training-ready state are not changed"])
+        write_json(report_path, report)
+        return 0
+    except Exception as exc:
+        report.update(status="failed", error=str(exc), error_type=type(exc).__name__, failure_stage=stage,
+                      traceback=traceback.format_exc(), training_ready=False)
+        write_json(report_path, report)
+        raise
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
-    for name in ("targets", "pilot"):
+    for name in ("targets", "pilot", "review"):
         command = commands.add_parser(name)
         command.add_argument("--batch", type=Path, required=True)
         command.add_argument("--output", type=Path, required=True)
-        if name == "pilot":
+        if name in ("pilot", "review"):
             command.add_argument("--fits", type=Path, required=True)
             command.add_argument("--smplerx-root", type=Path, required=True)
             command.add_argument("--fit-run-sha256", required=True)
+        if name == "pilot":
             command.add_argument("--max-nfev", type=int, default=80, choices=range(10, 201), metavar="10..200")
+        if name == "review":
+            command.add_argument("--previous-results", type=Path, required=True)
+            command.add_argument("--previous-report-sha256", required=True)
     args = parser.parse_args()
     try:
-        return run(args)
+        return review_saved(args) if args.command == "review" else run(args)
     except (ValueError, OSError, KeyError, ImportError) as exc:
         traceback.print_exc()
         parser.exit(2, "error: " + str(exc) + "\n")

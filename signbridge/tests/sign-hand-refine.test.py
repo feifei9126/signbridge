@@ -458,6 +458,19 @@ class HandRefineTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "parity failed"):
                 hand.parity(model, None, params)
 
+    def test_diagnostic_face_colors_show_orientation_without_changing_geometry(self):
+        vertices = np.array([[0., 0., 1.], [1., 0., 1.], [0., 1., 1.], [0., 0., 2.]])
+        faces = np.array([[0, 2, 1], [0, 1, 2], [0, 3, 2]])
+        before = vertices.copy()
+        colors = hand.diagnostic_face_colors(vertices, faces)
+        self.assertEqual(colors.shape, (3, 4))
+        self.assertEqual(colors.dtype, np.uint8)
+        self.assertTrue((colors[:, 3] == 255).all())
+        self.assertGreater(len(np.unique(colors[:, :3], axis=0)), 1)
+        np.testing.assert_array_equal(vertices, before)
+        with self.assertRaises(ValueError):
+            hand.diagnostic_face_colors(vertices, np.array([[0, 0, 0]]))
+
     def test_renderer_preflight_requires_real_nonempty_pixels(self):
         rendered = np.zeros((64, 64, 3), dtype=np.uint8)
         rendered[24:40, 24:40] = 200
@@ -480,6 +493,42 @@ class HandRefineTests(unittest.TestCase):
         with patch.object(hand, "render_overlay", side_effect=ImportError('Library "GLU" not found.')), \
              patch.dict(hand.os.environ, PYOPENGL_PLATFORM="egl"), self.assertRaisesRegex(ImportError, "GLU"):
             hand.renderer_preflight()
+
+    def test_diagnostic_render_uses_face_colors_and_unlit_depth_tested_flag(self):
+        captured = {}
+        vertices = np.asarray([[0., 0., 2.], [1., 0., 2.], [0., 1., 2.]])
+        faces = np.asarray([[0, 2, 1]])
+        class Mesh:
+            def apply_transform(self, _):
+                pass
+        def mesh_factory(**kwargs):
+            captured.update(kwargs)
+            return Mesh()
+        class Renderer:
+            def __init__(self, **kwargs):
+                pass
+            def render(self, scene, flags):
+                captured["flags"] = flags
+                return np.full((20, 20, 4), 160, dtype=np.uint8), np.ones((20, 20))
+            def delete(self):
+                captured["deleted"] = True
+        pyrender = types.SimpleNamespace(MetallicRoughnessMaterial=lambda **_: None,
+            Scene=lambda **_: types.SimpleNamespace(add=lambda *args, **kwargs: None),
+            Mesh=types.SimpleNamespace(from_trimesh=lambda mesh, **kwargs: captured.update(material=kwargs["material"])),
+            IntrinsicsCamera=lambda **_: None, DirectionalLight=lambda **_: None,
+            OffscreenRenderer=Renderer, RenderFlags=types.SimpleNamespace(RGBA=1, FLAT=2))
+        trimesh = types.SimpleNamespace(Trimesh=mesh_factory,
+            transformations=types.SimpleNamespace(rotation_matrix=lambda *args: np.eye(4)))
+        before = vertices.copy()
+        with patch.dict("sys.modules", pyrender=pyrender, trimesh=trimesh):
+            image = hand.render_overlay(np.zeros((20, 20, 3), dtype=np.uint8), vertices, faces, self.camera,
+                                        diagnostic=True)
+        self.assertEqual(image.shape, (20, 20, 3))
+        self.assertEqual(captured["flags"], 3)
+        self.assertIsNone(captured["material"])
+        self.assertTrue(captured["deleted"])
+        np.testing.assert_array_equal(captured["face_colors"], hand.diagnostic_face_colors(vertices, faces))
+        np.testing.assert_array_equal(vertices, before)
 
     def test_renderer_is_deleted_on_failure(self):
         class FakeMesh:
@@ -587,6 +636,37 @@ class HandRefineTests(unittest.TestCase):
             rejected = hand.read_native(output / segment / "right-optimizer-proposal.npz")
             self.assertNotEqual(rejected["right_hand_pose"][0, 0], 0)
             self.assertTrue((output / segment / "right-hand-compare.jpg").is_file())
+
+        # A follow-up review reuses this completed run's saved parameters, never optimizes.
+        review_args = types.SimpleNamespace(command="review", batch=batch, fits=fits, smplerx_root=root,
+            output=self.root / "review-output", fit_run_sha256=hand.sha256(fits / "run.json"),
+            previous_results=output, previous_report_sha256=hand.sha256(output / "report.json"))
+        before_hashes = {str(path): hand.sha256(path) for path in output.rglob("*") if path.is_file()}
+        with patch.object(hand, "verify_model_assets", return_value=model_path), \
+             patch.object(hand, "SparseSMPLX", return_value=model), \
+             patch.object(hand, "native_runtime", return_value=runtime), \
+             patch.object(hand, "native_forward", side_effect=forward), \
+             patch.object(hand, "fit_hand", side_effect=AssertionError("review must never fit")) as no_fit, \
+             patch.object(hand, "render_overlay", side_effect=lambda image, *args, **kwargs: image), \
+             patch.object(hand.subprocess, "check_output", return_value=hand.COMMIT + "\n"), \
+             contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(hand.review_saved(review_args), 0)
+        no_fit.assert_not_called()
+        for path, digest in before_hashes.items():
+            self.assertEqual(hand.sha256(path), digest)
+        review = json.loads((review_args.output / "report.json").read_text())
+        self.assertEqual(review["status"], "saved_parameters_rerendered_pending_review")
+        self.assertFalse(review["new_optimizer_run"])
+        self.assertEqual(review["source_pilot_status"], "candidate_gate_failed")
+        self.assertFalse(review["training_ready"])
+        for segment, _, sides in hand.CASES:
+            for side in sides:
+                self.assertTrue((review_args.output / segment / (side + "-hand-review.jpg")).is_file())
+        bad_args = copy.copy(review_args)
+        bad_args.output = self.root / "bad-review"
+        bad_args.previous_report_sha256 = "0" * 64
+        with self.assertRaisesRegex(ValueError, "Previous report"):
+            hand.review_saved(bad_args)
 
         # Same audited inputs, but missing GLU: this must fail before CUDA load or fitting.
         args.output = self.root / "gpu-preflight-failure"
