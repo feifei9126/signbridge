@@ -54,7 +54,8 @@ def driver(job, review_source=None, review_sha=None, allow_elbow=False):
         options = "--previous-results %s --previous-report-sha256 %s" % (
             shlex.quote(review_source + "/results"), shlex.quote(review_sha))
     else:
-        mode, options = "pilot", "--max-nfev 120" + (" --allow-elbow" if allow_elbow else "")
+        mode = "pilot"
+        options = "--max-nfev 200 --allow-elbow" if allow_elbow else "--max-nfev 120"
     return """#!/usr/bin/env bash
 set -uo pipefail
 umask 077

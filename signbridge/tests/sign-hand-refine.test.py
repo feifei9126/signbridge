@@ -240,6 +240,13 @@ class HandRefineTests(unittest.TestCase):
         np.testing.assert_array_equal(candidate["body_pose"][19], baseline["body_pose"][19])
         self.assertFalse(metrics["training_ready"])
 
+    def test_elbow_rotation_parameter_is_total_angle_capped_during_optimization(self):
+        baseline = np.asarray([.1, .2, -.3])
+        for vector in ([0., 0., 0.], [.2, .2, .2], [2., -1., .8]):
+            value = hand.bounded_elbow_rotation(np.asarray(vector), baseline, 15)
+            delta = (hand.Rotation.from_rotvec(value) * hand.Rotation.from_rotvec(baseline).inv()).magnitude()
+            self.assertLessEqual(delta, np.deg2rad(15) + 1e-12)
+
     def test_bounded_elbow_fit_can_move_wrist_while_old_mode_cannot(self):
         model, _ = synthetic_model()
         model.parents[20] = 18
@@ -257,7 +264,7 @@ class HandRefineTests(unittest.TestCase):
         np.testing.assert_allclose(model.hand(old, "left")[0], model.hand(baseline, "left")[0], atol=1e-12)
         self.assertAlmostEqual(old_metrics["wrist_error_before_pixels"], old_metrics["wrist_error_after_pixels"])
         self.assertLess(metrics["wrist_error_after_pixels"], metrics["wrist_error_before_pixels"] * .8)
-        self.assertLessEqual(metrics["elbow_change_degrees"], 15)
+        self.assertLessEqual(metrics["elbow_change_degrees"], 15.00001)
         self.assertTrue(metrics["candidate_gate_passed"], metrics)
         hand.preserved(baseline, new, ("left",), allow_elbow=True)
         np.testing.assert_allclose(model.forward(baseline)[0][18], model.forward(new)[0][18], atol=1e-12)
@@ -290,7 +297,7 @@ class HandRefineTests(unittest.TestCase):
         np.testing.assert_array_equal(candidate["body_pose"][17], proposal["body_pose"][17])
         self.assertTrue(metrics[0]["candidate_gate_passed"])
 
-    def test_elbow_rotation_over_cap_is_rejected_even_with_perfect_projection(self):
+    def test_elbow_request_over_cap_is_clipped_and_does_not_fake_perfect_projection(self):
         model, _ = synthetic_model()
         model.parents[20] = 18
         source = parameters()
@@ -302,9 +309,8 @@ class HandRefineTests(unittest.TestCase):
         fake = types.SimpleNamespace(x=vector, status=1, nfev=1, message="synthetic exact target")
         with patch.object(hand, "least_squares", return_value=fake):
             _, metrics = hand.fit_hand(model, source, "left", target, self.camera, allow_elbow=True)
-        self.assertGreater(metrics["elbow_change_degrees"], 15)
-        self.assertTrue(hand.projection_gate(metrics["before"], metrics["after"]))
-        self.assertFalse(metrics["candidate_gate_passed"])
+        self.assertLessEqual(metrics["elbow_change_degrees"], 15.00001)
+        self.assertGreater(metrics["after"]["absolute_rmse_pixels"], 0)
         with self.assertRaisesRegex(ValueError, "15 degrees"):
             hand.fit_hand(model, source, "left", target, self.camera, allow_elbow=True, elbow_limit_degrees=35)
 

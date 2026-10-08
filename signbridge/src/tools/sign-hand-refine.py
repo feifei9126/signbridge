@@ -254,6 +254,16 @@ def hand_rotations(params, model, side):
     return Rotation.from_rotvec(vectors).as_matrix()
 
 
+def bounded_elbow_rotation(vector, baseline, limit_degrees):
+    """Map an unconstrained 3-vector to a geodesic ball around baseline."""
+    delta = Rotation.from_rotvec(np.asarray(vector, dtype=np.float64))
+    magnitude = delta.magnitude()
+    limit = np.deg2rad(limit_degrees)
+    if magnitude > limit:
+        delta = Rotation.from_rotvec(delta.as_rotvec() * (limit / magnitude))
+    return (delta * Rotation.from_rotvec(np.asarray(baseline, dtype=np.float64))).as_rotvec()
+
+
 def fit_hand(model, source, side, target, camera, max_nfev=80, allow_elbow=False,
              elbow_limit_degrees=ELBOW_LIMIT_DEGREES):
     """Fit one hand, optionally allowing a small same-side elbow rotation."""
@@ -264,9 +274,9 @@ def fit_hand(model, source, side, target, camera, max_nfev=80, allow_elbow=False
     hand0 = source[key].ravel().astype(np.float64)
     elbow0 = source["body_pose"][elbow_index].astype(np.float64)
     wrist0 = source["body_pose"][wrist_index].astype(np.float64)
-    x0 = np.concatenate((hand0, elbow0, wrist0)) if allow_elbow else np.concatenate((hand0, wrist0))
+    x0 = np.concatenate((hand0, np.zeros(3), wrist0)) if allow_elbow else np.concatenate((hand0, wrist0))
     bounds = np.concatenate((np.full(45, np.deg2rad(150)),
-                             np.full(3, np.deg2rad(elbow_limit_degrees)),
+                             np.full(3, np.deg2rad(180)),
                              np.full(3, np.deg2rad(55)))) if allow_elbow else \
         np.concatenate((np.full(45, np.deg2rad(150)), np.full(3, np.deg2rad(55))))
     prepared = model.prepared(source)
@@ -282,7 +292,8 @@ def fit_hand(model, source, side, target, camera, max_nfev=80, allow_elbow=False
         candidate[key] = vector[:45].reshape(15, 3)
         offset = 45
         if allow_elbow:
-            candidate["body_pose"][elbow_index] = vector[offset:offset + 3]
+            candidate["body_pose"][elbow_index] = bounded_elbow_rotation(
+                vector[offset:offset + 3], elbow0, elbow_limit_degrees)
             offset += 3
         candidate["body_pose"][wrist_index] = vector[offset:offset + 3]
         return candidate
@@ -296,7 +307,8 @@ def fit_hand(model, source, side, target, camera, max_nfev=80, allow_elbow=False
         offset = 45
         elbow_prior = np.zeros((3, 3))
         if allow_elbow:
-            elbow_prior = Rotation.from_rotvec(vector[offset:offset + 3]).as_matrix() - \
+            elbow_prior = Rotation.from_rotvec(bounded_elbow_rotation(
+                vector[offset:offset + 3], elbow0, elbow_limit_degrees)).as_matrix() - \
                 Rotation.from_rotvec(elbow0).as_matrix()
             offset += 3
         wrist_prior = Rotation.from_rotvec(vector[offset:offset + 3]).as_matrix() - wrist_rotation
@@ -324,7 +336,7 @@ def fit_hand(model, source, side, target, camera, max_nfev=80, allow_elbow=False
     # A pixel improvement only qualifies a *candidate*, not a correct sign.
     accepted = (result.status > 0 and projection_gate(before, after) and
                 float(change.max()) <= np.deg2rad(155) and wrist_change <= np.deg2rad(80) and
-                (not allow_elbow or elbow_change <= np.deg2rad(elbow_limit_degrees)))
+                (not allow_elbow or elbow_change <= np.deg2rad(elbow_limit_degrees) + 1e-7))
     projected_before = project(model.hand(source, side, prepared), camera)
     projected_after = project(model.hand(candidate, side, prepared), camera)
     wrist_before = float(np.linalg.norm(projected_before[0] - target[0, :2]))

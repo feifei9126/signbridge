@@ -79,7 +79,7 @@ class HandPilotTests(unittest.TestCase):
     def test_elbow_pilot_is_explicit_and_has_separate_state(self):
         script = pilot.driver(self.job, allow_elbow=True)
         self.assertIn("--allow-elbow", script)
-        self.assertIn("--max-nfev 120", script)
+        self.assertIn("--max-nfev 200", script)
         subprocess.run(["bash", "-n", "-c", script], check=True)
         directory = self.root / "elbow-runs"
         directory.mkdir()

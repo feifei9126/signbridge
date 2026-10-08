@@ -1,6 +1,6 @@
 # 从已核对视频到 SMPL-X 动作
 
-本阶段把已核对的句子与视频边界保存为新版本，导出逐帧图片，运行 SMPLer-X 的人体重建，并把**真实拟合结果**转换成 SOKE 使用的 133 维表示。**截至 2026-10-07，两段真实 GPU 重建及严格参数导入已完成，但视觉抽检发现错误手型，仍不可训练。** 截至 2026-10-09，已执行真实关键帧试修：第 91 帧双手拟合通过数值候选门槛，但渲染缺少 GLU 导致任务中断，第 159 帧未执行。后续任务 `hand-keyframe-pilot-20261009-065007-8f5GgO` 已完成两帧试修及 EGL 出图，但第 159 帧右手绝对误差变差导致候选被拒绝；现有灰色网格不易观察手指细节，仍需只读诊断图复核。尚未处理剩余 14 段或训练手语模型。
+本阶段将已核对视频重建为 SMPL-X，并把**真实拟合结果**转换成 SOKE 的 133 维表示。**截至 2026-10-09，两段重建、导入、关键帧试修和只读出图已完成，但视觉审核仍发现手型/接触错误，正式训练状态保持 false。** 受限肘部模式改善了手腕位置，不代表完整手语动作通过。现已运行独立的 SOKE 动作 tokenizer 技术验证训练并保存权重：仅用于未审核数据上的训练链路联调，不是文字到手语生成模型，不是可部署结果。其余 14 段及正式生成器训练未执行。
 
 ## 已准备的数据
 
@@ -313,9 +313,46 @@ SOKE 按 root(3)、body(63)、left hand(45)、right hand(45)、jaw(3)、shape(10
 
 这是新的两帧受控优化，不是完整视频重建。拟合仍从原始真实帧参数独立开始，不复用上一轮未接受的提案作为已批准姿态。回传报告记录 `fit_mode=hand_plus_elbow`、肘部旋转改变量、手腕误差前后、原生对照和完整来源摘要。
 
-本地 27 项手部工具、20 项启动器测试通过：合成目标中旧模式手腕不能移动、新模式可改善位置；15 度以上即使投影完美也拒绝；肩膀/对侧改动拒绝；肘部变化被正确合并到 candidate；独立状态与启动范围校验通过。**这不是用户视频新优化成功或手型验收的证明，真实 GPU 新试修尚未执行。**
+本地 28 项手部工具、20 项启动器测试通过：合成目标中旧模式手腕不能移动、新模式可改善位置；肘部用相对旋转总角度投影到 15 度内，不仅分别限制三个分量；肩膀/对侧改动拒绝；肘部变化正确合并到 candidate；独立状态与启动范围校验通过。真实 GPU 试修已执行，但仍未通过手型视觉验收。
 
 如 15 度内的候选仍失败，应审计相机/镜像/遮挡和观测质量，再决定下一种约束；不要扩大关节自由度或降低门槛以凑通过。无论数值状态如何，完整时序、接触、手型与手语语义仍需要人工验收。
+
+### 实际肘部试修结果
+
+任务 `hand-keyframe-pilot-20261009-073446-J4C8jT` 采用总旋转 15 度约束、最多 200 次目标函数评估，三手通过数值门槛，状态 `keyframe_candidates_pending_visual_review`。手腕误差分别约为：第 91 帧左手 `8.94 → 0.53` px，右手 `32.79 → 4.20` px，第 159 帧右手 `29.40 → 0.37` px。
+
+本地证据位于 `/Users/mac/Documents/ChatGPT/signbridge/local-data/hand-keyframe-runs/download-dl13uskz/verified`。查看三张 A/B 后，双指卷曲/接触关系仍不可靠；咳嗽候选不是可确认的握拳竖拇指。**所有数值候选仍未获完整动作/手语质量批准，不能写成已完成全片修正。** 之前 `072730-m2RWFf` 任务达迭代上限/肘部总角度不合格，其候选拒绝证据也保留。
+
+## 2026-10-09：实际 Tokenizer 技术验证训练
+
+用户明确授权直接登录服务器执行并监测训练。SSH 密码仅用于交互提示，未写入脚本、命令参数、文档或 Git。服务器维持现有 `torch 1.12.0 / CUDA 11.3 / RTX 4090`，没有升级环境；当前没有完整生成器依赖或预训练 tokenizer/mBart 权重。
+
+新增 `signbridge/src/tools/sign-tokenizer-smoke.py`：使用官方 SOKE 固定提交 `5cbc55d84b5a7cbf05a9cf020c468052e8d94d00` 的 `VQVae`、EMA quantizer 和 ResNet 结构，运行**从零训练的小尺寸动作 tokenizer 联调**。不安装 Lightning/transformers，不调用语言模型，也不下载预训练权重。三个子 tokenizer 按官方维度划分：body+face `43`、左手 `45`、右手 `45`；合计约 266.7 万参数，不是官方完整宽度配置或 checkpoint。
+
+- 输入为严格导入的两段**原始未审核**动作，166/218 帧、共 384 帧；不偷偷将两个修正关键帧当成全片修正。
+- 必须显式 `--research-only`，保留 `model_training_ready=false` 和 `motion_review_status=needs_review`；拒绝错误路径、维度、帧数、非有限值、不完整导入和伪装成可训练的输入。
+- 从零训练的 mean/std 只由本次训练样本计算，不能用于官方预训练 tokenizer；固定种子、批量、学习率和 500 步上限。
+- 训练输出包含权重、归一化、三类动作 token、两段重建数组、历史 loss、来源摘要、原数据末尾复核和 checkpoint 重新加载检查。
+- 全部误差是同一训练数据上的重建指标；没有独立验证/测试集，没有文字条件，不能宣称新句子生成能力、手语正确率或泛化。
+
+首次真实任务 `tokenizer-smoke-20261009-074134-Q9JVxL` 在 RTX 4090 上完成 500 步、约 26 秒优化，归一化训练窗口 MSE `0.74390 → 0.02085`。保存 step 500 checkpoint 并重新加载完成编码/重建，两段输出 `(166,133)`、`(218,133)` 全为有限值。报告状态是 `research_smoke_trained_not_deployable`；`training_ready=false`、`deployment_ready=false`、`text_to_sign_trained=false`、`generalization_evaluated=false`。这是训练链路已运行的证据，不是手语大模型已训练好。
+
+工具随后增加 checkpoint 重载误差一致性检查，再以新任务运行，旧任务不覆盖。所有模型/视频/SOKE 源码及下载结果放在 Git 忽略的 `local-data/`；SOKE 与人体文件仍按研究许可约束使用，不分发成产品模型。
+
+最终验证任务为 `tokenizer-smoke-verified-20261009-074538-KncThF`，仍是 500 步/266.7 万参数；归一化训练窗口 MSE `0.74390 → 0.01473`，checkpoint 重载后的 MSE 与保存时一致。优化耗时约 24.84 秒，两个完整序列的样本内原始特征 RMSE 分别为 `0.02788`、`0.02371`（混合特征单位，不是手语准确率）。归档、内部文件和 checkpoint SHA-256 校验通过，当前训练脚本与回传脚本摘要相同；这证明训练技术验证确实执行了。
+
+Mac 产物目录：`/Users/mac/Documents/ChatGPT/signbridge/local-data/tokenizer-smoke-verified-20261009-074538-KncThF/verified`。权重为 `results/tokenizer-smoke.pt`（约 10.8 MB），报告为 `results/report.json`，曲线为 `training-curve.png`；两段各含 `reconstructed-133.npy` 与 body/left/right token 数组。脚本参数没有 SSH 密码，报告和 Git 也不含凭据。服务器任务已退出，GPU 释放，无后台训练任务运行。
+
+GPU 手动复现入口如下（输出目录必须新建）：
+
+```bash
+/root/autodl-tmp/signbridge/envs/smplerx/bin/python /path/to/sign-tokenizer-smoke.py \
+  --motions /root/autodl-tmp/signbridge/pilot-import-20261007-145811-33tXE7/motions \
+  --soke-root /root/autodl-tmp/signbridge/research/SOKE \
+  --output /path/to/new/research-smoke-results --research-only --steps 500
+```
+
+正式路线仍需要：获得完整高质量动作序列、按表演者/来源分组划分训练/验证/测试、验证正确预训练 tokenizer 与归一化、接入文本生成器，并用手语专家审核和独立测试衡量生成质量。当前烟测权重不得接入插件，也不得用训练 loss 下降替代这些验收。
 
 ## 测试与来源
 
@@ -325,6 +362,7 @@ SOKE 按 root(3)、body(63)、left hand(45)、right hand(45)、jaw(3)、shape(10
 .venv-sign-data/bin/python signbridge/tests/sign-data.test.py
 .venv-sign-data/bin/python signbridge/tests/sign-hand-refine.test.py
 .venv-sign-data/bin/python signbridge/tests/sign-hand-pilot.test.py
+.venv-sign-data/bin/python signbridge/tests/sign-tokenizer-smoke.test.py
 cd signbridge && npm run verify
 ```
 
