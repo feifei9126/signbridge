@@ -168,7 +168,9 @@ class HandPilotTests(unittest.TestCase):
         self.assertEqual(len(calls), 1)
         self.assertNotIn("nohup", calls[0])
         self.assertNotIn("mktemp", calls[0])
-        connection.ssh = lambda command: "finished\n"
+        def finished_ssh(command):
+            return "finished\n" if "archive-ready" in command else "0\n"
+        connection.ssh = finished_ssh
         with self.assertRaisesRegex(ValueError, "prior pilot"):
             pilot.launch(connection, directory)
 
@@ -256,6 +258,29 @@ class HandPilotTests(unittest.TestCase):
                                                 copy=lambda *args: self.fail("must not upload"))
             with self.subTest(status=status), self.assertRaisesRegex(ValueError, "不自动重启"):
                 pilot.launch(connection, directory)
+
+    def test_failed_completed_job_with_updated_tool_gets_new_isolated_job(self):
+        directory = self.root / "retry"
+        directory.mkdir()
+        state = self.state()
+        state["tool_sha256"] = "b" * 64
+        pilot.write_json(directory / "latest.json", state)
+        commands = []
+        def ssh(command):
+            commands.append(command)
+            if "archive-ready" in command:
+                return "finished\n"
+            if "exit-code" in command:
+                return "2\n"
+            if "mktemp" in command:
+                return self.job.replace("Ab1c23", "Cd4e56") + "\n"
+            return ""
+        connection = types.SimpleNamespace(ssh=ssh, copy=lambda *args: None)
+        with contextlib.redirect_stdout(io.StringIO()):
+            result = pilot.launch(connection, directory)
+        self.assertNotEqual(result["remote_job"], self.job)
+        self.assertEqual(result["launch_phase"], "dispatched")
+        self.assertTrue(any("mktemp" in command for command in commands))
 
     def test_plan_has_no_connection(self):
         with patch.object(pilot, "Connection", side_effect=AssertionError("plan must be offline")):

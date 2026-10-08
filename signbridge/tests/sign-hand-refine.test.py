@@ -7,6 +7,7 @@ import io
 import json
 import pickle
 import tempfile
+import sys
 import types
 import unittest
 import zipfile
@@ -176,6 +177,20 @@ class HandRefineTests(unittest.TestCase):
         self.assertEqual(hand.WRISTS["left"] - 1, 19)
         self.assertEqual(hand.WRISTS["right"] - 1, 20)
         self.assertEqual(hand.JOINTS["left"][-2:], [[34, 35, 36], [31, 32, 33]])
+
+    def test_native_import_path_exposes_legacy_smplerx_config(self):
+        root = self.root / "smplerx"
+        (root / "main").mkdir(parents=True)
+        (root / "main/config.py").write_text("cfg = object()\n")
+        (root / "common/utils/smplx/smplx").mkdir(parents=True)
+        main_root, smplx_root = hand.configure_native_import_path(root)
+        self.assertEqual(main_root, root / "main")
+        self.assertEqual(smplx_root, root / "common/utils/smplx")
+        self.assertEqual(Path(sys.path[0]), root / "main")
+        self.assertEqual(Path(sys.path[1]), root / "common/utils/smplx")
+        with patch.dict(hand.sys.modules, {"config": types.SimpleNamespace(__file__="/tmp/wrong-config.py")}, clear=False):
+            hand.configure_native_import_path(root)
+            self.assertNotIn("config", hand.sys.modules)
 
     def test_projection_is_native_positive_z_not_opengl_sign(self):
         np.testing.assert_allclose(hand.project(np.array([[.3, -.6, 3.]]), self.camera), [[420, 40]])

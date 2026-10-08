@@ -385,15 +385,34 @@ def checkpoint_head_inventory(path):
             "runtime_load_verified": False, "note": "Key presence alone does not verify runtime weight loading."}
 
 
+def configure_native_import_path(root):
+    """Expose the legacy SMPLer-X config module before importing vendored SMPL-X."""
+    main_root = root / "main"
+    smplx_root = root / "common/utils/smplx"
+    require((main_root / "config.py").is_file() and (smplx_root / "smplx").is_dir(),
+            "Incomplete SMPLer-X import roots")
+    # body_models.py imports `config` as a top-level legacy module. The pilot runs
+    # from an isolated job directory, so the repository's main/ path is not cwd.
+    for entry in (str(smplx_root), str(main_root)):
+        while entry in sys.path:
+            sys.path.remove(entry)
+        sys.path.insert(0, entry)
+    loaded = sys.modules.get("config")
+    loaded_file = getattr(loaded, "__file__", None) if loaded is not None else None
+    if loaded is not None and (not loaded_file or Path(loaded_file).resolve() != (main_root / "config.py").resolve()):
+        del sys.modules["config"]
+    return main_root, smplx_root
+
+
 def native_runtime(root):
     os.environ.setdefault("PYOPENGL_PLATFORM", "egl")
     os.environ.setdefault("MPLBACKEND", "Agg")
     require(os.environ["PYOPENGL_PLATFORM"] == "egl", "Use the already-verified EGL backend")
     import torch
     require(torch.cuda.is_available(), "Native CUDA parity/render requires the existing GPU environment")
-    sys.path.insert(0, str(root / "common/utils/smplx"))
+    _, smplx_root = configure_native_import_path(root)
     smplx = importlib.import_module("smplx")
-    require((root / "common/utils/smplx").resolve() in Path(smplx.__file__).resolve().parents,
+    require(smplx_root.resolve() in Path(smplx.__file__).resolve().parents,
             "Wrong smplx package; refusing a change of model convention")
     layer = smplx.create(str(root / "common/utils/human_model_files"), "smplx", gender="NEUTRAL",
                          use_pca=False, flat_hand_mean=False, use_face_contour=False).cuda().eval()

@@ -255,3 +255,6 @@ cd signbridge && npm run verify
 - [SOKE](https://github.com/2000ZRL/SOKE) 与固定提交的 `mGPT/data/humanml/load_data.py`、`mGPT/utils/human_models.py`、`license.txt`。
 - [SMPLer-X](https://github.com/MotrixLab/SMPLer-X) 与固定提交的 `main/inference.py`、`common/utils/human_models.py`、README。
 - [SMPL-X 官方模型](https://smpl-x.is.tue.mpg.de/) 和 [SMPL 官方模型](https://smpl.is.tue.mpg.de/)。
+
+
+旧版 SMPLer-X 的 vendored SMPL-X 源码会使用顶层 `from config import cfg`。试修启动时会显式加入固定源码的 `SMPLer-X/main` 和 `common/utils/smplx` 到导入路径，并校验实际载入的 `smplx` 来源；因此试修脚本不依赖当前工作目录。

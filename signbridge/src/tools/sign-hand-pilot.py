@@ -157,6 +157,17 @@ def remote_status(connection, job):
     return status
 
 
+def remote_exit_code(connection, job):
+    value = connection.ssh("if [ -f " + shlex.quote(job_path(job) + "/exit-code") +
+                           " ]; then cat " + shlex.quote(job_path(job) + "/exit-code") +
+                           "; else echo unknown; fi").strip()
+    if value == "unknown":
+        return None
+    if not re.fullmatch(r"-?[0-9]+", value):
+        raise ValueError("Unexpected remote exit code: " + value)
+    return int(value)
+
+
 def wait_for_archive(connection, job, seconds):
     iterations = max(1, seconds // 5)
     command = """probe() {
@@ -274,9 +285,15 @@ def launch(connection, directory):
             print("已有未完成/待打包的试修，复用状态，不重复启动：" + job, flush=True)
             return previous
         if status == "finished":
-            raise ValueError("A prior pilot already exists. Use collect/status; do not silently repeat GPU work")
-        raise ValueError("已有试修记录，但任务未确认启动或已中断：" + status +
-                         "；请用 status 检查。为防重复，不自动重启。状态文件：" + str(latest))
+            previous_exit = remote_exit_code(connection, job)
+            current_tool_sha = digest(tool)
+            if previous_exit is not None and previous_exit != 0 and previous.get("tool_sha256") != current_tool_sha:
+                print("上一轮试修已失败，检测到工具已更新；将创建新的隔离试修，不覆盖旧证据。", flush=True)
+            else:
+                raise ValueError("A prior pilot already exists. Use collect/status; do not silently repeat GPU work")
+        else:
+            raise ValueError("已有试修记录，但任务未确认启动或已中断：" + status +
+                             "；请用 status 检查。为防重复，不自动重启。状态文件：" + str(latest))
     # Prefix and date command are fixed constants; validate returned data before any use.
     remote = connection.ssh("test -d " + shlex.quote(BASE) + " && umask 077 && mktemp -d " +
                             PREFIX + '"$(date +%Y%m%d-%H%M%S)"-XXXXXX').strip()
