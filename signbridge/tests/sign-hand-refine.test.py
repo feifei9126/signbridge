@@ -216,6 +216,98 @@ class HandRefineTests(unittest.TestCase):
         candidate_z, _ = hand.fit_hand(model, baseline, "left", changed_z, self.camera, 80)
         np.testing.assert_array_equal(candidate["left_hand_pose"], candidate_z["left_hand_pose"])
 
+    def test_elbow_mode_adds_only_same_side_elbow_and_reports_its_limit(self):
+        model, _ = synthetic_model()
+        baseline = parameters()
+        target = np.c_[hand.project(model.hand(baseline, "left"), self.camera), np.zeros(21)]
+        captured = {}
+
+        def fake_optimizer(residual, x0, bounds, **kwargs):
+            captured["x0"] = x0.copy()
+            captured["bounds"] = bounds
+            vector = x0.copy()
+            vector[45] += .1
+            return types.SimpleNamespace(x=vector, status=1, nfev=1, message="synthetic")
+
+        with patch.object(hand, "least_squares", side_effect=fake_optimizer):
+            candidate, metrics = hand.fit_hand(model, baseline, "left", target, self.camera,
+                                                allow_elbow=True, elbow_limit_degrees=15)
+        self.assertEqual(len(captured["x0"]), 51)
+        self.assertEqual(captured["bounds"][0].shape, (51,))
+        self.assertEqual(metrics["fit_mode"], "hand_plus_elbow")
+        self.assertAlmostEqual(metrics["elbow_change_degrees"], np.rad2deg(.1), places=5)
+        np.testing.assert_array_equal(candidate["body_pose"][18], baseline["body_pose"][18])
+        np.testing.assert_array_equal(candidate["body_pose"][19], baseline["body_pose"][19])
+        self.assertFalse(metrics["training_ready"])
+
+    def test_bounded_elbow_fit_can_move_wrist_while_old_mode_cannot(self):
+        model, _ = synthetic_model()
+        model.parents[20] = 18
+        model.parents[18] = 16
+        model.parents[16] = 0
+        model.rest_joints[16] = [.10, -.15, 0]
+        model.rest_joints[18] = [.16, -.15, 0]
+        baseline = parameters()
+        wanted = copy.deepcopy(baseline)
+        wanted["body_pose"][17, 2] = .17
+        wanted["left_hand_pose"][:, 2] = .4
+        target = np.c_[hand.project(model.hand(wanted, "left"), self.camera), np.zeros(21)]
+        old, old_metrics = hand.fit_hand(model, baseline, "left", target, self.camera, 120)
+        new, metrics = hand.fit_hand(model, baseline, "left", target, self.camera, 120, allow_elbow=True)
+        np.testing.assert_allclose(model.hand(old, "left")[0], model.hand(baseline, "left")[0], atol=1e-12)
+        self.assertAlmostEqual(old_metrics["wrist_error_before_pixels"], old_metrics["wrist_error_after_pixels"])
+        self.assertLess(metrics["wrist_error_after_pixels"], metrics["wrist_error_before_pixels"] * .8)
+        self.assertLessEqual(metrics["elbow_change_degrees"], 15)
+        self.assertTrue(metrics["candidate_gate_passed"], metrics)
+        hand.preserved(baseline, new, ("left",), allow_elbow=True)
+        np.testing.assert_allclose(model.forward(baseline)[0][18], model.forward(new)[0][18], atol=1e-12)
+
+    def test_elbow_updates_are_opt_in_and_cannot_change_shoulder_or_other_arm(self):
+        source = parameters()
+        candidate = copy.deepcopy(source)
+        candidate["body_pose"][17, 0] = .1
+        with self.assertRaises(ValueError):
+            hand.preserved(source, candidate, ("left",))
+        hand.preserved(source, candidate, ("left",), allow_elbow=True)
+        for index in (15, 16, 18, 20):
+            candidate = copy.deepcopy(source)
+            candidate["body_pose"][index, 0] = .1
+            with self.subTest(index=index), self.assertRaises(ValueError):
+                hand.preserved(source, candidate, ("left",), allow_elbow=True)
+
+    def test_elbow_proposal_is_carried_into_actual_combined_candidate(self):
+        model, _ = synthetic_model()
+        model.parents[20] = 18
+        baseline = parameters()
+        proposal = copy.deepcopy(baseline)
+        proposal["body_pose"][17, 2] = .1
+        proposal["left_hand_pose"][:, 2] = .4
+        target = np.c_[hand.project(model.hand(proposal, "left"), self.camera), np.zeros(21)]
+        metrics = [{"side": "left", "fit_mode": "hand_plus_elbow", "candidate_gate_passed": True}]
+        candidate, passed = hand.merge_hand_candidates(model, baseline, {"left": proposal}, metrics,
+                                                        {"left": target}, self.camera)
+        self.assertTrue(passed)
+        np.testing.assert_array_equal(candidate["body_pose"][17], proposal["body_pose"][17])
+        self.assertTrue(metrics[0]["candidate_gate_passed"])
+
+    def test_elbow_rotation_over_cap_is_rejected_even_with_perfect_projection(self):
+        model, _ = synthetic_model()
+        model.parents[20] = 18
+        source = parameters()
+        wanted = copy.deepcopy(source)
+        wanted["body_pose"][17] = [.20, .20, .20]
+        wanted["left_hand_pose"][:, 2] = .4
+        target = np.c_[hand.project(model.hand(wanted, "left"), self.camera), np.zeros(21)]
+        vector = np.r_[wanted["left_hand_pose"].ravel(), wanted["body_pose"][17], wanted["body_pose"][19]]
+        fake = types.SimpleNamespace(x=vector, status=1, nfev=1, message="synthetic exact target")
+        with patch.object(hand, "least_squares", return_value=fake):
+            _, metrics = hand.fit_hand(model, source, "left", target, self.camera, allow_elbow=True)
+        self.assertGreater(metrics["elbow_change_degrees"], 15)
+        self.assertTrue(hand.projection_gate(metrics["before"], metrics["after"]))
+        self.assertFalse(metrics["candidate_gate_passed"])
+        with self.assertRaisesRegex(ValueError, "15 degrees"):
+            hand.fit_hand(model, source, "left", target, self.camera, allow_elbow=True, elbow_limit_degrees=35)
+
     def test_optimizer_timeout_or_no_improvement_fails_gate(self):
         model, _ = synthetic_model()
         baseline = parameters()

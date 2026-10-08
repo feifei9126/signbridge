@@ -76,6 +76,30 @@ class HandPilotTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             pilot.driver(self.job, review_source=old_job, review_sha="bad")
 
+    def test_elbow_pilot_is_explicit_and_has_separate_state(self):
+        script = pilot.driver(self.job, allow_elbow=True)
+        self.assertIn("--allow-elbow", script)
+        self.assertIn("--max-nfev 120", script)
+        subprocess.run(["bash", "-n", "-c", script], check=True)
+        directory = self.root / "elbow-runs"
+        directory.mkdir()
+        pilot.write_json(directory / "latest.json", self.state())
+        old = (directory / "latest.json").read_bytes()
+        new_job = self.job.replace("Ab1c23", "Gh1j23")
+        connection = types.SimpleNamespace(ssh=lambda command: new_job + "\n" if "mktemp" in command else "",
+                                            copy=lambda *args: None)
+        with contextlib.redirect_stdout(io.StringIO()):
+            state = pilot.launch(connection, directory, allow_elbow=True)
+        self.assertEqual(state["fit_mode"], "hand_plus_elbow")
+        self.assertEqual(pilot.load_state(directory / "latest-elbow.json"), state)
+        self.assertEqual((directory / "latest.json").read_bytes(), old)
+        self.assertIn("--allow-elbow", (directory / Path(new_job).name / "run.sh").read_text())
+        path = self.root / "bad-elbow-state.json"
+        for changes in ({"elbow_limit_degrees": 35}, {"fit_mode": "all_body"}):
+            pilot.write_json(path, {**state, **changes})
+            with self.assertRaises(ValueError):
+                pilot.load_state(path)
+
     def test_driver_packages_logs_and_evidence_after_gpu_failure(self):
         # Substitute only paths in the already-validated template, never execute GPU work.
         base = self.root / "remote"

@@ -39,6 +39,8 @@ JOINTS = {"left": [[37, 38, 39], [25, 26, 27], [28, 29, 30], [34, 35, 36], [31, 
 TIPS = {"left": [5361, 4933, 5058, 5169, 5286],
         "right": [8079, 7669, 7794, 7905, 8022]}
 WRISTS = {"left": 20, "right": 21}
+ELBOWS = {"left": 18, "right": 19}
+ELBOW_LIMIT_DEGREES = 15
 EDGES = [(0, 1), (1, 2), (2, 3), (3, 4), (0, 5), (5, 6), (6, 7), (7, 8),
          (0, 9), (9, 10), (10, 11), (11, 12), (0, 13), (13, 14), (14, 15), (15, 16),
          (0, 17), (17, 18), (18, 19), (19, 20)]
@@ -252,14 +254,21 @@ def hand_rotations(params, model, side):
     return Rotation.from_rotvec(vectors).as_matrix()
 
 
-def fit_hand(model, source, side, target, camera, max_nfev=80):
-    """Freeze every parameter except this hand's fingers and local wrist rotation."""
+def fit_hand(model, source, side, target, camera, max_nfev=80, allow_elbow=False,
+             elbow_limit_degrees=ELBOW_LIMIT_DEGREES):
+    """Fit one hand, optionally allowing a small same-side elbow rotation."""
+    require(0 < elbow_limit_degrees <= ELBOW_LIMIT_DEGREES, "Elbow limit may not exceed 15 degrees")
     key = side + "_hand_pose"
     wrist_index = WRISTS[side] - 1
+    elbow_index = ELBOWS[side] - 1
     hand0 = source[key].ravel().astype(np.float64)
+    elbow0 = source["body_pose"][elbow_index].astype(np.float64)
     wrist0 = source["body_pose"][wrist_index].astype(np.float64)
-    x0 = np.concatenate((hand0, wrist0))
-    bounds = np.concatenate((np.full(45, np.deg2rad(150)), np.full(3, np.deg2rad(55))))
+    x0 = np.concatenate((hand0, elbow0, wrist0)) if allow_elbow else np.concatenate((hand0, wrist0))
+    bounds = np.concatenate((np.full(45, np.deg2rad(150)),
+                             np.full(3, np.deg2rad(elbow_limit_degrees)),
+                             np.full(3, np.deg2rad(55)))) if allow_elbow else \
+        np.concatenate((np.full(45, np.deg2rad(150)), np.full(3, np.deg2rad(55))))
     prepared = model.prepared(source)
     scale = target_scale(target[:, :2])
     target_local = (target[:, :2] - target[0, :2]) / scale
@@ -271,7 +280,11 @@ def fit_hand(model, source, side, target, camera, max_nfev=80):
     def unpack(vector):
         candidate = {name: value.astype(np.float64).copy() for name, value in source.items()}
         candidate[key] = vector[:45].reshape(15, 3)
-        candidate["body_pose"][wrist_index] = vector[45:]
+        offset = 45
+        if allow_elbow:
+            candidate["body_pose"][elbow_index] = vector[offset:offset + 3]
+            offset += 3
+        candidate["body_pose"][wrist_index] = vector[offset:offset + 3]
         return candidate
 
     def residual(vector):
@@ -280,29 +293,55 @@ def fit_hand(model, source, side, target, camera, max_nfev=80):
         xy = project(points, camera)
         local = (xy - xy[0]) / scale
         prior = hand_rotations(params, model, side) - baseline_rotations
-        wrist_prior = Rotation.from_rotvec(vector[45:]).as_matrix() - wrist_rotation
+        offset = 45
+        elbow_prior = np.zeros((3, 3))
+        if allow_elbow:
+            elbow_prior = Rotation.from_rotvec(vector[offset:offset + 3]).as_matrix() - \
+                Rotation.from_rotvec(elbow0).as_matrix()
+            offset += 3
+        wrist_prior = Rotation.from_rotvec(vector[offset:offset + 3]).as_matrix() - wrist_rotation
+        absolute_weight = 1.25 if allow_elbow else 0.5
+        wrist_weight = 2.0 if allow_elbow else 0.0
         return np.concatenate(((weights * (local - target_local)).ravel(),
-                               (0.5 * weights * (xy - target[:, :2]) / scale).ravel(),
-                               (0.03 * prior).ravel(), (0.10 * wrist_prior).ravel()))
+                               (absolute_weight * weights * (xy - target[:, :2]) / scale).ravel(),
+                               (wrist_weight * (xy[0] - target[0, :2]) / scale).ravel(),
+                               (0.03 * prior).ravel(), (0.03 * elbow_prior).ravel(),
+                               (0.10 * wrist_prior).ravel()))
 
     result = least_squares(residual, x0, bounds=(x0 - bounds, x0 + bounds),
                            loss="soft_l1", f_scale=0.1, max_nfev=max_nfev,
                            xtol=1e-5, ftol=1e-5, gtol=1e-5)
     candidate = {key: values.astype(source[key].dtype) for key, values in unpack(result.x).items()}
-    preserved(source, candidate, (side,))
+    preserved(source, candidate, (side,), allow_elbow=allow_elbow)
     before = reprojection_metrics(model.hand(source, side, prepared), target, camera)
     after = reprojection_metrics(model.hand(candidate, side, prepared), target, camera)
     change = Rotation.from_matrix(hand_rotations(candidate, model, side) @
                                   baseline_rotations.transpose(0, 2, 1)).magnitude()
     wrist_change = (Rotation.from_rotvec(candidate["body_pose"][wrist_index]) *
                     Rotation.from_rotvec(wrist0).inv()).magnitude()
+    elbow_change = (Rotation.from_rotvec(candidate["body_pose"][elbow_index]) *
+                    Rotation.from_rotvec(elbow0).inv()).magnitude()
     # A pixel improvement only qualifies a *candidate*, not a correct sign.
     accepted = (result.status > 0 and projection_gate(before, after) and
-                float(change.max()) <= np.deg2rad(155) and wrist_change <= np.deg2rad(80))
+                float(change.max()) <= np.deg2rad(155) and wrist_change <= np.deg2rad(80) and
+                (not allow_elbow or elbow_change <= np.deg2rad(elbow_limit_degrees)))
+    projected_before = project(model.hand(source, side, prepared), camera)
+    projected_after = project(model.hand(candidate, side, prepared), camera)
+    wrist_before = float(np.linalg.norm(projected_before[0] - target[0, :2]))
+    wrist_after = float(np.linalg.norm(projected_after[0] - target[0, :2]))
+    wrist_gate_passed = wrist_after <= (0.8 * wrist_before if wrist_before > 8 else wrist_before + 1e-5)
+    if allow_elbow:
+        accepted = accepted and wrist_gate_passed
     return candidate, {"side": side, "optimizer_status": int(result.status), "nfev": int(result.nfev),
                        "optimizer_message": str(result.message), "before": before, "after": after,
                        "max_finger_change_degrees": float(np.rad2deg(change.max())),
                        "wrist_change_degrees": float(np.rad2deg(wrist_change)),
+                       "elbow_change_degrees": float(np.rad2deg(elbow_change)),
+                       "wrist_error_before_pixels": wrist_before,
+                       "wrist_error_after_pixels": wrist_after,
+                       "wrist_gate_passed": bool(wrist_gate_passed),
+                       "elbow_limit_degrees": elbow_limit_degrees if allow_elbow else 0,
+                       "fit_mode": "hand_plus_elbow" if allow_elbow else "hand_only",
                        "candidate_gate_passed": bool(accepted), "training_ready": False,
                        "depth_constraint": "none: MediaPipe relative z is not metric ground truth"}
 
@@ -332,11 +371,16 @@ def merge_hand_candidates(model, source, proposals, metrics, targets, camera):
         item["optimizer_gate_passed"] = item["candidate_gate_passed"]
         if item["optimizer_gate_passed"]:
             proposal = proposals[side]
-            preserved(source, proposal, (side,))
+            allow_elbow = item.get("fit_mode") == "hand_plus_elbow"
+            preserved(source, proposal, (side,), allow_elbow=allow_elbow)
             candidate[side + "_hand_pose"] = proposal[side + "_hand_pose"].copy()
             index = WRISTS[side] - 1
             candidate["body_pose"][index] = proposal["body_pose"][index]
-    preserved(source, candidate, tuple(targets))
+            if allow_elbow:
+                elbow_index = ELBOWS[side] - 1
+                candidate["body_pose"][elbow_index] = proposal["body_pose"][elbow_index]
+    preserved(source, candidate, tuple(targets),
+              allow_elbow=any(item.get("fit_mode") == "hand_plus_elbow" for item in metrics))
     combined_passed = True
     for item in metrics:
         side = item["side"]
@@ -347,6 +391,11 @@ def merge_hand_candidates(model, source, proposals, metrics, targets, camera):
         passed = (projection_gate(before, after) if item["optimizer_gate_passed"] else
                   all(np.isfinite(after[key]) and after[key] <= before[key] + 1e-6 for key in before))
         item["merged_projection_gate_passed"] = bool(passed)
+        if item.get("fit_mode") == "hand_plus_elbow" and item["optimizer_gate_passed"]:
+            wrist_before = np.linalg.norm(project(model.hand(source, side), camera)[0] - targets[side][0, :2])
+            wrist_after = np.linalg.norm(project(model.hand(candidate, side), camera)[0] - targets[side][0, :2])
+            passed = passed and wrist_after <= (wrist_before * .8 if wrist_before > 8 else wrist_before + 1e-5)
+            item["merged_wrist_gate_passed"] = bool(passed)
         combined_passed = combined_passed and passed
     if not combined_passed:
         candidate = {key: value.copy() for key, value in source.items()}
@@ -358,13 +407,14 @@ def merge_hand_candidates(model, source, proposals, metrics, targets, camera):
     return candidate, bool(combined_passed)
 
 
-def preserved(source, candidate, sides):
+def preserved(source, candidate, sides, allow_elbow=False):
     wrists = [WRISTS[side] - 1 for side in sides]
+    elbows = [ELBOWS[side] - 1 for side in sides] if allow_elbow else []
     for key in source:
         if key in {side + "_hand_pose" for side in sides}:
             continue
         if key == "body_pose":
-            indices = [i for i in range(21) if i not in wrists]
+            indices = [i for i in range(21) if i not in wrists and i not in elbows]
             require(np.array_equal(source[key][indices], candidate[key][indices]), "Non-wrist body modified")
         else:
             require(np.array_equal(source[key], candidate[key]), "Protected parameter modified: " + key)
@@ -550,6 +600,9 @@ def run(args):
     report = {"schema": "signbridge-hand-keyframe-pilot-v1", "created_at": datetime.now(timezone.utc).isoformat(),
               "status": "running", "training_ready": False, "scope": "two key frames, three observed hands only",
               "full_sequence_refined": False, "new_network_inference": False, "source_sha256": {}, "cases": []}
+    allow_elbow = getattr(args, "allow_elbow", False)
+    report["fit_mode"] = "hand_plus_elbow" if allow_elbow else "hand_only"
+    report["elbow_limit_degrees"] = ELBOW_LIMIT_DEGREES if allow_elbow else 0
     report_path = output / "report.json"
     write_json(report_path, report)
     stage = "input_validation"
@@ -618,7 +671,11 @@ def run(args):
                 proposals = {}
                 for side in sides:
                     # Independent baseline starts avoid propagating an unverified update.
-                    fitted, metrics = fit_hand(model, params, side, targets[side], camera, args.max_nfev)
+                    if allow_elbow:
+                        fitted, metrics = fit_hand(model, params, side, targets[side], camera,
+                                                   args.max_nfev, allow_elbow=True)
+                    else:
+                        fitted, metrics = fit_hand(model, params, side, targets[side], camera, args.max_nfev)
                     np.savez_compressed(folder / (side + "-optimizer-proposal.npz"), **fitted)
                     proposals[side] = fitted
                     case["hands"].append(metrics)
@@ -635,8 +692,11 @@ def run(args):
                 stage = "rendering:" + segment
                 _, vertices0 = native_forward(runtime, params)
                 _, vertices1 = native_forward(runtime, candidate)
-                base = Image.fromarray(render_overlay(np.asarray(image), vertices0, runtime[1].faces, camera))
-                result = Image.fromarray(render_overlay(np.asarray(image), vertices1, runtime[1].faces, camera))
+                render_args = {"diagnostic": True} if allow_elbow else {}
+                base = Image.fromarray(render_overlay(np.asarray(image), vertices0, runtime[1].faces, camera,
+                                                      **render_args))
+                result = Image.fromarray(render_overlay(np.asarray(image), vertices1, runtime[1].faces, camera,
+                                                        **render_args))
                 base.save(folder / "baseline-overlay.jpg")
                 result.save(folder / "candidate-overlay.jpg")
                 save_comparison(folder / "compare.jpg", [image, base, result],
@@ -665,7 +725,8 @@ def run(args):
                                  "No temporal continuity/contact/semantic sign-language acceptance",
                                  "MediaPipe targets are estimates; pixel fit is not 3D ground truth",
                                  "Depth is underconstrained; no MediaPipe z used as metric 3D supervision",
-                                 "Only wrist and finger rotations are allowed to change; no hand/side swapping",
+                                 "Only same-side elbow/wrist/fingers may change; elbow capped at 15 degrees" if allow_elbow
+                                 else "Only wrist and finger rotations are allowed to change; no hand/side swapping",
                                  "Mirror/source signer/split review still pending"]
         write_json(report_path, report)
         print("Report: " + str(report_path), flush=True)
@@ -748,9 +809,10 @@ def review_saved(args):
             params = {name: read_native(path) for name, path in files.items()}
             require(all(np.array_equal(baseline[k], params["baseline"][k]) for k in baseline),
                     "Saved baseline differs from original")
+            allow_elbow = prior.get("fit_mode", "hand_only") == "hand_plus_elbow"
             for side in sides:
-                preserved(baseline, params[side], (side,))
-            preserved(baseline, params["candidate"], sides)
+                preserved(baseline, params[side], (side,), allow_elbow=allow_elbow)
+            preserved(baseline, params["candidate"], sides, allow_elbow=allow_elbow)
             camera = native_camera(json.loads(meta.read_text()), image_path)
             metrics = json.loads(json.dumps(old["hands"]))
             require([item["side"] for item in metrics] == list(sides), "Previous per-hand order differs")
@@ -832,6 +894,8 @@ def main():
             command.add_argument("--fit-run-sha256", required=True)
         if name == "pilot":
             command.add_argument("--max-nfev", type=int, default=80, choices=range(10, 201), metavar="10..200")
+            command.add_argument("--allow-elbow", action="store_true",
+                                 help="Also fit same-side elbow rotation, at most 15 degrees")
         if name == "review":
             command.add_argument("--previous-results", type=Path, required=True)
             command.add_argument("--previous-report-sha256", required=True)

@@ -43,7 +43,7 @@ def job_path(value):
     return value
 
 
-def driver(job, review_source=None, review_sha=None):
+def driver(job, review_source=None, review_sha=None, allow_elbow=False):
     """No untrusted shell substitution: only a validated, newly created job path."""
     job = job_path(job)
     if review_source is not None:
@@ -54,7 +54,7 @@ def driver(job, review_source=None, review_sha=None):
         options = "--previous-results %s --previous-report-sha256 %s" % (
             shlex.quote(review_source + "/results"), shlex.quote(review_sha))
     else:
-        mode, options = "pilot", "--max-nfev 120"
+        mode, options = "pilot", "--max-nfev 120" + (" --allow-elbow" if allow_elbow else "")
     return """#!/usr/bin/env bash
 set -uo pipefail
 umask 077
@@ -136,6 +136,10 @@ def load_state(path):
         raise ValueError("Unexpected hand pilot state")
     if info.get("mode", "pilot") not in ("pilot", "review"):
         raise ValueError("Unexpected pilot mode")
+    if info.get("fit_mode", "hand_only") not in ("hand_only", "hand_plus_elbow"):
+        raise ValueError("Unexpected fit mode")
+    if info.get("fit_mode") == "hand_plus_elbow" and info.get("elbow_limit_degrees") != 15:
+        raise ValueError("Unexpected elbow limit")
     if info.get("mode") == "review":
         job_path(info.get("review_source_job", ""))
         if not re.fullmatch(r"[0-9a-f]{64}", info.get("review_report_sha256", "")):
@@ -343,11 +347,11 @@ def collect(connection, state, directory):
     return 0 if exit_code == 0 else 2
 
 
-def launch(connection, directory, review_source=None):
+def launch(connection, directory, review_source=None, allow_elbow=False):
     tool = Path(__file__).with_name("sign-hand-refine.py")
     if not tool.is_file():
         raise ValueError("Missing hand refinement tool")
-    latest = directory / ("latest-review.json" if review_source else "latest.json")
+    latest = directory / ("latest-review.json" if review_source else "latest-elbow.json" if allow_elbow else "latest.json")
     review_source_job = review_source_sha = None
     if review_source:
         review_source_job = job_path(review_source["remote_job"])
@@ -359,6 +363,8 @@ def launch(connection, directory, review_source=None):
             raise ValueError("Unexpected previous report digest")
     if latest.is_file():
         previous = load_state(latest)
+        if bool(allow_elbow) != (previous.get("fit_mode", "hand_only") == "hand_plus_elbow"):
+            raise ValueError("Existing pilot fit mode differs; refusing stale evidence reuse")
         if review_source and (previous.get("mode") != "review" or
                               previous.get("review_source_job") != review_source_job or
                               previous.get("review_report_sha256") != review_source_sha):
@@ -389,12 +395,14 @@ def launch(connection, directory, review_source=None):
              "launch_phase": "prepared"}
     if review_source:
         state.update(mode="review", review_source_job=review_source_job, review_report_sha256=review_source_sha)
+    elif allow_elbow:
+        state.update(fit_mode="hand_plus_elbow", elbow_limit_degrees=15)
     def save(phase):
         state["launch_phase"] = phase
         write_json(local / "state.json", state)
         write_json(latest, state)
     save("prepared")
-    (local / "run.sh").write_text(driver(job, review_source_job, review_source_sha))
+    (local / "run.sh").write_text(driver(job, review_source_job, review_source_sha, allow_elbow))
     (local / "tool.sha256").write_text(digest(tool) + "  sign-hand-refine.py\n")
     try:
         save("uploading")
@@ -418,7 +426,7 @@ def launch(connection, directory, review_source=None):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=("run", "review", "collect", "collect-review", "status", "status-review", "plan", "prepare-render"), nargs="?", default="run")
+    parser.add_argument("command", choices=("run", "run-elbow", "review", "collect", "collect-review", "collect-elbow", "status", "status-review", "status-elbow", "plan", "prepare-render"), nargs="?", default="run")
     parser.add_argument("--state", type=Path)
     parser.add_argument("--wait-seconds", type=int, default=300, choices=range(5, 901), metavar="5..900")
     args = parser.parse_args()
@@ -436,16 +444,17 @@ def main():
                 prepare_render(connection)
                 print("GLU 加载与 pyrender 导入检查通过；实际离屏渲染将在试修前检查。", flush=True)
                 return 0
-            if args.command == "run":
-                state = launch(connection, directory)
+            if args.command in ("run", "run-elbow"):
+                state = launch(connection, directory, allow_elbow=args.command == "run-elbow")
             elif args.command == "review":
                 source = load_state(args.state or directory / "latest.json")
                 state = launch(connection, directory, review_source=source)
             else:
-                default = "latest-review.json" if args.command.endswith("-review") else "latest.json"
+                default = ("latest-review.json" if args.command.endswith("-review") else
+                           "latest-elbow.json" if args.command.endswith("-elbow") else "latest.json")
                 state = load_state(args.state or directory / default)
             job = state["remote_job"]
-            if args.command in ("status", "status-review"):
+            if args.command in ("status", "status-review", "status-elbow"):
                 print("上传/启动阶段：" + state.get("launch_phase", "legacy"), flush=True)
                 print("服务器状态：" + remote_status(connection, job), flush=True)
                 connection.ssh("if [ -f " + shlex.quote(job + "/exit-code") + " ]; then cat " +
@@ -460,6 +469,7 @@ def main():
                 return collect(connection, state, directory)
             print("任务/打包尚未结束，后台任务不会因本命令退出而停止，请勿重复运行 run。", flush=True)
             print("稍后使用 collect-review 下载；status-review 查看日志。" if state.get("mode") == "review" else
+                  "稍后使用 collect-elbow 下载；status-elbow 查看日志。" if state.get("fit_mode") == "hand_plus_elbow" else
                   "稍后将命令末尾的 run 替换为 collect 下载；替换为 status 查看日志。", flush=True)
             return 0
         finally:

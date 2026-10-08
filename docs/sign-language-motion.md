@@ -286,6 +286,37 @@ SOKE 按 root(3)、body(63)、left hand(45)、right hand(45)、jaw(3)、shape(10
 
 手部工具本地测试 22 项、启动器测试 19 项覆盖只读复核无优化、原摘要/选择策略审计、独立状态、诊断面颜色不改几何，以及 EGL 渲染的明确着色旗标与资源释放。通过新诊断图后再决定是否扩大优化到相邻帧/腕部位置；不会以像素指标或两个关键帧作为完整训练序列验收。
 
+## 2026-10-09：受限肘部位置试修
+
+只读回传 `/Users/mac/Documents/ChatGPT/signbridge/local-data/hand-keyframe-runs/download-k99wh10f/verified` 已完成：`new_optimizer_run=false`、来源摘要和原生数值对照通过。诊断图可见第 91 帧双指候选明显改善，但接触、指尖间距与位置仍待验收；第 159 帧未接受提案更接近竖拇指握拳，但手指间隙/位置仍有问题。**没有任何完整序列被批准训练。**
+
+右手手腕的投影误差：第 91 帧约 `32.79` 像素，第 159 帧约 `29.40` 像素；baseline、candidate 和 proposal 完全相同。旧模式只改变手指和手腕局部旋转，不能移动手腕关节位置。新增独立的 `run-elbow` 模式用于检验这个受限假设：
+
+- 只额外允许对应侧肘关节旋转，最终旋转改变量最大 `15` 度，不是随意放开整条手臂。
+- 肩膀、躯干、根部、相机、形状、表情和另一侧参数固定；不允许平移或跨侧交换。
+- 加强绝对投影和手腕位置监督，保留旧的局部误差改善 20%、绝对/指尖不变差、收敛及旋转门槛；并额外要求明显偏移的手腕误差至少改善 20%。合并两手后再次复核。
+- 使用独立的 `latest-elbow.json` 和新远端任务目录，不覆盖 `latest.json` 或旧参数；直接输出带法向诊断着色的 A/B，始终 `training_ready=false`。
+
+服务器 GLU/EGL 已经通过只读复核，不必重新安装依赖。在 **Mac 终端**运行：
+
+```bash
+/Users/mac/Documents/ChatGPT/signbridge/.venv-sign-data/bin/python \
+  /Users/mac/Documents/ChatGPT/signbridge/signbridge/src/tools/sign-hand-pilot.py run-elbow
+```
+
+等待未结束时，不重复启动；用 `collect-elbow` 下载或 `status-elbow` 看日志：
+
+```bash
+/Users/mac/Documents/ChatGPT/signbridge/.venv-sign-data/bin/python \
+  /Users/mac/Documents/ChatGPT/signbridge/signbridge/src/tools/sign-hand-pilot.py collect-elbow
+```
+
+这是新的两帧受控优化，不是完整视频重建。拟合仍从原始真实帧参数独立开始，不复用上一轮未接受的提案作为已批准姿态。回传报告记录 `fit_mode=hand_plus_elbow`、肘部旋转改变量、手腕误差前后、原生对照和完整来源摘要。
+
+本地 27 项手部工具、20 项启动器测试通过：合成目标中旧模式手腕不能移动、新模式可改善位置；15 度以上即使投影完美也拒绝；肩膀/对侧改动拒绝；肘部变化被正确合并到 candidate；独立状态与启动范围校验通过。**这不是用户视频新优化成功或手型验收的证明，真实 GPU 新试修尚未执行。**
+
+如 15 度内的候选仍失败，应审计相机/镜像/遮挡和观测质量，再决定下一种约束；不要扩大关节自由度或降低门槛以凑通过。无论数值状态如何，完整时序、接触、手型与手语语义仍需要人工验收。
+
 ## 测试与来源
 
 ```bash
