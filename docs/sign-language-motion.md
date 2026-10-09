@@ -506,6 +506,41 @@ PYOPENGL_PLATFORM=egl OPENBLAS_CORETYPE=Haswell PYTHONDONTWRITEBYTECODE=1 \
   --output /path/to/new/fusion-window-results --short-window
 ```
 
+## 2026-10-09：四帧双手接触假设的受限试验
+
+用户授权继续下一阶段，新增 `sign-contact-pilot.py`，只检验“你好”88–91帧可能存在的双指靠拢/接触假设，不约束92–94帧的真实手型转换，也不改“咳嗽”窗口。没有再次运行WiLoR网络、没有上传新训练数据或改变相机/身体形状。
+
+输入固定为上一阶段 `fusion-windows-final-20261009-132945-5kyw3D` 的候选，报告摘要 `c9762060a4fe24d44b3a095bbbdb857c82654d12fcd41281568be1665ccd00c2`，上游WiLoR仍为固定14帧输出。逐一核对两份旧归档内部文件及摘要、原fits-baseline相等、参数保护、人体文件和全部记录来源路径。报告和数据不携带SSH密码。
+
+冻结手指有效旋转、双手绝对腕部朝向、相机、translation、肩膀、躯干、shape/expression，只联合调整两侧肘部，仍相对原fits限制总旋转15°，局部腕部变化不超过80°。手腕局部旋转仅随父关节变化补偿，绝对朝向最终保存误差均低于 `1e-6` radians。原融合/未接受提案/保存结果分开存，不覆盖原14帧序列。
+
+每帧在不改动融合中选择最接近的一对食指/中指指尖作为固定实验目标；四帧实际选中两手中指 `[12,12]`。**该配对不是人工标注接触点，指尖距离也不等于表面接触或碰撞。** 目标用指尖XYZ差、WiLoR的2D投影、原融合腕部位置和小幅姿态先验。门槛仅是实验候选：距离≤1.5cm且至少缩小40%，每手绝对RMSE不得比原融合多2px、腕部误差不得多3px；即使通过也始终 `contact_approved=false`、`training_ready=false`。
+
+### 数值检查与最终实际结果
+
+第一轮在中间参数提前转换float32，微小有限差分可能被舍掉，导致接近原点停止；保留该轮 `contact-proximity-20261009-140117-Om7YX9` 为诊断，不把它当作可行性结论。新增回归测试确认 `1e-8` 肘部扰动必须保留，优化中间值改为float64，只在求解后转换回原参数dtype。独立合成案例还验证该求解器能缩小可行指尖间隙，不是固定拒绝所有输入。
+
+最终任务 `contact-final-20261009-141346-2j9u2O` 正常收敛，所有提案原生CUDA数值对照通过，最大关节/指尖差约 `1.04e-6` 米，渲染投影校验通过，原来源文件末尾复核通过；结果是 **`contact_proposals_rejected`，不是程序崩溃**：
+
+| 帧 | 原融合指尖距离 → 未接受提案（cm） | 左/右腕部误差原融合 → 提案（px） |
+| --- | --- | --- |
+| 88 | 5.80 → 4.58 | 1.90→10.42 / 2.82→2.02 |
+| 89 | 3.58 → 2.38 | 2.12→6.81 / 2.56→6.58 |
+| 90 | 3.14 → 1.75 | 0.39→4.14 / 3.26→9.00 |
+| 91 | 3.98 → 2.89 | 1.90→6.73 / 2.99→5.97 |
+
+四帧都未通过距离门槛，也都未同时通过投影保护；两侧肘部均接近15°上限。所有 `saved-candidate.npz` **逐项等于上一阶段fusion candidate**，手指参数精确不变，绝对腕部朝向数值不变（误差最大约 `6.3e-8` radians）。没有把未接受提案写回训练数组/旧结果，也没有扩大可动关节或调整相机凑通过。
+
+原融合间隙主要是左右方向，不只是深度：原XYZ间隙的XY分量约2.92–5.68cm，Z差约0.01–1.17cm。这个受限单初始化局部试验只能证明**本次提案失败**，不是全局无解、也不是准确诊断原模型深度；不据此自动放开肩膀/手指或降低保护门槛。
+
+### 本地回传与下一步边界
+
+最终证据在 `/Users/mac/Documents/ChatGPT/signbridge/local-data/contact-final-20261009/verified`：`results/report.json`，四帧各有 `previous-fusion.npz`、`raw-contact-proposal.npz`、`saved-candidate.npz`、三份叠加图及四栏 `contact-compare.jpg`。外层归档、内部文件摘要与执行脚本核对通过，全部模型文件及视频留在Git忽略目录。回传日志及依赖freeze保留。
+
+本地生成 `results/contact-hypothesis-sheet.jpg`、`contact-hypothesis-5fps.mp4`、`contact-hypothesis-25fps.mp4`，四栏原图/原融合/被拒绝提案/实际保留结果分开标注，`ffprobe` 确认4帧和指定播放速率。慢速复核不改变原25fps时间轴。
+
+阶段结束仍保持 `training_ready=false`、`deployment_ready=false`、`contact_approved=false`，没有表面碰撞检测、平滑、全片重建或正式生成器训练。下一实验应先确认实际接触点、二维手部标注/遮挡、人体手部比例和模型坐标对应，再评估是否需要新的有证据支撑的身体联合约束；不要连续盲目增加自由度或把这4帧局部像素指标当作完整手语数据验收。
+
 ## 测试与来源
 
 ```bash
@@ -517,6 +552,7 @@ PYOPENGL_PLATFORM=egl OPENBLAS_CORETYPE=Haswell PYTHONDONTWRITEBYTECODE=1 \
 .venv-sign-data/bin/python signbridge/tests/sign-tokenizer-smoke.test.py
 .venv-sign-data/bin/python signbridge/tests/sign-wilor-pilot.test.py
 .venv-sign-data/bin/python signbridge/tests/sign-mano-align.test.py
+.venv-sign-data/bin/python signbridge/tests/sign-contact-pilot.test.py
 cd signbridge && npm run verify
 ```
 
