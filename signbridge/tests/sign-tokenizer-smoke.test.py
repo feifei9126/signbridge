@@ -97,6 +97,36 @@ class TokenizerSmokeTests(unittest.TestCase):
         self.assertTrue(np.isfinite((arrays[0] - mean) / std).all())
         self.assertEqual(arrays[0][0, 0], 1)
 
+    def test_masked_normalization_ignores_unaccepted_hand_targets(self):
+        values=np.ones((70,133),dtype=np.float32)
+        values[:35,30:75]=999.
+        mask=np.ones_like(values,dtype=bool);mask[:35,30:75]=False
+        mean,std=smoke.normalization([values],[mask])
+        np.testing.assert_allclose(mean,1.)
+        self.assertTrue((std>=.05).all())
+        self.assertEqual(values[0,30],999.)
+        model_input=smoke.normalized_model_input(values,mean,std,mask)
+        self.assertTrue((model_input[:35,30:75]==0.).all())
+        self.assertEqual(values[0,30],999.)
+
+    def test_normalized_model_input_rejects_shape_and_mask_type_mismatch(self):
+        v=np.zeros((2,133),dtype=np.float32)
+        with self.assertRaises(ValueError):
+            smoke.normalized_model_input(v,np.zeros(133),np.ones(133),np.ones((2,133),dtype=np.int8))
+        with self.assertRaises(ValueError):
+            smoke.normalized_model_input(v,np.zeros(132),np.ones(133),np.ones((2,133),dtype=bool))
+
+    def test_full_fusion_smoke_requires_saved_mask_and_rejects_numeric_mask(self):
+        rows=self.fixture()
+        path=self.root/'verification.json';v=json.loads(path.read_text());v['schema']='signbridge-full-fusion-export-v1';path.write_text(json.dumps(v))
+        for row in rows:
+            file=self.root/row['features'];np.save(file.with_name('feature-valid-mask.npy'),np.ones((70,133),dtype=bool))
+        masks,hashes=smoke.load_quality_masks(self.root,rows,required=True)
+        self.assertEqual(len(masks),2);self.assertEqual(len(hashes),2)
+        np.save((self.root/rows[0]['features']).with_name('feature-valid-mask.npy'),np.ones((70,133),dtype=np.int8))
+        with self.assertRaisesRegex(ValueError,'mask'):
+            smoke.load_quality_masks(self.root,rows,required=True)
+
 
 if __name__ == "__main__":
     unittest.main()

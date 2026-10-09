@@ -170,7 +170,9 @@ def run(args):
     output = args.output.resolve()
     helper = sibling_hand_tool()
     window = getattr(args, "short_window", False)
-    selected = helper.task_cases(batch, cases=short_window_cases() if window else None)
+    full = getattr(args, "full_sequence", False)
+    require(not (window and full), "Choose one inference scope")
+    selected = helper.task_cases(batch, cases=helper.full_sequence_cases() if full else (short_window_cases() if window else None))
     require(not output.exists() and all(output != p and p not in output.parents and output not in p.parents
                                        for p in (root, batch, mano.parent)), "Output must be new and separate")
     output.mkdir(parents=True)
@@ -178,8 +180,10 @@ def run(args):
               "created_at": datetime.now(timezone.utc).isoformat(), "training_ready": False,
               "deployment_ready": False, "training_started": False, "full_sequence_refined": False,
               "smplx_parameters_replaced": False,
-              "scope": "frames 88-94 and 156-162, 14 images, no temporal smoothing" if window else
-                       "frames 91 and 159, detector-driven hand estimates",
+              "scope": "384 full-clip images; missing/ambiguous hands recorded" if full else
+                       ("frames 88-94 and 156-162, 14 images, no temporal smoothing" if window else
+                        "frames 91 and 159, detector-driven hand estimates"),
+              "full_sequence_inferred": full,
               "hand_pose_convention": "MANO rotation matrices, right-canonical prediction; image-space left mirror stored separately",
               "source_sha256": {}, "cases": []}
     path = output / "report.json"
@@ -255,7 +259,7 @@ def run(args):
         report["renderer_preflight"] = helper.renderer_preflight()
         for task, number, expected_sides, image_path, observations in selected:
             segment = task["segment_id"]
-            folder = output / segment / ("%06d" % number) if window else output / segment
+            folder = output / segment / ("%06d" % number) if window or full else output / segment
             folder.mkdir(parents=True)
             stage = "detector:" + segment
             image = cv2.imread(str(image_path))
@@ -342,7 +346,7 @@ def run(args):
             marked.save(folder / "detector.jpg")
             save()
         stage = "source_recheck"
-        if window:
+        if window or full:
             report["temporal_audit"] = {}
             for segment in sorted({c["segment_id"] for c in report["cases"]}):
                 rows = []
@@ -359,13 +363,14 @@ def run(args):
         for name, digest in report["source_sha256"].items():
             require(sha256(name) == digest, "Source changed during inference: " + name)
         ready = all(c["required_hand_detection_passed"] for c in report["cases"])
-        if window:
+        if window or full:
             ready = ready and all(s["continuity_complete"] for v in report["temporal_audit"].values()
                                   for s in v.values())
         report.update(status="inferred_pending_visual_review" if ready else "missing_required_hand",
                       elapsed_seconds=time.monotonic() - started, source_files_unchanged=True,
-                      limitations=["Short windows only; temporal jumps flagged, no smoothing/contact/semantic acceptance" if window
-                                   else "Two keyframes only; no temporal/contact/semantic acceptance",
+                      limitations=["Full sequences estimated; missing/ambiguous hands do not imply valid motion" if full else
+                                   ("Short windows only; temporal jumps flagged, no smoothing/contact/semantic acceptance" if window
+                                   else "Two keyframes only; no temporal/contact/semantic acceptance"),
                                    "Detector handedness follows official demo; mirror status still unknown",
                                    "MANO and SMPL-X rotations/cameras not retargeted or merged",
                                    "Native pose arrays are right-canonical rotation matrices, not axis angles",
@@ -385,6 +390,7 @@ def main():
     parser.add_argument("--batch", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--device", choices=("cuda", "cpu"), default="cuda")
+    parser.add_argument("--full-sequence", action="store_true", help="Reviewed 166+218 frames; missing detections remain missing")
     parser.add_argument("--short-window", action="store_true", help="Only frames 88-94 and 156-162; no smoothing")
     return run(parser.parse_args())
 

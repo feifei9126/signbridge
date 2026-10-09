@@ -1,4 +1,4 @@
-"""Isolated 14-frame SMPLer-X crop experiment; never overwrites source fits or trains."""
+"""Isolated short-window/full-clip SMPLer-X crop experiments; source fits stay unchanged."""
 
 import argparse
 import importlib.util
@@ -29,6 +29,15 @@ def stable_box(boxes):
     size = np.median(a[:,2:], axis=0)
     center = np.median(a[:,:2]+a[:,2:]/2, axis=0)
     return np.r_[center-size/2, size].astype(np.float32)
+
+
+def scaled_fixed_box(boxes, scale=1.0):
+    if not np.isfinite(scale) or not 1. <= scale <= 2.5:
+        raise ValueError('Coverage crop scale must be finite and between 1 and 2.5')
+    box=stable_box(boxes).astype(np.float64)
+    center=box[:2]+box[2:]/2
+    size=box[2:]*scale
+    return np.r_[center-size/2,size].astype(np.float32)
 
 
 def validate_crop_points(box, points):
@@ -63,9 +72,11 @@ def command(python, script, images, first, last, output, box_file):
             '--show_bbox', '--fixed_bbox_file', str(box_file)]
 
 
-def report_contract():
+def report_contract(full_sequence=False):
+    scope={s:tuple(range(1,n+1)) for s,n in hand.FULL_SEQUENCE_COUNTS.items()} if full_sequence else WINDOWS
     return {'schema':'signbridge-stable-crop-pilot-v1','status':'running',
-            'scope':{s:list(ids) for s,ids in WINDOWS.items()}, 'training_ready':False,
+            'scope':{s:list(ids) for s,ids in scope.items()}, 'training_ready':False,
+            'full_sequence_inferred':full_sequence,
             'full_sequence_refined':False,'original_fits_overwritten':False,
             'contact_approved':False,'temporal_smoothing':False,
             'new_network_inference':True,'cases':[],'source_sha256':{}}
@@ -79,7 +90,9 @@ def run(args):
     if output.exists() or any(output==p or p in output.parents or output in p.parents
                               for p in (root,fits,batch)):
         raise ValueError('Output must be new and separate')
-    report = report_contract()
+    full_sequence=getattr(args,'full_sequence',False)
+    scope={s:tuple(range(1,n+1)) for s,n in hand.FULL_SEQUENCE_COUNTS.items()} if full_sequence else WINDOWS
+    report = report_contract(full_sequence)
     watched = {}
 
     def watch(path, expected=None):
@@ -93,7 +106,7 @@ def run(args):
     watch(plan_path)
     plan = json.loads(plan_path.read_text())
     if plan.get('schema') != 'signbridge-stable-crop-plan-v1' or plan.get('training_ready') is not False or \
-       plan.get('fit_run_sha256') != FIT_SHA or set(plan['windows']) != set(WINDOWS):
+       plan.get('fit_run_sha256') != FIT_SHA or set(plan['windows']) != set(scope):
         raise ValueError('Unexpected stable-crop plan')
     watch(fits/'run.json', FIT_SHA)
     previous = json.loads((fits/'run.json').read_text())
@@ -111,7 +124,7 @@ def run(args):
         watch(hand.inside(root,relative), sha)
     hand.verify_model_assets(root)
     selected = {}
-    for segment, ids in WINDOWS.items():
+    for segment, ids in scope.items():
         p = plan['windows'][segment]
         if p['frames'] != list(ids):
             raise ValueError('Wrong plan frame scope')
@@ -129,7 +142,7 @@ def run(args):
             if value['img_path'] != str(image) or value['bbox_id'] != 0:
                 raise ValueError('Metadata frame/person differs')
             metas.append(value)
-        fixed=stable_box([m['bbox'] for m in metas])
+        fixed=scaled_fixed_box([m['bbox'] for m in metas],p.get('coverage_scale',1.0))
         if not np.array_equal(fixed,np.asarray(p['fixed_bbox'],dtype=np.float32)):
             raise ValueError('Fixed crop differs from median source boxes')
         selected[segment]=fixed
@@ -158,7 +171,7 @@ def run(args):
         env['PYTHONPATH']=os.pathsep.join(str(root/p) for p in ('main','common','common/utils/smplx'))
         env['PYTHONDONTWRITEBYTECODE']='1'
         env['PYTHONUNBUFFERED']='1'
-        for segment, ids in WINDOWS.items():
+        for segment, ids in scope.items():
             stage='inference:'+segment
             folder=output/segment
             box_file=output/(segment+'-bbox.json')
@@ -201,7 +214,7 @@ def run(args):
                 raise ValueError('Source changed during stable-crop inference: '+name)
         report.update(status='inferred_pending_stable_crop_review',source_files_unchanged=True)
         save()
-        print('Stable-crop inference complete; 14 saved frames; no training.',flush=True)
+        print('Stable-crop inference complete; %d saved frames; no training.'%len(report['cases']),flush=True)
     except Exception as error:
         report.update(status='failed',failure_stage=stage,error_type=type(error).__name__,
                       error=str(error),traceback=traceback.format_exc())
@@ -214,6 +227,7 @@ def main():
     parser=argparse.ArgumentParser(description=__doc__)
     for k in ('smplerx-root','fits','batch','output','plan'):
         parser.add_argument('--'+k,type=Path,required=True)
+    parser.add_argument('--full-sequence',action='store_true',help='Reviewed 166+218 frame scope; no motion approval')
     print(run(parser.parse_args()))
 
 

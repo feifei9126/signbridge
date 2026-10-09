@@ -1,6 +1,6 @@
 # 从已核对视频到 SMPL-X 动作
 
-本阶段将已核对视频重建为 SMPL-X，并把**真实拟合结果**转换成 SOKE 的 133 维表示。**截至 2026-10-09，两段重建、导入、关键帧试修和只读出图已完成，但视觉审核仍发现手型/接触错误，正式训练状态保持 false。** 受限肘部模式改善了手腕位置，不代表完整手语动作通过。现已运行独立的 SOKE 动作 tokenizer 技术验证训练并保存权重：仅用于未审核数据上的训练链路联调，不是文字到手语生成模型，不是可部署结果。其余 14 段及正式生成器训练未执行。
+本阶段将已核对视频重建为 SMPL-X，并把**真实拟合结果**转换成 SOKE 的 133 维表示。**截至 2026-10-09，两段共384帧已经完成全长稳定裁剪、WiLoR提取、逐帧手部融合、保守时序选择、研究tokenizer训练、权重重载和Mac CPU推理核对；手型/接触及独立语言质量尚未通过验收，正式训练就绪状态仍为false。** 最新权重和完整输入/重建动画位于 `local-data/full-sequence-20261009/`。这是动作编码/重建模型的真实训练联调，不是文字到手语生成模型或可部署手语大模型；其余14段及正式生成器训练未执行。
 
 ## 已准备的数据
 
@@ -698,6 +698,61 @@ PYOPENGL_PLATFORM=egl OPENBLAS_CORETYPE=Haswell PYTHONDONTWRITEBYTECODE=1 \
   --output local-data/stable-fusion-review-new-run
 ```
 
+## 2026-10-09：两段全长闭环与真实 tokenizer 训练
+
+用户要求持续自主完善后，本轮连续完成多阶段工作，没有在后台启动后停止。服务器任务 `/root/autodl-tmp/signbridge/full-sequence-20261009-a3tr6_4n` 先运行384帧稳定裁剪重建，再运行全长WiLoR、按唯一手检测的融合，以及数据导出、质量mask训练和原生重建渲染。旧短窗口及原始结果均保留。
+
+### 全长范围、漏检与回退
+
+`--full-sequence` 严格对应两段166/218帧，双手每帧都审计。全片固定框为原始框中位数，经观测手点覆盖范围加45像素余量扩大，避免沿用短窗口框造成手移出画面；扩框会改变输入分辨率占比，不能保证每帧手型改善。没有插值补手，且同侧多检测不按置信度偷偷选一只。相机、根平移、shape及非目标关节在融合中保持基线值。
+
+原始全长融合有338次手部候选应用，64次已观察候选被数值门槛拒绝，362个“帧×侧”未检出，4个医院右手帧存在同侧多个检测。没有检测可能来自手在画外、遮挡或模型漏检，不能从数量直接推断手语动作无效。
+
+| 片段/侧 | 未检出帧 | 同侧多检测帧 | 数值拒绝帧 | 原始应用帧 | 保守版本应用帧 |
+| --- | --- | --- | --- | --- | --- |
+| 你好左手 | 101 | 0 | 10 | 55 | 54 |
+| 你好右手 | 41 | 0 | 34 | 91 | 91 |
+| 咳嗽左手 | 191 | 0 | 5 | 22 | 22 |
+| 咳嗽右手 | 29 | 4 | 15 | 170 | 164 |
+
+完整单帧参数及原生叠加图在 `verified/{stable-source,wilor-source,fusion-source}/results/`。7,122个回传文件和归档摘要通过核对；每阶段报告仍保留缺失/拒绝状态，不能将“程序运行结束”混同于“全部动作通过”。
+
+### 保守时序候选与133维表示
+
+`sign-sequence-export.py` 独立检查384帧baseline来源、受保护参数、候选决定、保存series/mask以及原生数值对照，导出 `(166,133)` / `(218,133)` float32动作。顺序为body_pose最后30维、左右手各45维、jaw3维和expression10维；相机translation、root及shape不混入该SOKE表示。
+
+`sign-sequence-curate.py` 仅在已有融合帧和已有baseline帧之间做两状态选择，不优化或插值新姿态。相邻手指旋转超过90°且高于baseline对应变化时优先放弃少量应用，保留尽可能多的原候选。本次回退了7次已应用手部候选：你好111帧，医院80–84及131帧。原融合在111/82/131帧的3处大于90°新增跳变，在此保守版本中不再出现，root/shape和观测mask仍精确不变。该阈值只是研究诊断；其余较小变化和真实手语转换仍可能有误，不能以“没有超过90°”批准数据。
+
+最新严格验证导出为 `delivery-source-motions/`，保守动作是 `delivery-motions/`。每段有 `features-133.npy`、`feature-valid-mask.npy`、`fused-smplx-series.npz`、逐帧quality和来源记录。mask只对已应用的手部45维为true；未观察/多检测/拒绝/保守回退的手保留基线参数，但不当作手部训练目标。其它body/face维仍是未人工核验的模型估计。`verification.json` 保持 `training_ready=false`。
+
+### 真实训练、最优权重及推理
+
+沿用固定SOKE代码的小型三部分VQVae，约266.7万参数。先对原全长融合和保守选择分别训练1000步，保留这两轮证据；最终修正版还将未接受手部值在模型内部替换为中性归一化占位输入，防止回退角度影响codebook，同时用mask排除其归一化统计和手部重建损失。占位仅存在于神经网络输入，不写回动作序列。
+
+最终再训练1000步，在19个重叠训练窗口上masked normalized MSE由 `0.992553` 降到最佳 `0.005698`；最好checkpoint在第900步，最后一步有波动，因此保存最佳而非自动用最后权重。约56秒优化，GPU权重重载后误差复算通过。最终checkpoint为：
+
+`local-data/full-sequence-20261009/final-verified/training-final/results/tokenizer-smoke.pt`
+
+这只说明能学习并重建这两段模型估计，可能记忆训练数据。没有文字条件、独立测试集或新句泛化验证，不能称为文字到手语模型或已训练好手语大模型。真实有效手部重建RMSE约0.009–0.024 radians；未接受手的重建不记为有效监督，并在动画中保留原局部手部参数。root、shape、SOKE未表示的前11个body关节和眼睛参数也从输入保留，不归功于tokenizer预测。
+
+`sign-tokenizer-infer.py` 提供hash校验后的CPU/CUDA编码及重建接口。Mac CPU已实际重载最终权重，两个完整序列的body/left/right token与GPU逐项相等，重建数组最大差约 `1.49e-6`，结果在 `cpu-inference/`。运行时指定真实checkpoint摘要，示例：
+
+```bash
+.venv-wilor/bin/python signbridge/src/tools/sign-tokenizer-infer.py \
+  --checkpoint local-data/full-sequence-20261009/final-verified/training-final/results/tokenizer-smoke.pt \
+  --checkpoint-sha256 '<report.json中的checkpoint_sha256>' \
+  --soke-root local-data/deps/SOKE \
+  --features local-data/full-sequence-20261009/delivery-motions/samples/pilot-greeting-hello-001/features-133.npy \
+  --mask local-data/full-sequence-20261009/delivery-motions/samples/pilot-greeting-hello-001/feature-valid-mask.npy \
+  --device cpu --output local-data/tokenizer-inference-new-run
+```
+
+### 全长动画与仍需验收的事项
+
+`sign-tokenizer-review.py` 已将最终重建还原并原生CUDA渲染384帧，输出在 `final-verified/tokenizer-final-review/`。`sign-sequence-media.py` 生成原片/稳定baseline/保守融合以及原片/融合输入/tokenizer重建两类完整三栏H264视频，分别在 `review-media-v2/` 与 `final-tokenizer-review-media/`；ffprobe已核对166/218帧、25fps及1920×360分辨率。Mac FFmpeg无drawtext，标题由Pillow预先绘制，不升级环境。
+
+自动完成的部分是可追溯数据→完整动作候选→质量mask→训练权重→CPU推理→原生动画的技术流程。实际接触、遮挡处手型、镜像/表演者归并、分组独立测试及新句手语语义，需要真实标注和独立验收。缺手回退不能被模型猜测替代，剩余14段和正式生成器训练未执行。训练就绪/部署就绪状态保持false，完整原始视频和派生模型留在Git忽略目录。
+
 ## 测试与来源
 
 ```bash
@@ -716,6 +771,12 @@ PYOPENGL_PLATFORM=egl OPENBLAS_CORETYPE=Haswell PYTHONDONTWRITEBYTECODE=1 \
 .venv-sign-data/bin/python signbridge/tests/sign-stable-crop.test.py
 .venv-sign-data/bin/python signbridge/tests/sign-stable-crop-review.test.py
 .venv-sign-data/bin/python signbridge/tests/sign-stable-fusion-review.test.py
+.venv-sign-data/bin/python signbridge/tests/sign-full-sequence.test.py
+.venv-sign-data/bin/python signbridge/tests/sign-sequence-export.test.py
+.venv-sign-data/bin/python signbridge/tests/sign-sequence-curate.test.py
+.venv-sign-data/bin/python signbridge/tests/sign-sequence-media.test.py
+.venv-sign-data/bin/python signbridge/tests/sign-tokenizer-review.test.py
+.venv-sign-data/bin/python signbridge/tests/sign-tokenizer-infer.test.py
 cd signbridge && npm run verify
 ```
 

@@ -82,11 +82,47 @@ def make_windows(arrays, window=64):
     return np.stack(result).astype(np.float32, copy=False)
 
 
-def normalization(arrays):
-    joined = np.concatenate(arrays, axis=0).astype(np.float64)
-    mean = joined.mean(axis=0).astype(np.float32)
-    std = np.maximum(joined.std(axis=0), .05).astype(np.float32)
-    return mean, std
+def load_quality_masks(root, rows, required=False):
+    masks, hashes = [], []
+    root = Path(root).resolve()
+    for row in rows:
+        feature = (root / row["features"]).resolve()
+        path = feature.with_name("feature-valid-mask.npy")
+        if not path.is_file():
+            if required:
+                raise ValueError("Missing full-fusion quality mask")
+            masks.append(np.ones((row["frames"],133),dtype=bool))
+            continue
+        if root not in path.parents:
+            raise ValueError("Unsafe quality mask path")
+        value=np.load(path,allow_pickle=False)
+        if value.shape!=(row["frames"],133) or value.dtype.kind!="b":
+            raise ValueError("Invalid quality mask shape/dtype")
+        masks.append(value.copy());hashes.append(digest(path))
+    return masks,hashes
+
+
+def normalization(arrays, masks=None):
+    joined=np.concatenate(arrays,axis=0).astype(np.float64)
+    valid=np.ones_like(joined,dtype=bool) if masks is None else np.concatenate(masks,axis=0)
+    if valid.shape!=joined.shape or valid.dtype.kind!="b":
+        raise ValueError("Invalid normalization mask")
+    count=valid.sum(axis=0)
+    mean=np.sum(np.where(valid,joined,0.),axis=0)/np.maximum(count,1)
+    variance=np.sum(np.where(valid,(joined-mean)**2,0.),axis=0)/np.maximum(count,1)
+    std=np.maximum(np.sqrt(variance),.05)
+    std[count==0]=1.
+    return mean.astype(np.float32),std.astype(np.float32)
+
+
+def normalized_model_input(values,mean,std,valid):
+    values=np.asarray(values);mean=np.asarray(mean);std=np.asarray(std);valid=np.asarray(valid)
+    if values.ndim!=2 or values.shape[1]!=133 or valid.shape!=values.shape or valid.dtype.kind!='b' or \
+       mean.shape!=(133,) or std.shape!=(133,) or not np.isfinite(values).all() or \
+       not np.isfinite(mean).all() or not np.isfinite(std).all() or not (std>0).all():
+        raise ValueError('Invalid masked model input')
+    # Neutral placeholders exist only inside model input; saved motion and detection masks are untouched.
+    return np.where(valid,(values-mean)/std,0.).astype(np.float32)
 
 
 def train(args):
@@ -95,6 +131,10 @@ def train(args):
     if any(output == p or p in output.parents or output in p.parents for p in (root, soke)):
         raise ValueError("Output must be separate from source inputs")
     rows, arrays, hashes = load_inputs(root, args.research_only)
+    verification=json.loads((root/"verification.json").read_text())
+    quality_masked=verification.get("schema")=="signbridge-full-fusion-export-v1"
+    masks,mask_hashes=load_quality_masks(root,rows,required=quality_masked)
+    hashes+=mask_hashes
     commit = subprocess.check_output(["git", "-C", str(soke), "rev-parse", "HEAD"], text=True).strip()
     if commit != SOKE_COMMIT:
         raise ValueError("SOKE source commit differs")
@@ -105,7 +145,10 @@ def train(args):
     report = {"schema": "signbridge-tokenizer-smoke-v1", "status": "running",
               "research_only": True, "training_ready": False, "deployment_ready": False,
               "text_to_sign_trained": False, "generalization_evaluated": False,
-              "input_quality": "UNREVIEWED original SMPLer-X estimates, not corrected sequences",
+              "input_quality": verification.get("input_quality", "UNREVIEWED original SMPLer-X estimates, not corrected sequences"),
+              "quality_masked_hand_targets": quality_masked,
+              "unaccepted_model_inputs": "neutral normalized placeholders with loss mask; never written to motion tracks",
+              "valid_target_counts": np.concatenate(masks).sum(axis=0).tolist(),
               "normalization": "own training samples only; from scratch, NOT pretrained mean/std",
               "soke_commit": commit, "source_sha256": source_hashes, "input_sha256": hashes,
               "sequences": [{"segment_id": r["segment_id"], "frames": r["frames"]} for r in rows],
@@ -136,11 +179,14 @@ def train(args):
         models = torch.nn.ModuleList([module.VQVae(**values).cuda() for values in configs])
         report.update(torch=torch.__version__, cuda=torch.version.cuda, gpu=torch.cuda.get_device_name(0),
                       parameters=sum(p.numel() for p in models.parameters()), model_configs=configs)
-        mean, std = normalization(arrays)
-        normalized = [(value - mean) / std for value in arrays]
+        mean, std = normalization(arrays,masks)
+        normalized = [normalized_model_input(value,mean,std,mask) for value,mask in zip(arrays,masks)]
         windows = make_windows(normalized)
         report["train_windows"] = len(windows)
         tensor = torch.from_numpy(windows).cuda()
+        mask_tensor=torch.from_numpy(make_windows(masks)).cuda()
+        mask_parts=[torch.cat((mask_tensor[...,:30],mask_tensor[...,120:]),dim=-1),
+                    mask_tensor[...,30:75],mask_tensor[...,75:120]]
         parts = [torch.cat((tensor[..., :30], tensor[..., 120:]), dim=-1),
                  tensor[..., 30:75], tensor[..., 75:120]]
         optimizer = torch.optim.AdamW(models.parameters(), lr=.001, weight_decay=0.0)
@@ -157,8 +203,9 @@ def train(args):
             models.eval()
             with torch.no_grad():
                 predictions, _ = forward(parts)
-                return float(sum(torch.nn.functional.mse_loss(p, t) * t.shape[-1]
-                                 for p, t in zip(predictions, parts)).item() / 133)
+                numerator=sum(((p-t)**2*m).sum() for p,t,m in zip(predictions,parts,mask_parts))
+                denominator=sum(m.sum() for m in mask_parts).clamp(min=1)
+                return float((numerator/denominator).item())
 
         # Initialize the EMA codebooks using observed activations, without optimizing weights.
         models.train()
@@ -174,8 +221,8 @@ def train(args):
             indices = torch.randint(0, tensor.shape[0], (min(8, tensor.shape[0]),), device="cuda")
             inputs = [part[indices] for part in parts]
             predicted, commits = forward(inputs)
-            loss = sum(torch.nn.functional.smooth_l1_loss(p, t) for p, t in zip(predicted, inputs)) + \
-                .02 * sum(commits)
+            loss = sum((torch.nn.functional.smooth_l1_loss(p,t,reduction="none")*m[indices]).sum() /
+                       m[indices].sum().clamp(min=1) for p,t,m in zip(predicted,inputs,mask_parts)) + .02*sum(commits)
             if not torch.isfinite(loss):
                 raise ValueError("Training loss became nonfinite")
             optimizer.zero_grad(set_to_none=True)
@@ -202,7 +249,7 @@ def train(args):
         models.eval()
         sample_metrics = []
         with torch.no_grad():
-            for row, normalized_values, raw in zip(rows, normalized, arrays):
+            for row, normalized_values, raw, valid in zip(rows, normalized, arrays, masks):
                 count = len(normalized_values)
                 pad = (-count) % 4
                 padded = np.pad(normalized_values, ((0, pad), (0, 0)), mode="edge")
@@ -216,10 +263,15 @@ def train(args):
                     tokens, _ = model.encode(part)
                     np.save(folder / (name + "-tokens.npy"), tokens.cpu().numpy())
                 sample_metrics.append({"segment_id": row["segment_id"], "frames": count,
-                    "in_sample_rmse_raw": float(np.sqrt(np.mean((prediction - raw) ** 2))),
-                    "left_hand_rmse_radians": float(np.sqrt(np.mean((prediction[:, 30:75] - raw[:, 30:75]) ** 2))),
-                    "right_hand_rmse_radians": float(np.sqrt(np.mean((prediction[:, 75:120] - raw[:, 75:120]) ** 2)))})
+                    "in_sample_rmse_raw": float(np.sqrt(np.sum((prediction-raw)**2*valid)/max(int(valid.sum()),1))),
+                    "all_frames_rmse_including_unaccepted": float(np.sqrt(np.mean((prediction-raw)**2))),
+                    "left_hand_rmse_radians": float(np.sqrt(np.sum((prediction[:,30:75]-raw[:,30:75])**2*valid[:,30:75])/
+                        max(int(valid[:,30:75].sum()),1))) if valid[:,30:75].any() else None,
+                    "right_hand_rmse_radians": float(np.sqrt(np.sum((prediction[:,75:120]-raw[:,75:120])**2*valid[:,75:120])/
+                        max(int(valid[:,75:120].sum()),1))) if valid[:,75:120].any() else None})
         _, _, after_hashes = load_inputs(root, True)
+        _,after_masks=load_quality_masks(root,rows,required=quality_masked)
+        after_hashes+=after_masks
         if hashes != after_hashes or any(digest(Path(name)) != value for name, value in source_hashes.items()):
             raise ValueError("Source changed during training")
         reloaded_mse = eval_mse()
@@ -231,6 +283,7 @@ def train(args):
                       checkpoint_step=loaded["step"], history=history,
                       in_sample_metrics=sample_metrics, source_files_unchanged=True,
                       limitations=["Two sequences, no held-out evaluation; improvement can be memorization",
+                                   "Learns model-estimated motion; quality masks exclude missing/rejected hand reconstruction targets" if quality_masked else
                                    "Learns unreviewed original motion including hand errors",
                                    "No text conditioning; NOT a trained text-to-sign model",
                                    "Not the full-width official SOKE pretrained tokenizer",

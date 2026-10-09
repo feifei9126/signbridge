@@ -46,6 +46,15 @@ EDGES = [(0, 1), (1, 2), (2, 3), (3, 4), (0, 5), (5, 6), (6, 7), (7, 8),
          (0, 17), (17, 18), (18, 19), (19, 20)]
 
 
+FULL_SEQUENCE_COUNTS = {"pilot-greeting-hello-001": 166, "pilot-hospital-cough-003": 218}
+
+
+def full_sequence_cases():
+    """Exact reviewed two-clip scope, both sides audited on every frame."""
+    return [(segment, number, ("left", "right"))
+            for segment, count in FULL_SEQUENCE_COUNTS.items() for number in range(1, count + 1)]
+
+
 def require(condition, message):
     if not condition:
         raise ValueError(message)
