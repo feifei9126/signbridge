@@ -376,6 +376,52 @@ GPU 手动复现入口如下（输出目录必须新建）：
 
 来源和关键文件 SHA-256 记录于 Git 忽略的 `local-data/wilor-source.json`；第三方源码、MANO 文件和后续权重不提交到本项目。README 的参考环境为 Python 3.10、PyTorch 2.0.0、CUDA 11.7；其要求 `pretrained_models/detector.pt`、`pretrained_models/wilor_final.ckpt` 和 `mano_data/MANO_RIGHT.pkl`。目前只有源码/配置已下载，没有安装依赖、下载上述预训练权重或执行 WiLoR 原生 MANO 加载/GPU 推理。后续使用独立环境，不升级已跑通的 `smplerx` 环境，也不把源码下载成功视为模型可用或手部修复成功。
 
+## 2026-10-09：WiLoR 权重与新 GPU 主机阶段验证
+
+启用 Mac 系统代理后，命令显式经本地代理下载官方 README 指向的 `detector.pt` 与 `wilor_final.ckpt`。下载后的大小/SHA-256 与官方 Space 固定版本 `99fe3d7acff8104ecca1055df7467709506c2fa6` 的 LFS 元数据一致：
+
+| 文件 | Bytes | SHA-256 |
+| --- | --- | --- |
+| `detector.pt` | 53,582,271 | `5ef3df44e42d2db52d4ffe91f83a22ce9925e2acc9abebf453f2c5d22e380033` |
+| `wilor_final.ckpt` | 2,564,989,533 | `3e97aafc7dd08d883a4cc5a027df61fdb6fda6136dbd1319405413862ada6bb2` |
+
+文件在 `local-data/deps/WiLoR/pretrained_models/`，记录在 `local-data/wilor-weights.json`。用户下载的 `MANO_RIGHT.pkl` 与官方 Space 同名模型摘要相同，没有重新下载或改写 MANO。Mac 的独立 `.venv-wilor` 完成 MANO CPU 数值加载、完整 WiLoR 约 6.41 亿参数权重检查及检测器推理；这些本地检查不冒称 CUDA。
+
+用户随后提供新 GPU 主机 `connect.cqa1.seetacloud.com:26919`，本阶段只用这个端口，旧 `22210` 不再用于新任务。SSH 凭据仅输入交互提示，未写入工具/文档/配置。克隆主机保留旧视频、SMPLer-X、SOKE 实验产物，目标图片摘要相同；实测 RTX 4090/24 GB、CUDA 设备可用。
+
+服务器新建 `/root/autodl-tmp/signbridge/envs/wilor`，Python 3.10、PyTorch `2.2.2+cu118`、torchvision `0.17.2+cu118`，其余固定直接依赖见 `signbridge/src/tools/requirements-wilor-pilot.txt`。`pip check` 和实际 CUDA GEMM 均通过。原 `envs/smplerx` 仍为 `torch 1.12.0/CUDA 11.3`，GPU 自检通过，未升级或替换。没有修改驱动或增加系统权限；原主机无 GPU 挂载的检查记录与新主机结果分开。
+
+新增 `sign-wilor-pilot.py`：两帧限定推理、固定源码/配置/权重/MANO 摘要、完整 checkpoint `strict=True`（无 missing/unexpected keys），FP32、batch size 1、不使用 `--fast`、跳层或编译。手部类别明确为 `0:left,1:right`；只对图像空间顶点/关节做左手镜像并反转面索引，原预测 MANO 旋转矩阵以 right-canonical 约定保留。输出 NPZ、OBJ、检测框及手部对照图，始终 `training_ready=false`、`smplx_parameters_replaced=false`，不把 MANO 参数直接套入 SMPL-X 或插件。
+
+首次 CUDA 推理任务 `keyframes-20261009-103036-gGmysJ` 在约 16.3 秒内完成第 91 帧双手、第 159 帧右手，置信度约 0.9065/0.8976/0.9092；姿态矩阵、网格/关节和数值来源检查通过。但首次渲染出现条带，**非空 EGL 像素不足以证明出图正确**，初始图像不可用于审核。
+
+### 渲染失真根因和只读修复
+
+在新服务器 NumPy 1.23.5/OpenBLAS 环境，复现了 `np.dot(matrix, homogeneous_vertices.T)` 对 778 个顶点的错误结果，而 `homogeneous_vertices @ matrix.T` 正常；指定 `OPENBLAS_CORETYPE=Haswell` 后，原失败方向误差为零。`trimesh.transform_points` 正好使用失败方向，造成手部顶点变形。这里只记录本机可复现现象，不泛称所有 NumPy/Trimesh 均有该问题。
+
+共享渲染工具的固定 Rx(pi) 改为精确逐元素 `(x,y,z) -> (x,-y,-z)`，不依赖 BLAS、不改输入顶点/相机。只读重新出图任务 `rerender-20261009-105438-hduStU` 用原 WiLoR 保存参数，无模型推理/优化；核对初始归档所有内部摘要前后不变，三只手的渲染像素 bbox 都落在解析透视投影 bbox 的 2 px 取整容差内。原图/旧条带图保留，新的只读证据在：
+
+`/Users/mac/Documents/ChatGPT/signbridge/local-data/wilor-keyframes-rerender-20261009/verified`
+
+初步视觉抽检显示，第 91 帧双指及第 159 帧握拳竖拇指的外形明显优于原全身 SMPLer-X 估计。但双手接触、深度、穿插、连续帧和手语语义仍未通过完整验收；不能把两帧候选变成训练序列。新工具增加投影-vs-渲染 bbox 门槛，遇到同类失真直接失败。最终完整 CUDA 回归用新任务保存，旧结果不覆盖。
+
+最终任务 `verified-keyframes-20261009-110100-ETLZnv` 完成约 15.8 秒全模型 CUDA 推理，三手输出及渲染投影检查均通过，状态 `inferred_pending_visual_review`。最终结果、日志、依赖 freeze 和脚本已打包下载至 `/Users/mac/Documents/ChatGPT/signbridge/local-data/wilor-keyframes-verified-20261009/verified`；外层和全部内部文件摘要校验通过，回传脚本与本地当前版本一致。原图、每手 `*-compare.jpg` / `*-overlay.jpg`、联合叠加图、原生 NPZ 和 OBJ 均保留。全部数组有限、旋转矩阵正交且 determinant 为 1；这不等于手语专家批准。
+
+本阶段结束时，新主机没有运行中的 WiLoR/手部优化/tokenizer 任务，GPU 显存约 1 MiB（空闲），旧 CUDA 环境复核正常；所有训练/部署标志仍为 false。MANO 模型加载指 WiLoR 使用原 right model 并镜像左手图像几何，不表示单独 native left model 已测试。源码中的 `.py` 和模型文件保持摘要不变；WiLoR 仓库包含跟踪的 Python bytecode，初始 Mac 导入改变过这些缓存，后续推理用 `PYTHONDONTWRITEBYTECODE=1`，不得把 bytecode 缓存更改解释成源码改动。
+
+GPU 调用入口（不含任何账号密码；输出目录必须新建）：
+
+```bash
+PYOPENGL_PLATFORM=egl OPENBLAS_CORETYPE=Haswell PYTHONDONTWRITEBYTECODE=1 \
+/root/autodl-tmp/signbridge/envs/wilor/bin/python /path/to/sign-wilor-pilot.py \
+  --wilor-root /root/autodl-tmp/signbridge/research/WiLoR \
+  --mano-model /root/autodl-tmp/signbridge/research/mano/MANO_RIGHT.pkl \
+  --batch /root/autodl-tmp/signbridge/sign-language-gpu-stage-v2/batch \
+  --output /path/to/new/wilor-keyframe-results --device cuda
+```
+
+后续阶段才进行相邻帧时序试跑、MANO/SMPL-X 坐标与手姿态均值对齐，并由手语审核者确认后形成新数据版本。当前没有重建剩余 14 段、覆盖旧动作或开始新的正式生成器训练。
+
 ## 测试与来源
 
 ```bash
@@ -385,6 +431,7 @@ GPU 手动复现入口如下（输出目录必须新建）：
 .venv-sign-data/bin/python signbridge/tests/sign-hand-refine.test.py
 .venv-sign-data/bin/python signbridge/tests/sign-hand-pilot.test.py
 .venv-sign-data/bin/python signbridge/tests/sign-tokenizer-smoke.test.py
+.venv-sign-data/bin/python signbridge/tests/sign-wilor-pilot.test.py
 cd signbridge && npm run verify
 ```
 

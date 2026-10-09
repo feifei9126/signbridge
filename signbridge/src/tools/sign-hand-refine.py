@@ -514,12 +514,19 @@ def diagnostic_face_colors(vertices, faces):
     return np.c_[rgb, np.full(len(rgb), 255, dtype=np.uint8)]
 
 
+def camera_to_opengl(vertices):
+    """Exact Rx(pi) without BLAS; preserves the original native-camera vertices."""
+    values = np.asarray(vertices, dtype=np.float64)
+    require(values.ndim == 2 and values.shape[1] == 3 and np.isfinite(values).all(),
+            "Invalid camera-space mesh vertices")
+    return values * np.asarray([1., -1., -1.])
+
+
 def render_overlay(image, vertices, faces, camera, diagnostic=False):
     import pyrender
     import trimesh
     colors = diagnostic_face_colors(vertices, faces) if diagnostic else None
-    mesh = trimesh.Trimesh(vertices=vertices, faces=faces, process=False, face_colors=colors)
-    mesh.apply_transform(trimesh.transformations.rotation_matrix(np.pi, [1, 0, 0]))
+    mesh = trimesh.Trimesh(vertices=camera_to_opengl(vertices), faces=faces, process=False, face_colors=colors)
     material = None if diagnostic else pyrender.MetallicRoughnessMaterial(
         metallicFactor=0.0, alphaMode="OPAQUE", baseColorFactor=(1.0, 1.0, 0.9, 1.0))
     scene = pyrender.Scene(ambient_light=(0.3, 0.3, 0.3))

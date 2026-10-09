@@ -569,6 +569,23 @@ class HandRefineTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             hand.diagnostic_face_colors(vertices, np.array([[0, 0, 0]]))
 
+    def test_opengl_axis_conversion_is_exact_and_preserves_camera_space_input(self):
+        # WiLoR has 778 vertices; old OpenBLAS reverse dot corrupted this count on the GPU host.
+        vertices = np.arange(778 * 3, dtype=np.float32).reshape(778, 3) / 100
+        vertices[:, 2] += 30
+        before = vertices.copy()
+        expected = vertices.astype(np.float64).copy()
+        expected[:, 1] *= -1
+        expected[:, 2] *= -1
+        with patch.object(np, "dot", side_effect=AssertionError("must not use problematic BLAS transform")):
+            converted = hand.camera_to_opengl(vertices)
+        np.testing.assert_array_equal(converted, expected)
+        np.testing.assert_array_equal(vertices, before)
+        self.assertEqual(converted.dtype, np.float64)
+        for invalid in (np.zeros((3, 2)), np.full((3, 3), np.nan)):
+            with self.assertRaises(ValueError):
+                hand.camera_to_opengl(invalid)
+
     def test_renderer_preflight_requires_real_nonempty_pixels(self):
         rendered = np.zeros((64, 64, 3), dtype=np.uint8)
         rendered[24:40, 24:40] = 200
@@ -626,6 +643,7 @@ class HandRefineTests(unittest.TestCase):
         self.assertIsNone(captured["material"])
         self.assertTrue(captured["deleted"])
         np.testing.assert_array_equal(captured["face_colors"], hand.diagnostic_face_colors(vertices, faces))
+        np.testing.assert_array_equal(captured["vertices"], hand.camera_to_opengl(vertices))
         np.testing.assert_array_equal(vertices, before)
 
     def test_renderer_is_deleted_on_failure(self):
@@ -649,7 +667,8 @@ class HandRefineTests(unittest.TestCase):
                         transformations=types.SimpleNamespace(rotation_matrix=lambda *args: np.eye(4)))
         with patch.dict("sys.modules", pyrender=pyrender, trimesh=trimesh):
             with self.assertRaisesRegex(RuntimeError, "EGL failure"):
-                hand.render_overlay(np.zeros((20, 20, 3), dtype=np.uint8), None, None, self.camera)
+                hand.render_overlay(np.zeros((20, 20, 3), dtype=np.uint8),
+                                    np.ones((3, 3)), np.asarray([[0, 1, 2]]), self.camera)
         self.assertEqual(deleted, [True])
 
     def test_targets_only_report_never_becomes_training_ready(self):
