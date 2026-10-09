@@ -568,6 +568,31 @@ PYOPENGL_PLATFORM=egl OPENBLAS_CORETYPE=Haswell PYTHONDONTWRITEBYTECODE=1 \
   --output local-data/contact-observation-audit-<new-run>
 ```
 
+## 2026-10-09：14 帧双窗口时序审计
+
+新增只读工具 `signbridge/src/tools/sign-temporal-audit.py`，复核 WiLoR 与融合 SMPL-X 的两个 7 帧窗口。报告位于 `local-data/temporal-hand-audit-20261009-validated/`，含逐帧五指最近对、来源分歧、MediaPipe 缺失、手腕/指尖步长分解和近景总览。来源目录和参数未修改，未运行 GPU、平滑、接触优化或训练。
+
+- `pilot-greeting-hello-001`：MediaPipe、WiLoR、SMPL-X 三种最近对分别在 89/92/93、91/92/94、92/93/94 帧发生切换；88–94 中有 5 帧至少两个来源不一致。MediaPipe 右手第 90 帧缺失，不插值。
+- `pilot-hospital-cough-003` 是单手窗口，双手最近对标记为不适用，不能将其统计成漏检或“零次配对变化”。右手 7 帧都存在，WiLoR 没有超过既有阈值的姿态跳变。
+- SMPL-X 融合候选第 92→93 帧根平移改变约 1.777 米，去除共同平移后的腕/指尖最大步长仍约 0.125–0.142 米；该变化同时遇到手型转换和 WiLoR 跳变提示，当前无法判定是合法手语动作还是重建误差。
+- 第 160→161 帧根平移改变约 0.941 米，但去除共同平移后的腕/指尖最大步长约 0.012 米、手指相对腕点的最大变化约 0.0014 米。这说明绝对 3D 坐标步长很大程度受 SMPL-X 每帧根/深度估计影响，不应直接当作手指抖动；本报告不把根平移解释为测量到的真实世界运动。
+- 14 帧候选与各自 baseline 的受保护参数逐项一致，根平移变化沿用原始估计。腕部局部坐标只去除共同位移，未再次扣除根平移，也未去除旋转或形状变化；这些步长不是自动训练验收指标。
+
+目前最有价值的下一步是人工逐帧确认“你好”92–94 的五指形状/转换与手掌遮挡，并检查 SMPLer-X 每帧相机深度估计；确认前不拟合平滑、尺度或接触约束，`training_ready=false` 保持不变。
+
+复跑使用新的输出目录：
+
+```bash
+.venv-sign-data/bin/python signbridge/src/tools/sign-temporal-audit.py \
+  --batch local-data/sign-language-gpu-stage-v2/batch \
+  --wilor-results local-data/wilor-windows-20261009/verified/results \
+  --wilor-report-sha256 0620e8ce3a17920c9d082f5fa744855d0a0879acea621e1adbefa7f380919b2d \
+  --fusion-results local-data/mano-smplx-fusion-windows-final-20261009/verified/results \
+  --fusion-report-sha256 c9762060a4fe24d44b3a095bbbdb857c82654d12fcd41281568be1665ccd00c2 \
+  --smplerx-root local-data/sign-language-gpu-stage-v2/SMPLer-X \
+  --output local-data/temporal-hand-audit-new-run
+```
+
 ## 测试与来源
 
 ```bash
@@ -581,6 +606,7 @@ PYOPENGL_PLATFORM=egl OPENBLAS_CORETYPE=Haswell PYTHONDONTWRITEBYTECODE=1 \
 .venv-sign-data/bin/python signbridge/tests/sign-mano-align.test.py
 .venv-sign-data/bin/python signbridge/tests/sign-contact-pilot.test.py
 .venv-sign-data/bin/python signbridge/tests/sign-contact-audit.test.py
+.venv-sign-data/bin/python signbridge/tests/sign-temporal-audit.test.py
 cd signbridge && npm run verify
 ```
 
