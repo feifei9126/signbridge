@@ -593,6 +593,38 @@ PYOPENGL_PLATFORM=egl OPENBLAS_CORETYPE=Haswell PYTHONDONTWRITEBYTECODE=1 \
   --output local-data/temporal-hand-audit-new-run
 ```
 
+## 2026-10-09：384 帧相机坐标实验
+
+已从现有 26919 GPU 主机只读取回原始两段 `fits` 的 `run.json`、384 份相机元数据及384份参数，共769个文件，保存在 `local-data/camera-source-20261009/`。已验证原始run摘要、回传文件摘要、此前融合报告中的29项来源摘要；没有重跑网络或修改服务器环境。新工具 `sign-camera-audit.py` 在本地CPU完成全长相机坐标实验，输出为 `local-data/camera-reference-pilot-20261009/`。
+
+固定H32的 `inference.py` 将人体裁剪框尺寸换算成原图虚拟焦距及主点。两段的逐帧焦距与原始 `transl.z` 相关系数分别为0.989、0.964；原坐标系随裁剪框变化，不应把原始深度差直接当成实际人物前后运动。
+
+本实验每段固定参考焦距为全片焦距中位数、主点为图像中心，仅生成根平移提案。骨盆像素投影保持不变，其余关节/指尖的投影差单独统计。姿态、双手、面部和形状参数均不优化；没有时序平滑，也没有标定物理相机。
+
+| 片段 | 原始最大相邻深度差 | 参考相机提案最大相邻深度差 | 关节/指尖重投影差P95 / 最大值 |
+| --- | --- | --- | --- |
+| 你好（166帧） | 4.860米 | 0.741米 | 1.835 / 6.349像素 |
+| 咳嗽（218帧） | 2.436米 | 0.488米 | 1.305 / 3.707像素 |
+
+“你好”92→93帧从1.777米变为约0.670米，“咳嗽”160→161帧的绝对深度差从0.940米变为约0.090米。这说明裁剪相机坐标变化能够解释一部分跳变；剩余变化依然需要重建/观测核验，不能据此认定真实深度已修复。
+
+每段 `camera-proposals.npz` 保存完整原始/提案平移、帧号、时间轴、相机与重投影差；`camera-depth.png` 是全长曲线。已融合14帧另外生成 `reference-camera-review.jpg`，原图/原相机投影/参考相机提案分三行。提案没有写回原始fits、融合参数或133维训练数组，仍为 `training_ready=false`、`physical_motion_approved=false`。其余370帧的手部重建质量没有因此得到修正。
+
+本地分析依赖由 `signbridge/src/tools/requirements-sign-camera.txt` 固定，验证环境为Python3.12；需要安装时只用于本地分析环境，不替换服务器的CUDA依赖。复跑使用新的输出目录：
+
+```bash
+.venv-sign-data/bin/python signbridge/src/tools/sign-camera-audit.py \
+  --fit-source local-data/camera-source-20261009 \
+  --fit-run-sha256 20f320c5bb3f4082e60d73b9f19ee3972a534785135f9098e34291f030526908 \
+  --batch local-data/sign-language-gpu-stage-v2/batch \
+  --fusion-results local-data/mano-smplx-fusion-windows-final-20261009/verified/results \
+  --fusion-report-sha256 c9762060a4fe24d44b3a095bbbdb857c82654d12fcd41281568be1665ccd00c2 \
+  --smplerx-root local-data/sign-language-gpu-stage-v2/SMPLer-X \
+  --output local-data/camera-reference-new-run
+```
+
+下一实验应先在稳定裁剪框的短窗口上验证剩余深度/手型变化，并评估画面重投影，再扩大至全片手部融合。相机坐标转换不会解决指尖接触、镜像或缺失的人工手型标签。
+
 ## 测试与来源
 
 ```bash
@@ -607,6 +639,7 @@ PYOPENGL_PLATFORM=egl OPENBLAS_CORETYPE=Haswell PYTHONDONTWRITEBYTECODE=1 \
 .venv-sign-data/bin/python signbridge/tests/sign-contact-pilot.test.py
 .venv-sign-data/bin/python signbridge/tests/sign-contact-audit.test.py
 .venv-sign-data/bin/python signbridge/tests/sign-temporal-audit.test.py
+.venv-sign-data/bin/python signbridge/tests/sign-camera-audit.test.py
 cd signbridge && npm run verify
 ```
 
