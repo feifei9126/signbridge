@@ -806,6 +806,8 @@ PYOPENGL_PLATFORM=egl OPENBLAS_CORETYPE=Haswell PYTHONDONTWRITEBYTECODE=1 \
 
 三段共450帧，真实 SMPL-X 参数已严格导入为 SOKE 133 维 `float32` 序列，有限值与连续帧旋转检查通过。该人工通过仅覆盖本批次动作观感，不确认镜像方向、跨视频人物身份、重复示范或来源独立性。`split` 仍为 `unassigned`，`training_ready=false`；此批次尚未用于训练。
 
+随后使用此前仅在两段旧视频上训练的研究 tokenizer 做冻结迁移检查，没有更新权重、重新选择 checkpoint 或使用新片段训练。三段整体归一化误差相对训练集均值基线降低约18.9%，但投影回原视频的手部关键点平均偏差为约53–105像素，手部旋转平均差约19–25度。因此该权重只能作为编码链路诊断，不能提升为新片段的动作生成器，也不能据此开始正式训练。逐帧投影对照、统计和机器可读报告在 `local-data/data-expansion-20261010/confirmed-pilot-20261010-v1/transfer-check-v1/`，复核入口为其中的 `review.html`；该检查的 `training_ready=false` 保持不变。
+
 ## 测试与来源
 
 ```bash
