@@ -541,6 +541,33 @@ PYOPENGL_PLATFORM=egl OPENBLAS_CORETYPE=Haswell PYTHONDONTWRITEBYTECODE=1 \
 
 阶段结束仍保持 `training_ready=false`、`deployment_ready=false`、`contact_approved=false`，没有表面碰撞检测、平滑、全片重建或正式生成器训练。下一实验应先确认实际接触点、二维手部标注/遮挡、人体手部比例和模型坐标对应，再评估是否需要新的有证据支撑的身体联合约束；不要连续盲目增加自由度或把这4帧局部像素指标当作完整手语数据验收。
 
+## 2026-10-09：接触与指尖对应只读审计
+
+对 `pilot-greeting-hello-001` 第 88–91 帧完成 MediaPipe、WiLoR 和融合 SMPL-X 指尖对应审计。工具为 `signbridge/src/tools/sign-contact-audit.py`；输入均按 SHA-256 清单及报告交叉摘要校验。最终报告和逐帧叠加图保存在 `local-data/contact-observation-audit-20261009-final/`，目录内 `SHA256SUMS` 可独立复核产物。
+
+- MediaPipe 与 WiLoR 输出像素单位的完整 5×5 指尖距离矩阵；融合 SMPL-X 输出模型坐标系下、米单位的 5×5 三维距离矩阵。证据包缺少逐帧相机元数据，因此不伪造 SMPL-X 二维投影，也不将不同单位的距离直接比较。
+- 第 88 帧 MediaPipe/WiLoR 最近对都是左中指—右食指；第 89 帧两者不一致；第 90 帧 MediaPipe 右手未检出，不产生该来源的配对且不插值；第 91 帧三个来源的最近对都是中指—中指。
+- contact pilot 固定的中指—中指只是待核验假设。几何最近点不是人工接触标签；此次审计没有修改拟合参数或批准训练，`contact_approved` 与 `training_ready` 仍为 `false`。
+- WiLoR 的 MANO→OpenPose 映射、5 个 MANO 指尖顶点与 21 个手部关节逐帧核对通过，没有发现简单的索引错位。SMPL-X 掌部尺度约为 WiLoR/MANO 的 `1.1366–1.1580` 倍，指尖链长约为 `1.0538–1.0862` 倍；这是两个模型的几何估计差异，未执行尺度拟合，也不能单独证明哪一个更接近真实手部。
+
+复跑应使用新的 `--output` 目录，并传入已核验报告的 SHA-256；不得覆盖原始拟合或已保存候选。手语标注人员确认指尖身份、镜像状态与真实接触之前，不应继续接触优化。
+
+复跑入口示例（需换成新的输出目录）：
+
+```bash
+.venv-sign-data/bin/python signbridge/src/tools/sign-contact-audit.py \
+  --batch local-data/sign-language-gpu-stage-v2/batch \
+  --wilor-results local-data/wilor-windows-20261009/verified/results \
+  --wilor-report-sha256 0620e8ce3a17920c9d082f5fa744855d0a0879acea621e1adbefa7f380919b2d \
+  --fusion-results local-data/mano-smplx-fusion-windows-final-20261009/verified/results \
+  --fusion-report-sha256 c9762060a4fe24d44b3a095bbbdb857c82654d12fcd41281568be1665ccd00c2 \
+  --contact-results local-data/contact-final-20261009/verified/results \
+  --contact-report-sha256 77856f6a47abbc310407e1abe81d3817533b2c03f6f18082ff48a76803f4daaa \
+  --wilor-root local-data/deps/WiLoR \
+  --smplerx-root local-data/sign-language-gpu-stage-v2/SMPLer-X \
+  --output local-data/contact-observation-audit-<new-run>
+```
+
 ## 测试与来源
 
 ```bash
@@ -553,6 +580,7 @@ PYOPENGL_PLATFORM=egl OPENBLAS_CORETYPE=Haswell PYTHONDONTWRITEBYTECODE=1 \
 .venv-sign-data/bin/python signbridge/tests/sign-wilor-pilot.test.py
 .venv-sign-data/bin/python signbridge/tests/sign-mano-align.test.py
 .venv-sign-data/bin/python signbridge/tests/sign-contact-pilot.test.py
+.venv-sign-data/bin/python signbridge/tests/sign-contact-audit.test.py
 cd signbridge && npm run verify
 ```
 
