@@ -800,6 +800,12 @@ PYOPENGL_PLATFORM=egl OPENBLAS_CORETYPE=Haswell PYTHONDONTWRITEBYTECODE=1 \
 
 同教材家族保守关联为未确认来源组，包含此前问候/医院来源；课程不同不代表人物独立。两份教程的分步讲解与词汇示范另存，不混作整句。新字幕、完整动作边界、镜像及身份仍为待核对，`text_verified` 为空、split未分配。没有将旧16段的用户核对直接沿用到新候选，也没有新GPU训练。通过内容核对后才将这些候选加入动作重建与独立分组评估，详见[手语视频的数据准备](sign-language-dataset.md)。
 
+### 首批三段动作复核
+
+用户确认以下三段候选释义、边界无误，并在查看原片与 SMPL-X 叠加对比视频后通过当前动作质量复核：`new-fe2208d9680580cd-0087`、`new-8ffc3bdb3f8d0763-0124`、`new-58a5b3d6622ea72a-0068`。决定记录及证据 SHA-256 位于 `local-data/data-expansion-20261010/confirmed-pilot-20261010-v1/motion-review/motion-review-decision.json`；三段逐帧对比视频位于同目录的 `motion-review/`。
+
+三段共450帧，真实 SMPL-X 参数已严格导入为 SOKE 133 维 `float32` 序列，有限值与连续帧旋转检查通过。该人工通过仅覆盖本批次动作观感，不确认镜像方向、跨视频人物身份、重复示范或来源独立性。`split` 仍为 `unassigned`，`training_ready=false`；此批次尚未用于训练。
+
 ## 测试与来源
 
 ```bash
