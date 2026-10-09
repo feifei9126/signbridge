@@ -4,6 +4,7 @@ import argparse
 import hashlib
 import importlib
 import json
+import re
 import subprocess
 import sys
 import time
@@ -24,21 +25,33 @@ def digest(path):
     return value.hexdigest()
 
 
-def load_inputs(root, acknowledged=False):
+def load_inputs(root, acknowledged=False, segment_ids=None):
     root = Path(root).resolve()
+    expected_segments = list(SEGMENTS) if segment_ids is None else list(segment_ids)
+    if not expected_segments or any(not isinstance(segment, str) or
+            re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]{0,79}", segment) is None
+            for segment in expected_segments) or len(set(expected_segments)) != len(expected_segments):
+        raise ValueError("Explicit segment scope must be nonempty, unique, and path-safe")
     verification = json.loads((root / "verification.json").read_text())
     if (verification.get("soke_commit") != SOKE_COMMIT or verification.get("training_ready") is not False or
-            verification.get("converted") != 2 or verification.get("rejected") != []):
+            verification.get("converted") != len(expected_segments) or verification.get("rejected") != []):
         raise ValueError("Unexpected motion verification contract")
+    skipped = {item.get("segment_id") for item in verification.get("skipped", [])
+               if isinstance(item, dict)}
+    if skipped & set(expected_segments):
+        raise ValueError("Explicit scope contains skipped samples")
     if not acknowledged:
         raise ValueError("research-only smoke requires explicit acknowledgement of unreviewed data")
     rows = [json.loads(line) for line in (root / "motions.jsonl").read_text().splitlines() if line.strip()]
-    if [row.get("segment_id") for row in rows] != list(SEGMENTS):
-        raise ValueError("Unexpected smoke segment order")
+    if [row.get("segment_id") for row in rows] != expected_segments:
+        raise ValueError("Unexpected smoke segment order or explicit scope")
     arrays, hashes = [], [digest(root / "verification.json"), digest(root / "motions.jsonl")]
     for row in rows:
         if row.get("model_training_ready") is not False or row.get("motion_review_status") != "needs_review":
             raise ValueError("Smoke input unexpectedly marked trainable")
+        if segment_ids is not None and (row.get("content_reviewed") is not True or
+                                       not row.get("text_verified", "").strip()):
+            raise ValueError("Explicit scope requires content-reviewed samples with verified text")
         if row.get("representation") != "soke-smplx-133-v1" or row.get("dimensions") != 133:
             raise ValueError("Unexpected motion representation")
         relative = Path(row["features"])
@@ -130,7 +143,8 @@ def train(args):
     root, soke, output = args.motions.resolve(), args.soke_root.resolve(), args.output.resolve()
     if any(output == p or p in output.parents or output in p.parents for p in (root, soke)):
         raise ValueError("Output must be separate from source inputs")
-    rows, arrays, hashes = load_inputs(root, args.research_only)
+    segment_ids = getattr(args, "segment_id", None)
+    rows, arrays, hashes = load_inputs(root, args.research_only, segment_ids)
     verification=json.loads((root/"verification.json").read_text())
     quality_masked=verification.get("schema")=="signbridge-full-fusion-export-v1"
     masks,mask_hashes=load_quality_masks(root,rows,required=quality_masked)
@@ -153,7 +167,11 @@ def train(args):
               "soke_commit": commit, "source_sha256": source_hashes, "input_sha256": hashes,
               "sequences": [{"segment_id": r["segment_id"], "frames": r["frames"]} for r in rows],
               "scope": "smaller official SOKE VQVae architecture for training-pipeline debugging",
-              "seed": 20261009, "steps": args.steps, "learning_rate": .001}
+              "seed": 20261009, "steps": args.steps, "learning_rate": .001,
+              "explicit_segment_scope": segment_ids is not None,
+              "evaluation_completed": False,
+              "training_source_ids": sorted({r.get("source_id", "") for r in rows}),
+              "source_or_person_independence_verified": False}
     report_path = output / "report.json"
 
     def save_report():
@@ -239,6 +257,8 @@ def train(args):
                     torch.save({"schema": "signbridge-tokenizer-smoke-checkpoint-v1", "model_configs": configs,
                                 "state_dict": models.state_dict(), "mean": mean, "std": std,
                                 "research_only": True, "training_ready": False, "step": step,
+                                "train_segments": [r["segment_id"] for r in rows],
+                                "train_source_ids": sorted({r.get("source_id", "") for r in rows}),
                                 "soke_commit": commit}, output / "tokenizer-smoke.pt")
                 save_report()
         checkpoint = output / "tokenizer-smoke.pt"
@@ -269,7 +289,7 @@ def train(args):
                         max(int(valid[:,30:75].sum()),1))) if valid[:,30:75].any() else None,
                     "right_hand_rmse_radians": float(np.sqrt(np.sum((prediction[:,75:120]-raw[:,75:120])**2*valid[:,75:120])/
                         max(int(valid[:,75:120].sum()),1))) if valid[:,75:120].any() else None})
-        _, _, after_hashes = load_inputs(root, True)
+        _, _, after_hashes = load_inputs(root, True, segment_ids)
         _,after_masks=load_quality_masks(root,rows,required=quality_masked)
         after_hashes+=after_masks
         if hashes != after_hashes or any(digest(Path(name)) != value for name, value in source_hashes.items()):
@@ -282,7 +302,7 @@ def train(args):
                       checkpoint_reload_passed=True, reloaded_training_mse_normalized=reloaded_mse,
                       checkpoint_step=loaded["step"], history=history,
                       in_sample_metrics=sample_metrics, source_files_unchanged=True,
-                      limitations=["Two sequences, no held-out evaluation; improvement can be memorization",
+                      limitations=[f"{len(rows)} sequences, no held-out evaluation; improvement can be memorization",
                                    "Learns model-estimated motion; quality masks exclude missing/rejected hand reconstruction targets" if quality_masked else
                                    "Learns unreviewed original motion including hand errors",
                                    "No text conditioning; NOT a trained text-to-sign model",
@@ -304,6 +324,8 @@ def main():
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--research-only", action="store_true")
     parser.add_argument("--steps", type=int, choices=range(50, 1001), default=500)
+    parser.add_argument("--segment-id", action="append", dest="segment_id",
+                        help="Explicit complete motion scope; repeat once per segment")
     return train(parser.parse_args())
 
 

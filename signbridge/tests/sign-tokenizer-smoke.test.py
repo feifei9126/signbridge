@@ -28,7 +28,8 @@ class TokenizerSmokeTests(unittest.TestCase):
             np.save(path, np.ones((70, 133), dtype=np.float32))
             records.append({"segment_id": segment, "features": str(path.relative_to(self.root)),
                             "frames": 70, "representation": "soke-smplx-133-v1", "dimensions": 133,
-                            "model_training_ready": False, "motion_review_status": "needs_review"})
+                            "model_training_ready": False, "motion_review_status": "needs_review",
+                            "content_reviewed": True, "text_verified": "reviewed text"})
         (self.root / "motions.jsonl").write_text("".join(json.dumps(row) + "\n" for row in records))
         (self.root / "verification.json").write_text(json.dumps({"converted": 2, "rejected": [],
             "training_ready": False, "soke_commit": smoke.SOKE_COMMIT}))
@@ -77,6 +78,69 @@ class TokenizerSmokeTests(unittest.TestCase):
             path.write_text(json.dumps({**json.loads(path.read_text()), **changes}))
             with self.subTest(changes=changes), self.assertRaises(ValueError):
                 smoke.load_inputs(self.root, acknowledged=True)
+
+    def custom_fixture(self):
+        rows = self.fixture()
+        scope = ["pilot-greeting-answer-002", "pilot-greeting-how-004", "pilot-hospital-rest-010"]
+        custom = []
+        for index, segment in enumerate(scope):
+            row = dict(rows[index % len(rows)])
+            row.update(segment_id=segment, content_reviewed=True, text_verified="reviewed text")
+            path = self.root / "samples" / segment / "features-133.npy"
+            path.parent.mkdir(parents=True, exist_ok=True)
+            np.save(path, np.ones((70, 133), dtype=np.float32))
+            row["features"] = str(path.relative_to(self.root))
+            custom.append(row)
+        (self.root / "motions.jsonl").write_text("".join(json.dumps(r) + "\n" for r in custom))
+        (self.root / "verification.json").write_text(json.dumps({"converted": len(custom),
+            "rejected": [], "skipped": [{"segment_id": "pilot-greeting-hello-001"}],
+            "training_ready": False, "soke_commit": smoke.SOKE_COMMIT}))
+        return scope, custom
+
+    def test_explicit_scope_loads_only_exact_reviewed_custom_batch(self):
+        scope, _ = self.custom_fixture()
+        rows, arrays, hashes = smoke.load_inputs(self.root, True, segment_ids=scope)
+        self.assertEqual([r["segment_id"] for r in rows], scope)
+        self.assertEqual(len(arrays), 3)
+        self.assertEqual(len(hashes), 5)
+        with self.assertRaises(ValueError):
+            smoke.load_inputs(self.root, True)
+        with self.assertRaisesRegex(ValueError, "research-only"):
+            smoke.load_inputs(self.root, False, segment_ids=scope)
+
+    def test_custom_scope_rejects_duplicates_missing_extra_and_wrong_order(self):
+        scope, _ = self.custom_fixture()
+        for selected in ([], scope[:2], scope + ["unexpected"], scope[::-1],
+                         [scope[0], scope[0], scope[2]], ["../escape"], ["."],
+                         ["two words"], [None], [[]]):
+            with self.subTest(scope=selected), self.assertRaises(ValueError):
+                smoke.load_inputs(self.root, True, segment_ids=selected)
+
+    def test_custom_batch_rejects_unreviewed_content_and_missing_text(self):
+        for changes in ({"content_reviewed": False}, {"text_verified": ""}):
+            scope, rows = self.custom_fixture()
+            rows[0].update(changes)
+            (self.root / "motions.jsonl").write_text("".join(json.dumps(r) + "\n" for r in rows))
+            with self.subTest(changes=changes), self.assertRaises(ValueError):
+                smoke.load_inputs(self.root, True, segment_ids=scope)
+
+    def test_custom_batch_does_not_accept_rejected_imports(self):
+        scope, _ = self.custom_fixture()
+        path = self.root / "verification.json"
+        report = json.loads(path.read_text())
+        report["rejected"] = [{"segment_id": scope[0]}]
+        path.write_text(json.dumps(report))
+        with self.assertRaises(ValueError):
+            smoke.load_inputs(self.root, True, segment_ids=scope)
+
+    def test_selected_segment_cannot_also_be_listed_as_skipped(self):
+        scope, _ = self.custom_fixture()
+        path = self.root / "verification.json"
+        report = json.loads(path.read_text())
+        report["skipped"] = [{"segment_id": scope[0]}]
+        path.write_text(json.dumps(report))
+        with self.assertRaises(ValueError):
+            smoke.load_inputs(self.root, True, segment_ids=scope)
 
     def test_parts_roundtrip_and_window_contract(self):
         array = np.arange(140 * 133, dtype=np.float32).reshape(140, 133)
