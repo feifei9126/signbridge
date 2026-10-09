@@ -370,6 +370,12 @@ GPU 手动复现入口如下（输出目录必须新建）：
 
 本次尝试获取官方 WiLoR 源码，两次均遇到 GitHub 连接/接收超时，尚未取得可用 checkout；未安装 WiLoR 依赖、未下载其推理权重、未启动服务器推理。不能把准备 MANO 文件描述成 WiLoR 环境或手部修复已经完成。
 
+### 启用代理后的源码重试
+
+用户启用网络代理后，官方 WiLoR 源码于 2026-10-09 下载成功，路径为 `/Users/mac/Documents/ChatGPT/signbridge/local-data/deps/WiLoR`，固定提交 `fcb911312a38fa8badd30d9656a167485d61b8f9`。实际 origin 为 `https://github.com/rolpotamias/WiLoR.git`；浅克隆包含 47 个跟踪文件，约 23 MB（含 Git 数据及示例资源）。`git fsck --no-dangling` 退出 0，工作区干净，无待初始化 Git 子模块。
+
+来源和关键文件 SHA-256 记录于 Git 忽略的 `local-data/wilor-source.json`；第三方源码、MANO 文件和后续权重不提交到本项目。README 的参考环境为 Python 3.10、PyTorch 2.0.0、CUDA 11.7；其要求 `pretrained_models/detector.pt`、`pretrained_models/wilor_final.ckpt` 和 `mano_data/MANO_RIGHT.pkl`。目前只有源码/配置已下载，没有安装依赖、下载上述预训练权重或执行 WiLoR 原生 MANO 加载/GPU 推理。后续使用独立环境，不升级已跑通的 `smplerx` 环境，也不把源码下载成功视为模型可用或手部修复成功。
+
 ## 测试与来源
 
 ```bash
