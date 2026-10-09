@@ -99,6 +99,134 @@ class MANOAlignTests(unittest.TestCase):
         )
         fixtures.hand.preserved(source, fitted, ("left",), allow_elbow=True)
 
+    def test_window_prior_cases_require_exact_frame_scope_and_unique_side(self):
+        def report():
+            return {
+                "cases": [
+                    {
+                        "segment_id": segment,
+                        "frame_1based": n,
+                        "output_relative": segment + "/%06d" % n,
+                        "required_sides": list(sides),
+                        "hands": [
+                            {"side": side, "parameters_file": side + "-00.npz"}
+                            for side in sides
+                        ],
+                    }
+                    for segment, n, sides in align.wilor.short_window_cases()
+                ]
+            }
+
+        value = report()
+        index = align.prior_case_index(value, short_window=True)
+        self.assertEqual(len(index), 14)
+        for mutation in (
+            "missing",
+            "duplicate",
+            "wrong_path",
+            "wrong_sides",
+            "ambiguous",
+        ):
+            value = report()
+            if mutation == "missing":
+                value["cases"].pop()
+            elif mutation == "duplicate":
+                value["cases"].append(value["cases"][0])
+            elif mutation == "wrong_path":
+                value["cases"][0]["output_relative"] += "/../000089"
+            elif mutation == "wrong_sides":
+                value["cases"][0]["required_sides"] = ["right"]
+            else:
+                value["cases"][0]["hands"].append(value["cases"][0]["hands"][0])
+            with self.subTest(mutation=mutation), self.assertRaises(ValueError):
+                align.prior_case_index(value, short_window=True)
+
+    def test_series_preserves_baseline_fallback_timestamps_and_mask(self):
+        records = []
+        for frame in (88, 89, 90):
+            source = fixtures.parameters()
+            candidate = copy.deepcopy(source)
+            if frame != 89:
+                candidate["left_hand_pose"][0, 0] = 0.1
+            records.append(
+                {
+                    "frame_1based": frame,
+                    "fps": 25.0,
+                    "sides": ("left", "right"),
+                    "baseline": source,
+                    "candidate": candidate,
+                    "decisions": {"left": frame != 89, "right": False},
+                }
+            )
+        packed = align.pack_series(records)
+        self.assertEqual(packed["candidate_body_pose"].shape, (3, 21, 3))
+        np.testing.assert_array_equal(packed["frame_ids"], [88, 89, 90])
+        np.testing.assert_allclose(packed["timestamps_seconds"], [3.48, 3.52, 3.56])
+        np.testing.assert_array_equal(
+            packed["candidate_applied_mask"],
+            [[True, False], [False, False], [True, False]],
+        )
+        np.testing.assert_array_equal(
+            packed["candidate_left_hand_pose"][1],
+            records[1]["baseline"]["left_hand_pose"],
+        )
+        records[1]["frame_1based"] = 95
+        with self.assertRaisesRegex(ValueError, "contiguous"):
+            align.pack_series(records)
+
+    def test_series_rejects_unreported_changes_and_protected_params(self):
+        source = fixtures.parameters()
+        row = {
+            "frame_1based": 88,
+            "fps": 25.0,
+            "sides": ("right",),
+            "baseline": source,
+            "candidate": copy.deepcopy(source),
+            "decisions": {"right": False},
+        }
+        row["candidate"]["right_hand_pose"][0, 0] = 0.1
+        with self.assertRaisesRegex(ValueError, "Rejected hand"):
+            align.pack_series([row])
+        row["decisions"]["right"] = True
+        row["candidate"]["global_orient"][0, 0] = 0.1
+        with self.assertRaisesRegex(ValueError, "Protected"):
+            align.pack_series([row])
+
+    def test_series_rejects_approval_for_an_unobserved_side(self):
+        source = fixtures.parameters()
+        row = {
+            "frame_1based": 156,
+            "fps": 25.0,
+            "sides": ("right",),
+            "baseline": source,
+            "candidate": copy.deepcopy(source),
+            "decisions": {"left": True, "right": False},
+        }
+        with self.assertRaisesRegex(ValueError, "selection mask"):
+            align.pack_series([row])
+
+    def test_fingertip_contact_distance_is_diagnostic_not_approval(self):
+        import types
+
+        points = {"left": np.zeros((21, 3)), "right": np.zeros((21, 3))}
+        points["left"][:, 2] = 2
+        points["right"][:, 2] = 2
+        points["right"][:, 0] = 0.02
+        camera = {
+            "focal": np.array([1000.0, 1000.0]),
+            "princpt": np.array([320.0, 240.0]),
+        }
+        model = types.SimpleNamespace(hand=lambda params, side: points[side])
+        result = align.fingertip_contact_diagnostic(model, {}, camera)
+        self.assertAlmostEqual(result["minimum_index_middle_tip_distance_metres"], 0.02)
+        self.assertAlmostEqual(result["minimum_index_middle_tip_distance_pixels"], 10.0)
+        self.assertFalse(result["contact_approved"])
+        self.assertFalse(result["surface_collision_evaluated"])
+        points["right"][:] = points["left"]
+        result = align.fingertip_contact_diagnostic(model, {}, camera)
+        self.assertEqual(result["minimum_index_middle_tip_distance_metres"], 0.0)
+        self.assertFalse(result["contact_approved"])
+
 
 if __name__ == "__main__":
     unittest.main()

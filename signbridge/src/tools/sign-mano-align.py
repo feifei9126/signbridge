@@ -1,4 +1,4 @@
-"""Two-keyframe MANO-to-SMPL-X pose/camera alignment candidates, never accepted training data."""
+"""Audited keyframe/short-window MANO-to-SMPL-X candidates, never accepted training data."""
 
 import argparse
 import importlib.util
@@ -17,6 +17,143 @@ spec = importlib.util.spec_from_file_location(
 )
 hand = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(hand)
+spec = importlib.util.spec_from_file_location(
+    "wilor_alignment_audit", Path(__file__).with_name("sign-wilor-pilot.py")
+)
+wilor = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(wilor)
+
+
+def prior_case_index(prior, short_window=False):
+    expected = wilor.short_window_cases() if short_window else hand.CASES
+    index = {}
+    for case in prior["cases"]:
+        segment, frame = case["segment_id"], case["frame_1based"]
+        key = (segment, frame)
+        hand.require(key not in index, "Duplicate prior frame")
+        match = [sides for s, n, sides in expected if (s, n) == key]
+        hand.require(len(match) == 1, "Unexpected prior frame scope")
+        path = segment + ("/%06d" % frame if short_window else "")
+        hand.require(
+            case.get("output_relative", segment) == path, "Wrong prior output path"
+        )
+        hand.require(
+            case["required_sides"] == list(match[0]), "Wrong prior required sides"
+        )
+        for side in match[0]:
+            hands = [h for h in case["hands"] if h["side"] == side]
+            hand.require(len(hands) == 1, "Missing or ambiguous prior hand")
+        for item in case["hands"]:
+            name = item["parameters_file"]
+            hand.require(
+                item["side"] in ("left", "right")
+                and Path(name).name == name
+                and name.startswith(item["side"] + "-")
+                and name.endswith(".npz"),
+                "Unsafe prior hand parameter path",
+            )
+        index[key] = case
+    hand.require(
+        set(index) == {(s, n) for s, n, _ in expected}, "Missing prior frame scope"
+    )
+    return index
+
+
+def pack_series(records):
+    """Package observed frame pairs; rejected hands must retain exact baseline parameters."""
+    hand.require(bool(records), "Empty sequence")
+    ids = np.asarray([row["frame_1based"] for row in records], dtype=np.int64)
+    hand.require(
+        (np.diff(ids) == 1).all(), "Sequence frame IDs must be contiguous and ordered"
+    )
+    fps, sides = records[0]["fps"], records[0]["sides"]
+    hand.require(np.isfinite(fps) and fps > 0, "Invalid sequence FPS")
+    for row in records:
+        hand.require(
+            row["fps"] == fps and row["sides"] == sides, "Sequence contract differs"
+        )
+        hand.require(
+            set(row["decisions"]) == set(sides)
+            and all(
+                isinstance(value, (bool, np.bool_))
+                for value in row["decisions"].values()
+            ),
+            "Invalid candidate selection mask for observed sides",
+        )
+        for kind in ("baseline", "candidate"):
+            values = row[kind]
+            hand.require(
+                set(values) == set(hand.SHAPES), "Unexpected sequence parameter fields"
+            )
+            for key, shape in hand.SHAPES.items():
+                value = values[key]
+                hand.require(
+                    value.shape == shape
+                    and value.dtype.kind == "f"
+                    and np.isfinite(value).all(),
+                    "Invalid sequence values: " + key,
+                )
+        hand.preserved(row["baseline"], row["candidate"], sides, allow_elbow=True)
+        for side in sides:
+            if not row["decisions"].get(side, False):
+                for key in (side + "_hand_pose", "body_pose"):
+                    indices = [hand.WRISTS[side] - 1, hand.ELBOWS[side] - 1]
+                    before = (
+                        row["baseline"][key]
+                        if key != "body_pose"
+                        else row["baseline"][key][indices]
+                    )
+                    after = (
+                        row["candidate"][key]
+                        if key != "body_pose"
+                        else row["candidate"][key][indices]
+                    )
+                    hand.require(
+                        np.array_equal(before, after),
+                        "Rejected hand parameters changed",
+                    )
+    packed = {
+        kind + "_" + key: np.stack([row[kind][key] for row in records])
+        for kind in ("baseline", "candidate")
+        for key in hand.SHAPES
+    }
+    packed.update(
+        frame_ids=ids,
+        timestamps_seconds=(ids - 1) / fps,
+        fps=np.asarray(fps),
+        observed_hand_mask=np.asarray(
+            [[s in sides for s in ("left", "right")] for _ in records]
+        ),
+        candidate_applied_mask=np.asarray(
+            [
+                [row["decisions"].get(s, False) for s in ("left", "right")]
+                for row in records
+            ],
+            dtype=bool,
+        ),
+        training_ready=np.asarray(False),
+    )
+    return packed
+
+
+def fingertip_contact_diagnostic(model, params, camera):
+    """Proximity of index/middle tips in model coordinates, NOT surface/semantic contact."""
+    left = model.hand(params, "left")[[8, 12]]
+    right = model.hand(params, "right")[[8, 12]]
+    pixels_left = hand.project(left, camera)
+    pixels_right = hand.project(right, camera)
+    return {
+        "minimum_index_middle_tip_distance_metres": float(
+            np.linalg.norm(left[:, None] - right[None, :], axis=-1).min()
+        ),
+        "minimum_index_middle_tip_distance_pixels": float(
+            np.linalg.norm(pixels_left[:, None] - pixels_right[None, :], axis=-1).min()
+        ),
+        "measurement_scope": "model-estimated index/middle tip proximity, not observed contact",
+        "contact_approved": False,
+        "surface_collision_evaluated": False,
+        "training_ready": False,
+    }
 
 
 def image_side_rotations(rotations, side):
@@ -197,6 +334,8 @@ def run(args):
         and prior["source_files_unchanged"],
         "Incomplete WiLoR evidence",
     )
+    short_window = getattr(args, "short_window", False)
+    prior_index = prior_case_index(prior, short_window)
     hand.require(
         hand.sha256(fits / "run.json") == args.fit_run_sha256,
         "Wrong original SMPL-X run",
@@ -219,13 +358,20 @@ def run(args):
         checks[name] = digest
     for case in prior["cases"]:
         for item in case["hands"]:
-            relative = "results/" + case["segment_id"] + "/" + item["parameters_file"]
+            relative = (
+                "results/"
+                + case.get("output_relative", case["segment_id"])
+                + "/"
+                + item["parameters_file"]
+            )
             value = hand.inside(source.parent, relative)
             hand.require(
                 checks.get(relative) == hand.sha256(value),
                 "Previous MANO parameter digest differs",
             )
-    selected = hand.task_cases(batch)
+    selected = hand.task_cases(
+        batch, cases=wilor.short_window_cases() if short_window else None
+    )
     out = hand.new_output(out, [source, fits, root, batch])
     report = {
         "schema": "signbridge-mano-smplx-alignment-v1",
@@ -243,6 +389,13 @@ def run(args):
         "pose_convention": "MANO effective matrices; left SRS; subtract SMPL-X mean once; wrist parent-relative",
         "finger_fitting": False,
         "elbow_limit_degrees": 15,
+        "scope": (
+            "14 frames: 88-94 and 156-162"
+            if short_window
+            else "two keyframes: 91 and 159"
+        ),
+        "short_window": short_window,
+        "temporal_smoothing": False,
         "cases": [],
     }
     reportpath = out / "report.json"
@@ -259,6 +412,7 @@ def run(args):
             for p in (
                 Path(__file__).resolve(),
                 Path(hand.__file__).resolve(),
+                Path(wilor.__file__).resolve(),
                 batch / "contract.json",
                 batch / "tasks.jsonl",
                 batch / "SHA256SUMS",
@@ -318,35 +472,65 @@ def run(args):
             return v, error
 
         report["renderer_preflight"] = hand.renderer_preflight()
+        sequence_records = {}
+        audit_rows = {}
         for task, number, sides, image_path, obs in selected:
             segment = task["segment_id"]
             stage = "mapping:" + segment
-            case0 = next(
-                c
-                for c in prior["cases"]
-                if c["segment_id"] == segment and c["frame_1based"] == number
-            )
+            case0 = prior_index[(segment, number)]
             original = hand.inside(fits, segment + "/smplx/%05d_0.npz" % number)
             meta = hand.inside(fits, segment + "/meta/%05d_0.json" % number)
             params = hand.read_native(original)
             camera = hand.native_camera(json.loads(meta.read_text()), image_path)
-            folder = out / segment
-            folder.mkdir()
-            image = Image.open(image_path).convert("RGB")
+            folder = (
+                out / segment / ("%06d" % number) if short_window else out / segment
+            )
+            folder.mkdir(parents=True)
+            with Image.open(image_path) as opened:
+                image = opened.convert("RGB")
             proposals = {}
             metrics = []
             targets = {}
-            case = {"segment_id": segment, "frame_1based": number, "hands": []}
+            case = {
+                "segment_id": segment,
+                "frame_1based": number,
+                "timestamp_seconds": (number - 1) / task["fps"],
+                "output_relative": str(folder.relative_to(out)),
+                "required_sides": list(sides),
+                "training_ready": False,
+                "hands": [],
+            }
             report["cases"].append(case)
             report["source_sha256"].update(
-                {str(p): hand.sha256(p) for p in (original, meta, image_path)}
+                {
+                    str(p): hand.sha256(p)
+                    for p in (
+                        original,
+                        meta,
+                        image_path,
+                        batch / task["frame_manifest"],
+                    )
+                }
             )
             for side in sides:
                 hands = [h for h in case0["hands"] if h["side"] == side]
                 hand.require(len(hands) == 1, "Ambiguous WiLoR source side")
-                path = hand.inside(source, segment + "/" + hands[0]["parameters_file"])
+                path = hand.inside(
+                    source,
+                    case0.get("output_relative", segment)
+                    + "/"
+                    + hands[0]["parameters_file"],
+                )
                 report["source_sha256"][str(path)] = hand.sha256(path)
                 with np.load(path, allow_pickle=False) as a:
+                    arrays = {k: a[k].copy() for k in a.files}
+                    wilor.check_outputs(arrays)
+                    hand.require(
+                        bool(a["right"]) == (side == "right")
+                        and a["projected_joints"].shape == (21, 2)
+                        and np.isfinite(a["projected_joints"]).all(),
+                        "Wrong hand identity or target projection",
+                    )
                     fingers = a["hand_pose"].copy()
                     wrist = a["global_orient"].copy()
                     target = a["projected_joints"].copy()
@@ -369,6 +553,11 @@ def run(args):
                     h["candidate_gate_passed"] for h in metrics
                 ),
             )
+            if set(sides) == {"left", "right"}:
+                case["contact_diagnostic"] = {
+                    kind: fingertip_contact_diagnostic(sparse, values, camera)
+                    for kind, values in (("baseline", params), ("candidate", candidate))
+                }
             np.savez_compressed(folder / "baseline.npz", **params)
             np.savez_compressed(folder / "candidate.npz", **candidate)
             vb, eb = mesh(params)
@@ -389,6 +578,15 @@ def run(args):
             )
             baseline.save(folder / "baseline-overlay.jpg")
             saved.save(folder / "candidate-overlay.jpg")
+            image.save(folder / "original.jpg")
+            hand.save_comparison(
+                folder / "frame-compare.jpg",
+                [image, baseline, saved],
+                ["Original", "SMPL-X baseline", "Saved candidate - NOT approved"],
+            )
+            case["candidate_render_projection"] = wilor.check_render_bounds(
+                np.asarray(image), np.asarray(saved), hand.project(vc, camera)
+            )
             for side in sides:
                 vp, ep = mesh(proposals[side])
                 proposal = Image.fromarray(
@@ -421,6 +619,98 @@ def run(args):
                     ],
                 )
             save()
+            if short_window:
+                sequence_records.setdefault(segment, []).append(
+                    {
+                        "frame_1based": number,
+                        "fps": task["fps"],
+                        "sides": sides,
+                        "baseline": params,
+                        "candidate": candidate,
+                        "decisions": {
+                            m["side"]: m["candidate_gate_passed"] for m in metrics
+                        },
+                    }
+                )
+                views = audit_rows.setdefault(
+                    segment, {"baseline": [], "candidate": [], "wilor": []}
+                )
+                for kind, values in (("baseline", params), ("candidate", candidate)):
+                    world = global_rotations(sparse, values)
+                    views[kind].append(
+                        {
+                            "frame_1based": number,
+                            "hands": [
+                                {
+                                    "side": side,
+                                    "hand_pose": hand.hand_rotations(
+                                        values, sparse, side
+                                    ),
+                                    "global_orient": world[hand.WRISTS[side]][None],
+                                    "projected_joints": hand.project(
+                                        sparse.hand(values, side), camera
+                                    ),
+                                }
+                                for side in sides
+                            ],
+                        }
+                    )
+                target_hands = []
+                for side in sides:
+                    item = next(h for h in case0["hands"] if h["side"] == side)
+                    path = (
+                        source
+                        / case0.get("output_relative", segment)
+                        / item["parameters_file"]
+                    )
+                    with np.load(path, allow_pickle=False) as a:
+                        target_hands.append(
+                            {
+                                "side": side,
+                                "hand_pose": image_side_rotations(a["hand_pose"], side),
+                                "global_orient": image_side_rotations(
+                                    a["global_orient"], side
+                                ),
+                                "projected_joints": a["projected_joints"].copy(),
+                            }
+                        )
+                views["wilor"].append({"frame_1based": number, "hands": target_hands})
+        if short_window:
+            report["temporal_audit"] = {}
+            report["sequence_outputs"] = {}
+            for segment, records in sequence_records.items():
+                series = pack_series(records)
+                filename = out / segment / "baseline-candidate-series.npz"
+                np.savez_compressed(filename, **series)
+                report["sequence_outputs"][segment] = {
+                    "path": str(filename.relative_to(out)),
+                    "frames": len(records),
+                    "source_fps": records[0]["fps"],
+                    "training_ready": False,
+                    "side_order": ["left", "right"],
+                    "candidate_applied_mask": series["candidate_applied_mask"].tolist(),
+                }
+                comparisons = {
+                    kind: wilor.temporal_summary(rows, records[0]["sides"])
+                    for kind, rows in audit_rows[segment].items()
+                }
+                for side in records[0]["sides"]:
+                    decisions = [
+                        (r["frame_1based"], r["decisions"][side]) for r in records
+                    ]
+                    comparisons["candidate"][side]["selection_switch_frames"] = [
+                        decisions[i][0]
+                        for i in range(1, len(decisions))
+                        if decisions[i][1] != decisions[i - 1][1]
+                    ]
+                    source_alerts = comparisons["wilor"][side]["suspicious_transitions"]
+                    candidate_alerts = comparisons["candidate"][side][
+                        "suspicious_transitions"
+                    ]
+                    comparisons["candidate"][side]["new_alert_frames_not_in_wilor"] = [
+                        n for n in candidate_alerts if n not in source_alerts
+                    ]
+                report["temporal_audit"][segment] = comparisons
         stage = "source_recheck"
         for p, d in report["source_sha256"].items():
             hand.require(hand.sha256(p) == d, "Source changed: " + p)
@@ -434,6 +724,11 @@ def run(args):
             limitations=[
                 "Pose correspondence candidate, not exact hand-shape correspondence",
                 "MANO shape/camera not copied; original SMPL-X shape and camera fixed",
+                (
+                    "Short-window per-frame gates may cause fallback discontinuities; no automatic smoothing"
+                    if short_window
+                    else "Two-keyframe mapping only, not continuous fusion"
+                ),
                 "No contact, collision, temporal or semantic acceptance",
             ],
         )
@@ -456,6 +751,11 @@ def main():
         p.add_argument("--" + key, type=Path, required=True)
     p.add_argument("--wilor-report-sha256", required=True)
     p.add_argument("--fit-run-sha256", required=True)
+    p.add_argument(
+        "--short-window",
+        action="store_true",
+        help="Align fixed 14-frame WiLoR window evidence; no smoothing",
+    )
     return run(p.parse_args())
 
 

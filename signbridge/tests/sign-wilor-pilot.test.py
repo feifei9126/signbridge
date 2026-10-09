@@ -131,6 +131,17 @@ class WiLoRPilotTests(unittest.TestCase):
         self.assertEqual(summary["suspicious_transitions"], [2])
         self.assertTrue(summary["continuity_complete"])
 
+    def test_render_bounds_accepts_noncentral_anisotropic_camera_projection(self):
+        image = np.zeros((100, 120, 3), dtype=np.uint8)
+        result = image.copy()
+        result[39:62, 69:92] = 200
+        camera_points = np.asarray([[70., 40.], [90., 60.], [70., 60.]])
+        report = pilot.check_render_bounds(image, result, camera_points)
+        self.assertTrue(report["render_projection_bbox_passed"])
+        result[:, :10] = 200
+        with self.assertRaisesRegex(ValueError, "projection"):
+            pilot.check_render_bounds(image, result, camera_points)
+
 
 if __name__ == "__main__":
     unittest.main()

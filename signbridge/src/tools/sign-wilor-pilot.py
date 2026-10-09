@@ -70,9 +70,17 @@ def project_full(points, focal, width, height):
 
 def check_render_projection(original, rendered, camera_vertices, focal):
     """Reject render distortions even when an EGL context returns visible pixels."""
-    require(original.shape == rendered.shape and rendered.dtype == np.uint8, "Invalid rendered image")
     height, width = original.shape[:2]
     xy = project_full(camera_vertices, focal, width, height)
+    return check_render_bounds(original, rendered, xy)
+
+
+def check_render_bounds(original, rendered, projected_vertices):
+    """Compare mask with given 2D projection, including offset/anisotropic native cameras."""
+    require(original.shape == rendered.shape and rendered.dtype == np.uint8, "Invalid rendered image")
+    xy = np.asarray(projected_vertices)
+    require(xy.ndim == 2 and xy.shape[1] == 2 and len(xy) > 0 and np.isfinite(xy).all(),
+            "Invalid analytical projection")
     ys, xs = np.where(np.any(rendered != original, axis=-1))
     require(len(xs) > 0, "No visible hand mesh pixels")
     low, high = xy.min(axis=0), xy.max(axis=0)

@@ -461,6 +461,51 @@ PYOPENGL_PLATFORM=egl OPENBLAS_CORETYPE=Haswell PYTHONDONTWRITEBYTECODE=1 \
 
 下一阶段应在短窗口上验证融合结果的时序与接触，再扩大到两段全长，并由懂手语的审核者确认训练目标。不要直接把两个候选关键帧替换后称为全片训练数据，也不要用模型间投影误差下降代替手语正确性。
 
+## 2026-10-09：14 帧连续 SMPL-X 融合候选
+
+用户继续授权自主运行到阶段结束，本阶段**复用上一阶段的真实 WiLoR 短窗口参数**，不重新运行网络、不下载模型、不扩大至完整视频。`sign-mano-align.py --short-window` 固定在“你好”88–94帧（双手）、“咳嗽”156–162帧（右手），与 `sign-wilor-pilot.py` 共用范围定义；验证精确帧集合、唯一手身份、原始 `output_relative` 与参数摘要，不按“最像目标”的检测重新挑选手。
+
+真实任务 `fusion-windows-final-20261009-132945-5kyw3D` 在新 26919 / RTX 4090 主机完成，状态 `alignment_candidates_pending_visual_review`。本地证据：
+
+`/Users/mac/Documents/ChatGPT/signbridge/local-data/mano-smplx-fusion-windows-final-20261009/verified`
+
+- 14帧 / 21个目标手候选全部通过逐帧与双手合并后的数值门槛，原生 SMPL-X CUDA 关节/指尖对照最大误差约 `1.16e-6` 米，低于 `5e-5` 门槛。渲染投影 bbox 校验支持原相机偏移主点和不同 fx/fy，未假定 WiLoR 的居中相机。
+- 原始 baseline、每帧 candidate 和逐手 proposal 在新目录保存；原 fits、相机、身体形状、躯干、另一侧参数不被覆盖。肘部仍限定15°，有效手指旋转不优化，只做左右手/手部均值/父关节映射。各手拒绝时保存精确 baseline，不填补或伪造候选。
+- 每段 `baseline-candidate-series.npz` 保存所有原生参数的 baseline/candidate 帧序列、真实 `frame_ids` / `(frame_id-1)/25` 时间戳、左右手 observed mask 和 candidate applied mask，以及 `training_ready=false`。两段各7帧，全部有限；打包数组逐项等于保存的单帧 NPZ。医院左手 mask 全false，表示未观察/未替换，不是检测到有效左手数据。
+- 外部归档和134个内部文件摘要核对通过，回传3个脚本的摘要与执行时保存版本一致，输入/原fits摘要运行末尾复核通过。旧窗口和关键帧结果保留。最终本地增加未观测侧不得批准的 mask 校验后，用当前 `pack_series` 重新验证实际 GPU 输出：两段打包数组、时间戳、mask与重新构造值逐项完全相等；没有重写旧归档或伪称新 guard 曾在旧GPU任务中执行。
+
+### 时序与回退审核
+
+报告分别记录 baseline、WiLoR输入和融合candidate的相邻旋转测地角 / 腕部朝向 / 腕部像素步长。三个轨迹不存在候选-baseline切换；融合candidate没有相较WiLoR输入新增异常提示。“你好”两手仍在92、93帧触发提示，原图在此转换手型且有运动模糊，不能直接把提示当作抖动；“咳嗽”轨迹没有触发提示。
+
+提示门槛只用于定位：最大手指变化>45°、腕部朝向变化>30°或腕部2D步长>40px。通过覆盖/无新提示不表示真实连续姿态、深度或语义通过。未执行平滑、插值、跨遮挡补全；帧间差异没有被人为删掉。
+
+### 接触诊断仍未通过
+
+双手融合的投影和外形有改善，但“你好”88–91帧的模型估计食指/中指指尖最小3D距离仍约 `5.80 / 3.58 / 3.14 / 3.98 cm`，原视频看起来有靠拢/接触。这不是人体真值或表面碰撞检测，但说明模型间投影误差下降不等于接触正确。
+
+`contact_diagnostic` 仅记录模型估计的指尖3D/2D接近程度；即使距离为零也不自动批准，固定 `contact_approved=false`、`surface_collision_evaluated=false`。当前未加接触约束、未碰撞修复、未随意修改形状或深度来凑接触。不可宣称两段动作已获手语质量审核，更不可设置训练状态。
+
+### 回传媒体与结束状态
+
+本地 `results/*-fusion-sheet.jpg` 按原图/baseline/candidate三行展示7帧。`*-fusion-5fps.mp4` 为慢速复核，`*-fusion-25fps.mp4` 保留原帧率，两类视频实际均为7帧，`ffprobe` 帧数/帧率检查通过；生成的 `*-review-media.json` 明确原数据25fps、未平滑、不可训练。播放器的慢速帧率不修改参数时间轴。
+
+本阶段结束时不启动新的网络训练，不修改已有133维训练联调数组。完整生成器仍待高质量动作、分组数据划分及手语专家验收。后续应优先研究两手接触/深度约束和转换帧可信观测，再考虑两段全长融合；不要用14帧短窗口代替完整384帧或16段数据集。
+
+复现实验需传固定WiLoR报告摘要 `0620e8ce3a17920c9d082f5fa744855d0a0879acea621e1adbefa7f380919b2d` 与原SMPLer-X run摘要，例：
+
+```bash
+PYOPENGL_PLATFORM=egl OPENBLAS_CORETYPE=Haswell PYTHONDONTWRITEBYTECODE=1 \
+/root/autodl-tmp/signbridge/envs/wilor/bin/python /path/to/sign-mano-align.py \
+  --wilor-results /root/autodl-tmp/signbridge/wilor-jobs/windows-20261009-120054-AQUSlM/results \
+  --wilor-report-sha256 0620e8ce3a17920c9d082f5fa744855d0a0879acea621e1adbefa7f380919b2d \
+  --fits /root/autodl-tmp/signbridge/pilot-job-20261007-122150-DECIeP/fits \
+  --fit-run-sha256 20f320c5bb3f4082e60d73b9f19ee3972a534785135f9098e34291f030526908 \
+  --smplerx-root /root/autodl-tmp/signbridge/sign-language-gpu-stage-v2/SMPLer-X \
+  --batch /root/autodl-tmp/signbridge/sign-language-gpu-stage-v2/batch \
+  --output /path/to/new/fusion-window-results --short-window
+```
+
 ## 测试与来源
 
 ```bash
