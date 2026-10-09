@@ -354,6 +354,22 @@ GPU 手动复现入口如下（输出目录必须新建）：
 
 正式路线仍需要：获得完整高质量动作序列、按表演者/来源分组划分训练/验证/测试、验证正确预训练 tokenizer 与归一化、接入文本生成器，并用手语专家审核和独立测试衡量生成质量。当前烟测权重不得接入插件，也不得用训练 loss 下降替代这些验收。
 
+## 2026-10-09：用户下载 MANO v1.2 后的准备
+
+用户提供 `/Users/mac/Desktop/手语/mano_v1_2/`。已保留原下载目录，将所需文件按原字节复制到 Git 忽略的 `local-data/mano/`：
+
+- `MANO_RIGHT.pkl`，3,821,356 bytes，SHA-256 `45d60aa3b27ef9107a7afd4e00808f307fd91111e1cfa35afd5c4a62de264767`。
+- `MANO_LEFT.pkl`，3,821,391 bytes，SHA-256 `c4022f7083f2ca7c78b2b3d595abbab52debd32b09d372b16923a801f0ea6a30`。
+- `MANO-LICENSE.txt` 为随包 `LICENSE.txt` 的副本；`manifest.json` 记录来源路径、文件大小、摘要和验证范围。
+
+这些摘要用于本地文件身份和复制完整性核对，不是官方发布签名或官方账户下载的独立认证。没有修改模型文件，也没有复制额外的 SMPLH 男/女人体模型或执行包内旧示例代码。
+
+两个 PKL 的只读结构检查通过：778 个顶点、1538 个三角面、16 个关节、10 个 shape 系数、45 维 hand mean 和 45×45 PCA 组件；数组有限、三角面索引有效、skin weights 归一化、joint regressor 形状正确。检查时仅允许 NumPy/SciPy 模型构造器，旧 Chumpy 对象以无计算行为的容器读取，不导入/执行下载包或 Chumpy 代码，不重写 PKL。
+
+**这只代表 MANO 输入文件已准备，不代表 WiLoR 能加载或已经完成 CUDA 推理。** Manifest 中 `wilor_native_load_verified=false`、`cuda_inference_verified=false`、`training_ready=false`；后续须在独立手部重建环境中验证原生加载与已知关键帧。随包许可一并保留，尚未验证商业许可，模型不提交 Git、不放入插件发行包。
+
+本次尝试获取官方 WiLoR 源码，两次均遇到 GitHub 连接/接收超时，尚未取得可用 checkout；未安装 WiLoR 依赖、未下载其推理权重、未启动服务器推理。不能把准备 MANO 文件描述成 WiLoR 环境或手部修复已经完成。
+
 ## 测试与来源
 
 ```bash
