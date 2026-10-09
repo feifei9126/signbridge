@@ -4,6 +4,7 @@ import argparse
 import importlib.util
 import json
 import os
+import re
 import subprocess
 import sys
 import traceback
@@ -314,6 +315,97 @@ def fit_alignment(model, source, side, fingers, global_wrist, target, camera):
     }
 
 
+def validate_fit_source(fits, batch, fit_run_sha256, short_window=False,
+                        stable_report_sha256=None, stable_source_manifest=None):
+    """Choose a provenance contract explicitly; stable crops keep the original run link."""
+    fits, batch = Path(fits).resolve(), Path(batch).resolve()
+    if stable_report_sha256 is None:
+        hand.require(stable_source_manifest is None, "Stable manifest requires a stable report")
+        path = hand.inside(fits, "run.json")
+        hand.require(hand.sha256(path) == fit_run_sha256, "Wrong original SMPL-X run")
+        run = json.loads(path.read_text())
+        hand.require(run.get("schema") == "signbridge-smplerx-run-v1" and
+                     run.get("status") == "inferred_pending_import_audit" and
+                     run.get("tasks_sha256") == hand.sha256(batch / "tasks.jsonl"),
+                     "Original fitting run does not match batch")
+        return {"kind": "original_fit", "source_sha256": {str(path): hand.sha256(path)}}
+    hand.require(short_window, "Stable-crop fusion requires --short-window")
+    hand.require(stable_source_manifest is not None, "Stable-crop fusion requires an evidence manifest")
+    report_path = hand.inside(fits, "report.json")
+    hand.require(hand.sha256(report_path) == stable_report_sha256, "Stable-crop report digest differs")
+    manifest_path = Path(stable_source_manifest).resolve()
+    checks = {}
+    for line in manifest_path.read_text().splitlines():
+        digest, relative = line.split("  ", 1)
+        hand.require(re.fullmatch(r"[0-9a-f]{64}", digest) is not None and relative not in checks,
+                     "Invalid stable-crop evidence manifest")
+        path = hand.inside(fits.parent, relative)
+        hand.require(hand.sha256(path) == digest, "Stable-crop evidence digest differs: " + relative)
+        checks[relative] = digest
+
+    def listed(relative):
+        path = hand.inside(fits.parent, relative)
+        hand.require(checks.get(relative) == hand.sha256(path), "Unlisted stable-crop input: " + relative)
+        return path
+
+    listed("results/report.json")
+    plan_path = listed("plan.json")
+    prior = json.loads(report_path.read_text())
+    plan = json.loads(plan_path.read_text())
+    hand.require(prior.get("schema") == "signbridge-stable-crop-pilot-v1" and
+                 prior.get("status") == "inferred_pending_stable_crop_review" and
+                 prior.get("training_ready") is False and prior.get("source_files_unchanged") is True,
+                 "Incomplete stable-crop source")
+
+    def recorded(suffix, expected):
+        matches = [value for name, value in prior.get("source_sha256", {}).items()
+                   if name.endswith("/" + suffix)]
+        hand.require(len(matches) == 1 and matches[0] == expected,
+                     "Stable-crop recorded batch/source digest differs: " + suffix)
+
+    for name in ("contract.json", "tasks.jsonl", "SHA256SUMS"):
+        recorded("batch/" + name, hand.sha256(batch / name))
+    recorded("fits/run.json", fit_run_sha256)
+    recorded("plan.json", hand.sha256(plan_path))
+    hand.require(plan.get("schema") == "signbridge-stable-crop-plan-v1" and
+                 plan.get("training_ready") is False and plan.get("fit_run_sha256") == fit_run_sha256,
+                 "Stable-crop plan/run linkage differs")
+    expected = {(s, n): sides for s, n, sides in wilor.short_window_cases()}
+    cases = {(r["segment_id"], r["frame_1based"]): r for r in prior.get("cases", [])}
+    scope = {s: [n for segment, n in expected if segment == s] for s, _ in expected}
+    hand.require(set(cases) == set(expected) and len(cases) == len(prior.get("cases", [])) and
+                 prior.get("scope") == scope and set(plan.get("windows", {})) == set(scope),
+                 "Stable-crop frame scope differs")
+    sources = {str(report_path): stable_report_sha256, str(manifest_path): hand.sha256(manifest_path),
+               str(plan_path): hand.sha256(plan_path)}
+    for (segment, number), row in cases.items():
+        window = plan["windows"][segment]
+        hand.require(window.get("frames") == scope[segment], "Stable-crop plan frame scope differs")
+        parity = row.get("native_parity_max_metres")
+        hand.require(isinstance(parity, (int, float)) and np.isfinite(parity) and 0 <= parity <= 5e-5,
+                     "Stable-crop saved native parity failed")
+        params_rel = segment + "/smplx/%05d_0.npz" % number
+        meta_rel = segment + "/meta/%05d_0.json" % number
+        hand.require(row.get("parameters_file") == params_rel and row.get("camera_file") == meta_rel and
+                     row.get("training_ready") is False, "Stable-crop frame/file identity differs")
+        params_path = listed("results/" + params_rel)
+        meta_path = listed("results/" + meta_rel)
+        hand.read_native(params_path)
+        meta = json.loads(meta_path.read_text())
+        image = batch / "samples" / segment / "images" / ("%06d.jpg" % number)
+        camera = hand.native_camera(meta, image)
+        box = np.asarray(window["fixed_bbox"], dtype=np.float64)
+        hand.require(box.shape == (4,) and np.isfinite(box).all() and (box[2:] > 0).all() and
+                     np.allclose(box[2] / box[3], .75, atol=1e-6) and
+                     np.array_equal(np.asarray(meta["bbox"], dtype=np.float32), box.astype(np.float32)) and
+                     np.allclose(camera["focal"], box[2:] * [5000. / 192., 5000. / 256.], rtol=1e-6) and
+                     np.allclose(camera["princpt"], box[:2] + box[2:] / 2., rtol=0, atol=1e-5),
+                     "Stable crop/camera differs from fixed plan")
+        sources.update({str(params_path): hand.sha256(params_path), str(meta_path): hand.sha256(meta_path)})
+    return {"kind": "stable_crop", "stable_report_sha256": stable_report_sha256,
+            "cases": cases, "source_sha256": sources}
+
+
 def run(args):
     from PIL import Image
 
@@ -336,20 +428,15 @@ def run(args):
     )
     short_window = getattr(args, "short_window", False)
     prior_index = prior_case_index(prior, short_window)
-    hand.require(
-        hand.sha256(fits / "run.json") == args.fit_run_sha256,
-        "Wrong original SMPL-X run",
+    fit_source = validate_fit_source(
+        fits, batch, args.fit_run_sha256, short_window=short_window,
+        stable_report_sha256=getattr(args, "stable_report_sha256", None),
+        stable_source_manifest=getattr(args, "stable_source_manifest", None),
     )
     actual_commit = subprocess.check_output(
         ["git", "-C", str(root), "rev-parse", "HEAD"], text=True
     ).strip()
     hand.require(actual_commit == hand.COMMIT, "Wrong fixed SMPLer-X source")
-    old_run = json.loads((fits / "run.json").read_text())
-    hand.require(
-        old_run.get("status") == "inferred_pending_import_audit"
-        and old_run.get("tasks_sha256") == hand.sha256(batch / "tasks.jsonl"),
-        "Original fitting run does not match batch",
-    )
     # Saved WiLoR output hashes from the downloaded inference evidence must still match.
     checks = {}
     for line in (source.parent / "SHA256SUMS").read_text().splitlines():
@@ -382,9 +469,11 @@ def run(args):
         "original_fits_overwritten": False,
         "wilor_report_sha256": args.wilor_report_sha256,
         "fit_run_sha256": args.fit_run_sha256,
+        "fit_source_kind": fit_source["kind"],
+        "stable_report_sha256": fit_source.get("stable_report_sha256"),
         "source_sha256": {
             str(priorpath): hand.sha256(priorpath),
-            str(fits / "run.json"): hand.sha256(fits / "run.json"),
+            **fit_source["source_sha256"],
         },
         "pose_convention": "MANO effective matrices; left SRS; subtract SMPL-X mean once; wrist parent-relative",
         "finger_fitting": False,
@@ -751,6 +840,9 @@ def main():
         p.add_argument("--" + key, type=Path, required=True)
     p.add_argument("--wilor-report-sha256", required=True)
     p.add_argument("--fit-run-sha256", required=True)
+    p.add_argument("--stable-report-sha256", help="Explicit stable-crop report; requires --short-window")
+    p.add_argument("--stable-source-manifest", type=Path,
+                   help="Trusted SHA256SUMS for stable-crop results.parent")
     p.add_argument(
         "--short-window",
         action="store_true",

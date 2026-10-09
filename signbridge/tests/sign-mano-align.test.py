@@ -2,6 +2,9 @@
 
 import copy
 import importlib.util
+import json
+import tempfile
+from unittest.mock import patch
 import unittest
 from pathlib import Path
 import numpy as np
@@ -226,6 +229,116 @@ class MANOAlignTests(unittest.TestCase):
         result = align.fingertip_contact_diagnostic(model, {}, camera)
         self.assertEqual(result["minimum_index_middle_tip_distance_metres"], 0.0)
         self.assertFalse(result["contact_approved"])
+
+
+class StableFitSourceTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name).resolve()
+        self.fits = self.root / "stable/results"
+        self.fits.mkdir(parents=True)
+        self.batch = self.root / "batch"
+        self.batch.mkdir()
+        self.batch.joinpath("contract.json").write_text(json.dumps({
+            "schema": "signbridge-smplerx-input-v1", "model_training_ready": False}))
+        self.batch.joinpath("tasks.jsonl").write_text("{}\n")
+        self.batch.joinpath("SHA256SUMS").write_text("test batch checksums")
+        self.original_sha = "1" * 64
+        self.sources = {"/remote/batch/" + name: align.hand.sha256(self.batch / name)
+                        for name in ("contract.json", "tasks.jsonl", "SHA256SUMS")}
+        self.sources["/remote/original/fits/run.json"] = self.original_sha
+        plan = {"schema": "signbridge-stable-crop-plan-v1", "training_ready": False,
+                "fit_run_sha256": self.original_sha, "windows": {}}
+        cases = []
+        for segment, number, sides in align.wilor.short_window_cases():
+            window = plan["windows"].setdefault(segment, {
+                "frames": [], "fixed_bbox": [80., 40., 192., 256.]})
+            window["frames"].append(number)
+            for part in ("meta", "smplx"):
+                (self.fits / segment / part).mkdir(parents=True, exist_ok=True)
+            parameters = segment + "/smplx/%05d_0.npz" % number
+            camera = segment + "/meta/%05d_0.json" % number
+            np.savez_compressed(self.fits / parameters, **fixtures.parameters())
+            meta = {"bbox": window["fixed_bbox"], "focal": [5000., 5000.],
+                    "princpt": [176., 168.], "bbox_id": 0,
+                    "img_path": str(self.batch / "samples" / segment / "images" / ("%06d.jpg" % number))}
+            (self.fits / camera).write_text(json.dumps(meta))
+            cases.append({"segment_id": segment, "frame_1based": number,
+                "parameters_file": parameters, "camera_file": camera,
+                "native_parity_max_metres": 1e-6, "training_ready": False})
+        (self.fits.parent / "plan.json").write_text(json.dumps(plan))
+        self.sources[str(self.fits.parent / "plan.json")] = align.hand.sha256(self.fits.parent / "plan.json")
+        self.report = {"schema": "signbridge-stable-crop-pilot-v1",
+            "status": "inferred_pending_stable_crop_review", "training_ready": False,
+            "source_files_unchanged": True, "scope": {k: v["frames"] for k, v in plan["windows"].items()},
+            "cases": cases, "source_sha256": self.sources}
+        self.manifest = self.root / "stable-SHA256SUMS"
+        self.refresh()
+
+    def refresh(self):
+        (self.fits / "report.json").write_text(json.dumps(self.report))
+        paths = sorted(p for p in self.fits.parent.rglob("*") if p.is_file())
+        self.manifest.write_text("".join(align.hand.sha256(p) + "  " + str(p.relative_to(self.fits.parent)) + "\n"
+                                        for p in paths))
+        self.report_sha = align.hand.sha256(self.fits / "report.json")
+
+    def validate(self, short_window=True):
+        return align.validate_fit_source(self.fits, self.batch, self.original_sha,
+            short_window=short_window, stable_report_sha256=self.report_sha,
+            stable_source_manifest=self.manifest)
+
+    def test_stable_source_keeps_original_run_link_and_exact_fixed_camera(self):
+        value = self.validate()
+        self.assertEqual(value["kind"], "stable_crop")
+        self.assertEqual(value["stable_report_sha256"], self.report_sha)
+        self.assertEqual(len(value["cases"]), 14)
+
+    def test_missing_frame_wrong_parity_and_training_ready_source_are_rejected(self):
+        self.report["cases"][0]["native_parity_max_metres"] = .1
+        self.refresh()
+        with self.assertRaisesRegex(ValueError, "parity"):
+            self.validate()
+        self.report["cases"][0]["native_parity_max_metres"] = 1e-6
+        self.report["cases"].pop()
+        self.refresh()
+        with self.assertRaisesRegex(ValueError, "scope"):
+            self.validate()
+        self.report["training_ready"] = True
+        self.refresh()
+        with self.assertRaises(ValueError):
+            self.validate()
+
+    def test_stable_mode_requires_short_window_and_complete_manifest(self):
+        with self.assertRaisesRegex(ValueError, "short-window"):
+            self.validate(False)
+        lines = self.manifest.read_text().splitlines()
+        self.manifest.write_text("\n".join(x for x in lines if not x.endswith("00088_0.npz")) + "\n")
+        with self.assertRaisesRegex(ValueError, "Unlisted"):
+            self.validate()
+
+    def test_different_camera_frame_or_foreign_batch_is_rejected(self):
+        self.batch.joinpath("tasks.jsonl").write_text("foreign\n")
+        with self.assertRaisesRegex(ValueError, "batch"):
+            self.validate()
+        self.batch.joinpath("tasks.jsonl").write_text("{}\n")
+        p = self.fits / "pilot-greeting-hello-001/meta/00088_0.json"
+        value = json.loads(p.read_text())
+        value["bbox"][0] += 2.
+        value["princpt"][0] += 2.
+        p.write_text(json.dumps(value))
+        self.refresh()
+        with self.assertRaisesRegex(ValueError, "crop|camera"):
+            self.validate()
+
+    def test_original_fit_source_still_uses_original_run_contract(self):
+        old = self.root / "old"
+        old.mkdir()
+        run = {"schema": "signbridge-smplerx-run-v1", "status": "inferred_pending_import_audit",
+               "tasks_sha256": align.hand.sha256(self.batch / "tasks.jsonl")}
+        (old / "run.json").write_text(json.dumps(run))
+        value = align.validate_fit_source(old, self.batch, align.hand.sha256(old / "run.json"))
+        self.assertEqual(value["kind"], "original_fit")
 
 
 if __name__ == "__main__":

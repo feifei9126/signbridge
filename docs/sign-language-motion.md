@@ -660,6 +660,44 @@ PYOPENGL_PLATFORM=egl OPENBLAS_CORETYPE=Haswell PYTHONDONTWRITEBYTECODE=1 \
   --output local-data/stable-crop-review-new-run
 ```
 
+## 2026-10-09：稳定裁剪基线上的 WiLoR→SMPL-X 融合
+
+本阶段复用此前14帧WiLoR输出，在稳定裁剪重建参数上应用相同的左右手/均值/父关节映射和15°肘部约束。`sign-mano-align.py` 新增显式稳定裁剪来源校验：`--stable-report-sha256` 和 `--stable-source-manifest` 与 `--short-window` 配合使用，验证完整帧范围、固定相机、已通过的原生数值对照、参数摘要和原始run来源。不把稳定裁剪参数冒充原始逐帧fits，不改变已有候选接受门槛。
+
+第一次任务 `stable-fusion-20261009-2_evo5je` 在导入阶段退出：SMPLer-X内置的smplx被PYTHONPATH优先选中，它需要WiLoR环境没有的mmcv，尚未开始拟合。错误日志和报告保留在 `local-data/stable-crop-fusion-20261009/failed-start-evidence/`。随后在新任务 `stable-fusion-native-20261009-4urlzway` 使用此前已验证的WiLoR环境独立smplx包运行，沿用Python3.10/PyTorch2.2.2+cu118，没有安装或升级软件。
+
+最终GPU任务退出码0，21次目标手候选均通过现有单手及合并门槛。14帧保存候选的原生SMPL-X最大关节/指尖误差约 `1.059e-6` 米，EGL渲染投影检查及来源末尾复核通过。138个回传文件保存在 `local-data/stable-crop-fusion-20261009/verified/`，融合报告摘要为 `828183ce3116283b3e812d0915269ea5de3e7d2006306832299990b17408f69c`。
+
+新增 `sign-stable-fusion-review.py` 独立读取保存参数，逐项确认其baseline与稳定裁剪原始输出相等、受保护参数不变、保存序列与逐帧参数/接受mask相等，并重新计算WiLoR投影误差，核对与GPU报告一致。复核输出在 `local-data/stable-fusion-review-20261009-validated/`，含原图/旧融合/稳定裁剪基线/稳定裁剪新融合/WiLoR估计的五行近景和深度/手部误差曲线。
+
+| 目标手 | 旧逐帧裁剪基线 | 旧融合候选 | 稳定裁剪基线 | 本轮稳定裁剪融合 |
+| --- | --- | --- | --- | --- |
+| 你好左手 | 19.61像素 | 5.00像素 | 18.86像素 | 4.98像素 |
+| 你好右手 | 22.16像素 | 4.72像素 | 21.88像素 | 4.72像素 |
+| 咳嗽右手 | 19.58像素 | 2.51像素 | 19.96像素 | 2.59像素 |
+
+表中是各7帧对同一份WiLoR模型估计的平均绝对RMSE，不能当成人工手型准确率。本轮手部拟合与旧融合基本持平；主要收益是保留稳定裁剪的相机一致性。根平移、形状、表情和非目标关节相对本轮baseline精确不变，相机仍固定；“你好”“咳嗽”窗口最大相邻虚拟深度差分别保持0.574米与0.093米。
+
+“你好”88–91帧融合后的模型食指/中指最近间距约2.8–5.9厘米，接触仍未解决；92、93帧的两手旋转复核提示继续存在。“咳嗽”右手没有该阈值下的跳变提示。两段各7帧的candidate mask没有接受/回退切换，医院左手仍未观察、未修改。没有执行接触约束、碰撞检测、平滑或全片融合，原fits、旧融合和133维训练数组均保留，`training_ready=false`、`contact_approved=false`、`full_sequence_refined=false`。
+
+复跑本地独立比较时使用新输出目录：
+
+```bash
+.venv-sign-data/bin/python signbridge/src/tools/sign-stable-fusion-review.py \
+  --batch local-data/sign-language-gpu-stage-v2/batch \
+  --fit-source local-data/camera-source-20261009 \
+  --stable-results local-data/stable-crop-pilot-20261009/verified/results \
+  --stable-report-sha256 aea092ab2020e8549738799a87afd9b2c79d1fdedbbc054a2b4b1d479ff7da26 \
+  --fusion-results local-data/stable-crop-fusion-20261009/verified/results \
+  --fusion-report-sha256 828183ce3116283b3e812d0915269ea5de3e7d2006306832299990b17408f69c \
+  --previous-fusion-results local-data/mano-smplx-fusion-windows-final-20261009/verified/results \
+  --previous-fusion-report-sha256 c9762060a4fe24d44b3a095bbbdb857c82654d12fcd41281568be1665ccd00c2 \
+  --wilor-results local-data/wilor-windows-20261009/verified/results \
+  --wilor-report-sha256 0620e8ce3a17920c9d082f5fa744855d0a0879acea621e1adbefa7f380919b2d \
+  --smplerx-root local-data/sign-language-gpu-stage-v2/SMPLer-X \
+  --output local-data/stable-fusion-review-new-run
+```
+
 ## 测试与来源
 
 ```bash
@@ -677,6 +715,7 @@ PYOPENGL_PLATFORM=egl OPENBLAS_CORETYPE=Haswell PYTHONDONTWRITEBYTECODE=1 \
 .venv-sign-data/bin/python signbridge/tests/sign-camera-audit.test.py
 .venv-sign-data/bin/python signbridge/tests/sign-stable-crop.test.py
 .venv-sign-data/bin/python signbridge/tests/sign-stable-crop-review.test.py
+.venv-sign-data/bin/python signbridge/tests/sign-stable-fusion-review.test.py
 cd signbridge && npm run verify
 ```
 
