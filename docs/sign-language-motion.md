@@ -625,6 +625,41 @@ PYOPENGL_PLATFORM=egl OPENBLAS_CORETYPE=Haswell PYTHONDONTWRITEBYTECODE=1 \
 
 下一实验应先在稳定裁剪框的短窗口上验证剩余深度/手型变化，并评估画面重投影，再扩大至全片手部融合。相机坐标转换不会解决指尖接触、镜像或缺失的人工手型标签。
 
+## 2026-10-09：稳定裁剪框的真实 GPU 短窗口实验
+
+使用新的独立任务 `/root/autodl-tmp/signbridge/stable-crop-20261009-b9mgiypf`，在26919主机的RTX4090上重新运行固定版SMPLer-X H32，范围仍是“你好”88–94帧和“咳嗽”156–162帧。权重、固定源码提交、原始输入图片和人体文件摘要通过；沿用Python3.8/PyTorch1.12/CUDA11.3及现有兼容补丁，没有升级依赖。任务退出码0，14份参数的原生SMPL-X最大关节/指尖对照差约 `1.093e-6` 米，EGL渲染通过，来源末尾复核不变，GPU任务已经结束。
+
+`sign-stable-crop.py` 根据原始窗口框的中心及宽高分别取中位数，为每段确定一个固定裁剪框。21次WiLoR目标手投影都在该框内。脚本只在新任务目录创建官方推理脚本的副本，加入固定框参数并替换裁剪框赋值，模型/检测/渲染逻辑沿用原实现，原始源码及fits均保留。官方 `--end` 是帧数，本实验传7，不传窗口最后帧号。
+
+回传56个文件留在 `local-data/stable-crop-pilot-20261009/verified/`，包含计划、执行脚本、日志、14帧参数/相机/叠加图及报告，文件摘要全部通过。`sign-stable-crop-review.py` 的独立比较报告和四行原图/原始SMPLer-X/稳定裁剪SMPLer-X/WiLoR图保存在 `local-data/stable-crop-review-20261009-validated/`。
+
+为避免将裁剪坐标变化直接算作模型改善，比较分成原始深度、原始参数换算到本次固定相机的深度、固定框重新推理的深度：
+
+| 窗口 | 原始最大相邻深度差 | 原始参数换算到本次固定相机 | 固定裁剪重新推理 |
+| --- | --- | --- | --- |
+| 你好88–94 | 1.777米 | 0.721米 | 0.574米 |
+| 咳嗽156–162 | 0.940米 | 0.319米 | 0.093米 |
+
+这里参考相机由7帧窗口框确定，和上一阶段按全片焦距中位数得到的参考相机不同，数值不能不加说明地混用。深度单位仍是虚拟相机坐标，不是已标定的实际世界位移。本次没有设置时序平滑或接触约束，也没有用降低深度跳变的指标自动批准候选。
+
+对相同WiLoR投影点的7帧平均绝对RMSE：你好左手 `19.61→18.86` 像素、右手 `22.16→21.88` 像素，咳嗽右手 `19.58→19.96` 像素。“你好”两手第93帧仍触发旋转复核提示。WiLoR是模型估计比较对象，不是独立人工真值；结果表明固定裁剪有助于相机一致性，但不能替代专用手部重建，手部误差并未一致改善。该表比较的是未融合的原始SMPLer-X与新重建，不是此前手部融合候选。
+
+稳定裁剪结果没有覆盖旧融合、133维数组或完整视频；`training_ready=false`、`full_sequence_refined=false` 和 `contact_approved=false` 保持不变。下一步应在该基线上评估已有WiLoR→SMPL-X映射，检验手部投影改善和相机一致性能否同时保留，再考虑扩展全长。
+
+本地复核命令（使用新的输出目录）：
+
+```bash
+.venv-sign-data/bin/python signbridge/src/tools/sign-stable-crop-review.py \
+  --fit-source local-data/camera-source-20261009 \
+  --batch local-data/sign-language-gpu-stage-v2/batch \
+  --stable-results local-data/stable-crop-pilot-20261009/verified/results \
+  --stable-report-sha256 aea092ab2020e8549738799a87afd9b2c79d1fdedbbc054a2b4b1d479ff7da26 \
+  --wilor-results local-data/wilor-windows-20261009/verified/results \
+  --wilor-report-sha256 0620e8ce3a17920c9d082f5fa744855d0a0879acea621e1adbefa7f380919b2d \
+  --smplerx-root local-data/sign-language-gpu-stage-v2/SMPLer-X \
+  --output local-data/stable-crop-review-new-run
+```
+
 ## 测试与来源
 
 ```bash
@@ -640,6 +675,8 @@ PYOPENGL_PLATFORM=egl OPENBLAS_CORETYPE=Haswell PYTHONDONTWRITEBYTECODE=1 \
 .venv-sign-data/bin/python signbridge/tests/sign-contact-audit.test.py
 .venv-sign-data/bin/python signbridge/tests/sign-temporal-audit.test.py
 .venv-sign-data/bin/python signbridge/tests/sign-camera-audit.test.py
+.venv-sign-data/bin/python signbridge/tests/sign-stable-crop.test.py
+.venv-sign-data/bin/python signbridge/tests/sign-stable-crop-review.test.py
 cd signbridge && npm run verify
 ```
 
