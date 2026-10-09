@@ -794,6 +794,12 @@ PYOPENGL_PLATFORM=egl OPENBLAS_CORETYPE=Haswell PYTHONDONTWRITEBYTECODE=1 \
 
 本轮技术流程已跑通，结果不支持直接部署或开始声称新句手语准确。下一数据阶段应在人物/镜像与动作质量核对后扩充剩余14段，并保持整来源分组重新训练；从上述11个已有未暴露视频中优先准备至少一个真正独立来源/人物/课程组，才可能同时保留开发数据和未触碰的最终测试来源。不满足独立性时再增加素材。已观察过的两来源评估结果不应继续用来调参后又当作未触碰测试。
 
+## 2026-10-10：下一轮来源扩充的实际数据准备
+
+已对11个未参与训练的授权源视频完成本地字幕/章节筛查，保存2,235张采样图和1,575个OCR区间；首批准备27段整句候选与4段独立词汇/教学候选，共4,550帧，均完成完整视频解码、关键点数组及缺失mask核对。结果位于 `local-data/data-expansion-20261010/`，最终复核入口为 `review-delivery/review.html`。8段低手部观测返回率提示和跨教程同词条复核提示被保留，没有补手或修改原文件。
+
+同教材家族保守关联为未确认来源组，包含此前问候/医院来源；课程不同不代表人物独立。两份教程的分步讲解与词汇示范另存，不混作整句。新字幕、完整动作边界、镜像及身份仍为待核对，`text_verified` 为空、split未分配。没有将旧16段的用户核对直接沿用到新候选，也没有新GPU训练。通过内容核对后才将这些候选加入动作重建与独立分组评估，详见[手语视频的数据准备](sign-language-dataset.md)。
+
 ## 测试与来源
 
 ```bash
@@ -820,6 +826,7 @@ PYOPENGL_PLATFORM=egl OPENBLAS_CORETYPE=Haswell PYTHONDONTWRITEBYTECODE=1 \
 .venv-sign-data/bin/python signbridge/tests/sign-tokenizer-infer.test.py
 .venv-sign-data/bin/python signbridge/tests/sign-heldout-eval.test.py
 .venv-sign-data/bin/python signbridge/tests/sign-heldout-review.test.py
+.venv-sign-data/bin/python signbridge/tests/sign-source-candidates.test.py
 cd signbridge && npm run verify
 ```
 

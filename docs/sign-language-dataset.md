@@ -113,6 +113,43 @@ Mac 上可以运行本地 Vision OCR，抽样取画面下方 32% 的烧录字幕
 
 ## 核验与下一步
 
+### 2026-10-10：新增来源筛查与候选扩充
+
+原13个已由用户确认授权的源视频中，11个未进入此前两来源的动作模型训练。本轮对这11个原文件重新核对SHA-256，在Mac本地以0.5fps采样并使用Vision OCR，完成2,235张画面筛查；原视频没有修改、素材没有上传，未启动新的GPU推理或训练。
+
+`sign-source-candidates.py` 把单人示范标记、字幕位置和连续同文本样本一起记录，得到1,575个OCR字幕区间，其中263个带单人示范章节文字。`sign-text-ocr.swift` 新增Vision归一化文本框，坐标原点位于左下角；筛查整句字幕时忽略画面上方词条、章节和标识。旧OCR调用仍输出原有text/confidence字段。
+
+这些数量是候选区间，含OCR错字、字幕缺失和一句话被拆开的情况，不是1,575条有效手语标签。采样时间是名义时间，区间为首末观测点周围半个采样间隔，不能当作动作起止真值。单人示范文字也不证明已准确数过画面中的人物或确认身份。
+
+首批自动选择每个教材视频最多3个有至少两个连续文字观测、4–12秒且不以续句标点结尾的区间，准备了27段整句示范候选（3,850帧）。另两份教程中的“你好／你好吗”和“你好／朋友”制作成4段词汇/分步教学复核片段（700帧），独立保留，没有混入整句候选。共31段、4,550帧，覆盖全部11个新增来源；两类原片和关键点叠加视频都已完整解码并核对NPZ维数、时间轴、NaN与mask。
+
+目录为 `local-data/data-expansion-20261010/`：
+
+- `source-screen/`：11个来源的采样帧、位置OCR及字幕区间，`candidate-index/` 内有原始候选和标注模板。
+- `prepared-candidates/`：27个整句候选的clip、overlay、landmarks和quality；边界及手语释义仍未批准。
+- `prepared-tutorials/`：4个词汇/分步教学候选，标签词条来自画面文字，不代替完整表达核对。
+- `review-delivery/review.html`：可按类别筛选的逐段原片/关键点同步复核页；`annotation-review.csv` 是核对表，`samples.jsonl` 保存媒体/数组来源摘要，`summary.json` 保存本轮统计。
+
+31段中8段有单侧手部返回率低于20%的复核提示。画外手、遮挡和误检都可能造成缺失，返回率不是手型准确率，缺失帧仍保留NaN而不补零/插值。本轮没有SMPL-X参数重建，也不将MediaPipe点更名为可直接训练的SOKE数据。
+
+`source-group-proposal.json` 将同一目录的教材课程保守关联为 `unverified-textbook-family`，包含原问候/医院视频，防止不同课程文件被误当作已确认人物独立的来源。依据是课程/本地来源记录，不是脸部匹配或外貌识别。两份教程是另行核对的来源候选，没有自动获得独立测试资格。所有新signer_id使用 `unconfirmed-<source_id>`，split为unassigned；旧16段的身份或split记录未覆写。
+
+制作过程的可复跑入口（输出目录必须新建）：
+
+```bash
+.venv-sign-data/bin/python signbridge/src/tools/sign-source-candidates.py screen \
+  --manifest local-data/sign-language-pilot/sources.json \
+  --exposed-tasks local-data/sign-language-gpu-stage-v2/batch/tasks.jsonl \
+  --fps 0.5 --output local-data/new-source-screen
+
+.venv-sign-data/bin/python signbridge/src/tools/sign-source-candidates.py prepare-candidates \
+  --manifest local-data/sign-language-pilot/sources.json \
+  --candidate-index local-data/new-source-screen/candidate-index \
+  --per-source 3 --max-side 960 --output local-data/new-source-prepared
+```
+
+本轮新字段均保留 `text_verified=''`、semantics/boundaries needs_review、mirror unknown、split unassigned、label_ready/model_training_ready false，新人工核验标签数为0。此前已经人工核对的同源剩余14段独立保留，不沿用那次确认来批准本次新字幕和边界。下一步是按复核页修正字幕/完整区间、确认镜像及实际人物/重复内容；通过后重新制作对应片段，再进入SMPL-X/WiLoR动作重建。OCR错字即使能从上下文猜到，也没有自动写入text_verified。
+
 1. 查阅具体授权约定与拟用范围；查看每段视频起止位置，确认只有目标表演者且完整表达被包含。
 2. 手语使用者核对含义、语序、双手关系和面部/身体表达，填写 verified 文本与审核记录。
 3. 单独检查动作期间的手部缺失与误检，必要时重新裁剪、提取或弃用。
@@ -123,6 +160,8 @@ Mac 上可以运行本地 Vision OCR，抽样取画面下方 32% 的烧录字幕
 
 ```bash
 .venv-sign-data/bin/python signbridge/tests/sign-data.test.py
+.venv-sign-data/bin/python signbridge/tests/sign-source-candidates.test.py
+swiftc -typecheck signbridge/src/tools/sign-text-ocr.swift
 cd signbridge
 npm run build
 npm run lint

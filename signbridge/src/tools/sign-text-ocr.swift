@@ -13,7 +13,10 @@ for path in CommandLine.arguments.dropFirst() {
         try handler.perform([request])
         let results: [[String: Any]] = (request.results ?? []).compactMap { result in
             guard let candidate = result.topCandidates(1).first else { return nil }
-            return ["text": candidate.string, "confidence": Double(candidate.confidence)]
+            let bounds = result.boundingBox
+            return ["text": candidate.string, "confidence": Double(candidate.confidence),
+                    "bounding_box": [Double(bounds.minX), Double(bounds.minY),
+                                     Double(bounds.width), Double(bounds.height)]]
         }
         let encoded = try JSONSerialization.data(withJSONObject: ["image": path, "lines": results], options: [.fragmentsAllowed, .sortedKeys])
         print(String(data: encoded, encoding: .utf8)!)
