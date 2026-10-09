@@ -28,6 +28,26 @@ def contract(count):
                 'Quality masks mark model input/target availability, not independent sign correctness.']}
 
 
+def checkpoint_contract(saved):
+    schemas=('signbridge-tokenizer-smoke-checkpoint-v1','signbridge-heldout-tokenizer-checkpoint-v1')
+    if saved.get('schema') not in schemas or saved.get('training_ready') is not False or \
+       saved.get('research_only') is not True or saved.get('soke_commit')!=smoke.SOKE_COMMIT:
+        raise ValueError('Unexpected model checkpoint contract')
+    configs=saved.get('model_configs',[])
+    if len(configs)!=3 or [x.get('nfeats') for x in configs]!=[43,45,45]:
+        raise ValueError('Model part dimensions differ')
+    if saved['schema']==schemas[1]:
+        train,evaluation=saved.get('train_segments',[]),saved.get('evaluation_segments',[])
+        if not train or not evaluation or len(set(train))!=len(train) or len(set(evaluation))!=len(evaluation) or \
+           set(train)&set(evaluation):
+            raise ValueError('Holdout checkpoint train/evaluation overlap or missing identities')
+        if saved.get('normalization_train_only') is not True:
+            raise ValueError('Holdout checkpoint normalization is not training-only')
+        return {'checkpoint_role':'fresh_source_holdout_fold','train_segments':train,'evaluation_segments':evaluation,
+                'normalization_train_only':True,'evaluation_quality_approved':False}
+    return {'checkpoint_role':'mixed_source_research_smoke','evaluation_quality_approved':False}
+
+
 def infer(args):
     checkpoint,features,soke,out=[Path(getattr(args,k)).resolve() for k in ('checkpoint','features','soke_root','output')]
     if out.exists() or any(out==p or p in out.parents or out in p.parents for p in (checkpoint.parent,features.parent,soke)):
@@ -45,9 +65,7 @@ def infer(args):
     # Only a digest-verified own training artifact is loaded. Its NumPy normalization arrays require full loading.
     saved=torch.load(checkpoint,map_location='cpu',weights_only=False) if tuple(map(int,torch.__version__.split('+')[0].split('.')[:2])) >= (2,0) \
           else torch.load(checkpoint,map_location='cpu')
-    if saved.get('schema')!='signbridge-tokenizer-smoke-checkpoint-v1' or saved.get('training_ready') is not False or \
-       saved.get('research_only') is not True or saved.get('soke_commit')!=smoke.SOKE_COMMIT:
-        raise ValueError('Unexpected model checkpoint contract')
+    checkpoint_details=checkpoint_contract(saved)
     configs=saved['model_configs']
     if len(configs)!=3 or [x['nfeats'] for x in configs]!=[43,45,45]:raise ValueError('Model part dimensions differ')
     sys.path.insert(0,str(soke))
@@ -69,6 +87,7 @@ def infer(args):
     np.save(out/'feature-valid-mask.npy',mask,allow_pickle=False)
     for name,ids in zip(('body','left','right'),tokens):np.save(out/(name+'-tokens.npy'),ids,allow_pickle=False)
     r=contract(count)
+    r.update(checkpoint_details)
     r.update(status='motion_encoded_and_reconstructed',device=str(device),torch=torch.__version__,
         checkpoint_step=saved['step'],checkpoint_sha256=args.checkpoint_sha256,
         input_features_sha256=smoke.digest(features),mask_sha256=smoke.digest(args.mask) if args.mask else None,

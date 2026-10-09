@@ -25,4 +25,23 @@ class TokenizerInferTests(unittest.TestCase):
         r=self.m.contract(166)
         self.assertFalse(r['text_to_sign_generated']);self.assertFalse(r['deployment_ready'])
         self.assertEqual(r['frames'],166);self.assertTrue(r['research_only'])
+    def test_heldout_checkpoint_contract_keeps_fresh_training_source_record(self):
+        saved={'schema':'signbridge-heldout-tokenizer-checkpoint-v1','training_ready':False,'research_only':True,
+               'soke_commit':self.m.smoke.SOKE_COMMIT,'normalization_train_only':True,
+               'train_segments':['train-a'],'evaluation_segments':['eval-b'],
+               'model_configs':[{'nfeats':43},{'nfeats':45},{'nfeats':45}]}
+        value=self.m.checkpoint_contract(saved)
+        self.assertEqual(value['checkpoint_role'],'fresh_source_holdout_fold')
+        self.assertEqual(value['train_segments'],['train-a'])
+        self.assertFalse(value['evaluation_quality_approved'])
+        saved['evaluation_segments']=['train-a']
+        with self.assertRaisesRegex(ValueError,'overlap'):
+            self.m.checkpoint_contract(saved)
+    def test_checkpoint_without_research_flag_or_wrong_part_width_is_rejected(self):
+        saved={'schema':'signbridge-tokenizer-smoke-checkpoint-v1','training_ready':False,
+               'research_only':False,'soke_commit':self.m.smoke.SOKE_COMMIT,
+               'model_configs':[{'nfeats':43},{'nfeats':45},{'nfeats':45}]}
+        with self.assertRaises(ValueError):self.m.checkpoint_contract(saved)
+        saved['research_only']=True;saved['model_configs'][0]['nfeats']=42
+        with self.assertRaises(ValueError):self.m.checkpoint_contract(saved)
 if __name__=='__main__':unittest.main()

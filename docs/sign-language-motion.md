@@ -1,6 +1,6 @@
 # 从已核对视频到 SMPL-X 动作
 
-本阶段将已核对视频重建为 SMPL-X，并把**真实拟合结果**转换成 SOKE 的 133 维表示。**截至 2026-10-09，两段共384帧已经完成全长稳定裁剪、WiLoR提取、逐帧手部融合、保守时序选择、研究tokenizer训练、权重重载和Mac CPU推理核对；手型/接触及独立语言质量尚未通过验收，正式训练就绪状态仍为false。** 最新权重和完整输入/重建动画位于 `local-data/full-sequence-20261009/`。这是动作编码/重建模型的真实训练联调，不是文字到手语生成模型或可部署手语大模型；其余14段及正式生成器训练未执行。
+本阶段将已核对视频重建为 SMPL-X，并把**真实拟合结果**转换成 SOKE 的 133 维表示。**截至 2026-10-10，两段共384帧已经完成全长稳定裁剪、WiLoR提取、逐帧手部融合、保守时序选择、研究tokenizer训练、权重重载和Mac CPU推理核对，另完成两折全新留来源训练及未见来源重建复算。** 留来源结果显示明显的训练/评估差距；手型/接触及独立语言质量尚未通过验收，正式训练就绪状态仍为false。混合来源试点权重和完整输入/重建动画位于 `local-data/full-sequence-20261009/`，独立评估证据在 `local-data/heldout-eval-20261009/`。这是动作编码/重建模型的真实训练与评估，不是文字到手语生成模型或可部署手语大模型；其余14段及正式生成器训练未执行。
 
 ## 已准备的数据
 
@@ -753,6 +753,47 @@ PYOPENGL_PLATFORM=egl OPENBLAS_CORETYPE=Haswell PYTHONDONTWRITEBYTECODE=1 \
 
 自动完成的部分是可追溯数据→完整动作候选→质量mask→训练权重→CPU推理→原生动画的技术流程。实际接触、遮挡处手型、镜像/表演者归并、分组独立测试及新句手语语义，需要真实标注和独立验收。缺手回退不能被模型猜测替代，剩余14段和正式生成器训练未执行。训练就绪/部署就绪状态保持false，完整原始视频和派生模型留在Git忽略目录。
 
+## 2026-10-10：全新两折留来源评估与泛化差距
+
+下一轮连续完成了分组检查、两折独立权重初始化与1000步GPU训练、仅用训练窗口选择最佳checkpoint、重载、未见来源完整序列编码/重建、Mac CPU对照和独立指标复算。任务为 `/root/autodl-tmp/signbridge/heldout-eval-20261009-sh_szx8a`，正常退出0；28个回传文件、两个权重与全部数组均校验。目录名保留启动时的日期，最终复核于2026-10-10完成。
+
+现有16个核对片段只来自两个源视频。“你好”和“咳嗽”都已经进入原混合来源checkpoint的训练，因此同源的剩余14段（2732帧）不能当作该checkpoint的独立来源测试。`sign-heldout-eval.py` 按source_id、源文件sha256、signer_id和split_group的连通分量分组；同源、人物或课程的关联是传递的，不采用随机片段/相邻窗口划分。当前记录形成7段问候和9段医院两组，实际跨课程人物ID仍需确认，不能声称已完成真人身份独立的测试。
+
+本轮没有复用混合来源权重，而是每折从头训练：第一折仅医院218帧训练、问候166帧评估；第二折反向。归一化均值/标准差只计算训练折已接受目标，评估数据不参与权重更新、codebook初始化或最佳权重选择。两折最佳训练checkpoint分别位于900和850步。评估时motion本身作为tokenizer输入，仍然不是从文字生成新动作。
+
+| 全新训练 → 未见来源评估 | 训练段完整序列masked MSE | 未见来源masked MSE | 训练均值基线的评估MSE | 相对该均值基线改善 |
+| --- | --- | --- | --- | --- |
+| 医院 → 问候 | 0.003744 | 3.208630 | 3.625481 | 11.50% |
+| 问候 → 医院 | 0.001023 | 5.955561 | 6.497213 | 8.34% |
+
+表中的MSE基于各自训练折统计做归一化，两折数字不宜直接比较；训练列是完整序列重建，不是用于checkpoint选择的64帧训练窗口指标。模型整体略胜训练均值，但未见来源误差远高于样本内误差，有明显泛化差距。“医院→问候”左手单独指标比均值基线还差约0.98%；不能只报告整体改善而忽略该失败切片。所有误差比较的是已有模型估计的SMPL-X动作与mask，没有独立接触或语言语义真值。
+
+`sign-heldout-review.py` 从已校验checkpoint读取归一化值，独立用训练折重算并核对；逐项复算保存预测数组的指标，同时核对CPU/GPU三组token及重建。两折token完全一致，最大重建差分别约 `5.07e-7` 和 `1.01e-6`。推理工具 `sign-tokenizer-infer.py` 现能区分混合来源研究权重和留来源权重，并保留其train/evaluation身份与训练专用归一化约定。
+
+证据目录：
+
+- `local-data/heldout-eval-20261009/verified/results/`：原始训练/评估报告、两折checkpoint、逐段预测和token。
+- `local-data/heldout-eval-20261009/cpu-inference/`：两个未见来源的实际Mac CPU调用输出。
+- `local-data/heldout-review-20261010-final/`：独立复算报告、误差对比图和剩余14段分组扩充清单。
+
+原素材清单共有13个用户已确认授权的源视频；除了当前两个已采样来源，还有11个未用于这轮训练。已重新核对这11个本地文件的摘要，全部与扫描清单一致。`unexposed-source-pool.json` 记录其文件、时长及待核对条件，下一轮优先从已有素材准备独立来源候选；不同文件仍可能有相同人物或重复示范，不能只凭文件名认定真人/内容独立。
+
+独立复核复跑命令（需在包含PyTorch的本地环境中执行，使用新目录）：
+
+```bash
+.venv-wilor/bin/python signbridge/src/tools/sign-heldout-review.py \
+  --results local-data/heldout-eval-20261009/verified/results \
+  --report-sha256 6f6d4db165723f439abb6deb51bef5d370974d848cec75814dbefe247ea475a6 \
+  --motions local-data/full-sequence-20261009/curated-verified/curated-motions \
+  --batch local-data/sign-language-gpu-stage-v2/batch \
+  --cpu-inference local-data/heldout-eval-20261009/cpu-inference \
+  --output local-data/heldout-review-new-run
+```
+
+复算必须使用训练当时留存的动作包；`delivery-motions` 的feature/mask相同，但后续说明及来源清单已更新，不能用更新后的元数据替换原训练来源证据。没有覆写现有数据集split或原混合checkpoint的 `generalization_evaluated` 字段；本次评估对象是两份全新权重，不能用它们的结果自动批准原模型。
+
+本轮技术流程已跑通，结果不支持直接部署或开始声称新句手语准确。下一数据阶段应在人物/镜像与动作质量核对后扩充剩余14段，并保持整来源分组重新训练；从上述11个已有未暴露视频中优先准备至少一个真正独立来源/人物/课程组，才可能同时保留开发数据和未触碰的最终测试来源。不满足独立性时再增加素材。已观察过的两来源评估结果不应继续用来调参后又当作未触碰测试。
+
 ## 测试与来源
 
 ```bash
@@ -777,6 +818,8 @@ PYOPENGL_PLATFORM=egl OPENBLAS_CORETYPE=Haswell PYTHONDONTWRITEBYTECODE=1 \
 .venv-sign-data/bin/python signbridge/tests/sign-sequence-media.test.py
 .venv-sign-data/bin/python signbridge/tests/sign-tokenizer-review.test.py
 .venv-sign-data/bin/python signbridge/tests/sign-tokenizer-infer.test.py
+.venv-sign-data/bin/python signbridge/tests/sign-heldout-eval.test.py
+.venv-sign-data/bin/python signbridge/tests/sign-heldout-review.test.py
 cd signbridge && npm run verify
 ```
 
