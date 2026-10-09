@@ -422,6 +422,45 @@ PYOPENGL_PLATFORM=egl OPENBLAS_CORETYPE=Haswell PYTHONDONTWRITEBYTECODE=1 \
 
 后续阶段才进行相邻帧时序试跑、MANO/SMPL-X 坐标与手姿态均值对齐，并由手语审核者确认后形成新数据版本。当前没有重建剩余 14 段、覆盖旧动作或开始新的正式生成器训练。
 
+## 2026-10-09：下一阶段短窗口和 MANO → SMPL-X 对齐
+
+用户授权自主运行到阶段结束，本阶段继续使用 `26919` GPU 主机。首次重连短暂断开，随后指定密码认证成功建立连接；没有切换未知主机、保存凭据或改动原环境。
+
+### 短窗口真实推理
+
+`sign-wilor-pilot.py --short-window` 的范围固定：第 88–94 帧和第 156–162 帧，共 14 张图、21 次目标手部观测。输入仍逐帧核对已有 frame manifest / SHA-256 / 时间/图片路径，输出按 segment/frame 分目录，不影响原关键帧工具的默认两帧模式。没有插值、填零、复制缺失手或平滑数据。
+
+真实任务 `windows-20261009-120054-AQUSlM` 用完整 FP32 WiLoR 在 RTX 4090 上完成，约 24.7 秒。21 次目标手均检测到；七帧窗口内没有同侧多检测歧义，旋转/网格有限、渲染投影检查通过、来源末尾复核通过。`temporal_audit` 只比较相邻且唯一的真实检测，不跨漏检/歧义连接轨迹，使用旋转测地角；手指角变化 >45°、全局腕部朝向变化 >30° 或腕部 2D 步长 >40 px 仅提示复核，不自动判质量通过。
+
+- “你好”左手最大相邻手指变化约 67.31°，右手约 58.97°；两手均提示第 91→92、92→93 帧。原视频可见此处实际从双指变为另一手型且有运动模糊，因此提示不能直接归因为抖动，更不能自动抹平动作。身份一致性只检查检测类别/唯一性，不等于真实遮挡期间的跟踪身份已获人工确认。
+- “咳嗽”右手最大手指变化约 18.14°，没有触发上述提示；第 159–162 帧变化较小。仅七帧、0.24 秒相邻间隔的局部结果，不能证明完整 218 帧稳定或语义正确。
+
+本地证据：`/Users/mac/Documents/ChatGPT/signbridge/local-data/wilor-windows-20261009/verified`。外层归档和 132 个内部文件摘要通过，下载解包仍拒绝路径越界/链接/重名并限制文件数与大小。`results/*-window-sheet.jpg` 为七列原图/估计对照；`*-slow-review-5fps.mp4` 仅供慢速目视（原数据 25 fps，不改变序列时间和参数），对应 JSON 明确标记 playback 与 source fps 不同。
+
+### 两个关键帧的原生 SMPL-X 对齐候选
+
+新增 `sign-mano-align.py`，只用阶段 1 的第 91、159 帧保存参数：核对固定 WiLoR 报告 SHA、原始 inference 内部文件摘要、原 SMPLer-X run SHA、源码提交、输入 batch 和人体文件来源。阶段 1 预测 MANO 矩阵是右手规范坐标下的有效局部旋转；左手采用 `S R S`，`S=diag(-1,1,1)`，而非简单全轴角取负。转换为 SMPL-X 手部轴角输入时扣除其相应 hand mean **一次**；绝对腕部朝向转为原身体父关节的局部旋转。
+
+直接骨骼对应得到姿态候选，形状/相机不同不可能保证两个网格完全相同。只拟合对应侧肘部相对旋转（总角度 15° 上限），每次根据父关节重新计算腕部局部旋转，保持 WiLoR 的有效手指姿态和绝对腕部朝向；不再次优化手指、不改变肩膀/躯干/根部/shape/expression、另一侧参数、相机或 translation。不复制 MANO betas/camera 到 SMPL-X。目标为 WiLoR 估计的图像投影，不是人体真值；baseline 数字因目标不同不能直接与 MediaPipe 审计数字混用。
+
+任务 `alignment-20261009-121024-05RSFm` 已真实执行 CUDA 原生 SMPL-X 对照/渲染，全部候选通过数值门槛及合并后复核：
+
+| 关键帧/手 | 绝对 RMSE 原始 → 保存候选（px，对 WiLoR 估计） | 肘部改变量 |
+| --- | --- | --- |
+| 第 91 帧左手 | 27.72 → 5.31 | 15° |
+| 第 91 帧右手 | 29.38 → 5.57 | 6.41° |
+| 第 159 帧右手 | 17.83 → 2.58 | 15° |
+
+原生 CUDA 对照的最大绝对坐标误差约 `1.03e-6` 米，低于 `5e-5` 门槛。来源末尾复核通过，原 fits 未改动。新候选/原 baseline/逐手 proposal 分别保存，原始帧并未写回原数据集；图中手型明显改善，但接触、穿插、深度、形状差异和连续融合仍待独立审核。
+
+证据在 `/Users/mac/Documents/ChatGPT/signbridge/local-data/mano-smplx-alignment-20261009/verified`：`results/report.json`、每段 `candidate.npz`/`baseline.npz`/`*-alignment-proposal.npz`、原生叠加图与四栏 `*-alignment-compare.jpg`。本阶段原生映射只验证两个关键帧，不声称已融合14帧或完成完整384帧动作。`alignment_candidates_pending_visual_review` 不等于可训练；所有 `training_ready` 和 `deployment_ready` 仍为 false。
+
+最终重复任务 `alignment-final-20261009-122132-Oi6kdC` 在新 26919 主机完成，三手候选仍通过数值/保护门槛：手指最大相对变化约 64.61°、71.20°、77.28°，均低于 155°；对应局部腕部变化约 34.95°、24.29°、24.55°，均低于 80°；同侧肘部仍限制在 15°。最终下载证据位于 `/Users/mac/Documents/ChatGPT/signbridge/local-data/mano-smplx-alignment-final-20261009/verified`。这只是 WiLoR 估计到固定 SMPL-X 的姿态对应候选，三张最终对照图仍需人工判断双指接触、竖拇指握拳、深度和穿插；不自动写入训练数据。
+
+本阶段测试覆盖相邻帧来源校验、14帧固定范围、漏检/歧义不跨帧补齐、姿态测地跳变提示、左手 proper reflection、手姿态均值恰好扣除一次、腕部父关节坐标、15° 肘部边界和参数冻结。阶段结束前确认 GPU 无活动任务，保留输出，不重建剩余14段或启动正式生成器训练。
+
+下一阶段应在短窗口上验证融合结果的时序与接触，再扩大到两段全长，并由懂手语的审核者确认训练目标。不要直接把两个候选关键帧替换后称为全片训练数据，也不要用模型间投影误差下降代替手语正确性。
+
 ## 测试与来源
 
 ```bash
@@ -432,6 +471,7 @@ PYOPENGL_PLATFORM=egl OPENBLAS_CORETYPE=Haswell PYTHONDONTWRITEBYTECODE=1 \
 .venv-sign-data/bin/python signbridge/tests/sign-hand-pilot.test.py
 .venv-sign-data/bin/python signbridge/tests/sign-tokenizer-smoke.test.py
 .venv-sign-data/bin/python signbridge/tests/sign-wilor-pilot.test.py
+.venv-sign-data/bin/python signbridge/tests/sign-mano-align.test.py
 cd signbridge && npm run verify
 ```
 

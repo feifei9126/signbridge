@@ -99,6 +99,38 @@ class WiLoRPilotTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             pilot.check_render_projection(original, original.copy(), vertices, focal=100)
 
+    def test_short_window_scope_is_14_frames_and_21_target_hand_observations(self):
+        cases = pilot.short_window_cases()
+        self.assertEqual(len(cases), 14)
+        self.assertEqual([c[1] for c in cases[:7]], list(range(88, 95)))
+        self.assertEqual([c[1] for c in cases[7:]], list(range(156, 163)))
+        self.assertEqual(sum(len(c[2]) for c in cases), 21)
+
+    def test_temporal_missing_hand_and_duplicates_are_not_filled(self):
+        identity = np.repeat(np.eye(3)[None], 15, axis=0)
+        def item(frame, count=1):
+            return {"frame_1based": frame, "hands": [
+                {"side": "right", "hand_pose": identity.copy(), "global_orient": np.eye(3)[None],
+                 "projected_joints": np.zeros((21, 2))} for _ in range(count)]}
+        summary = pilot.temporal_summary([item(1), item(2, 0), item(3), item(4, 2)], ("right",))
+        self.assertEqual(summary["right"]["missing_frames"], [2])
+        self.assertEqual(summary["right"]["ambiguous_frames"], [4])
+        self.assertEqual(summary["right"]["transitions"], [])
+        self.assertFalse(summary["right"]["continuity_complete"])
+
+    def test_temporal_rotation_angle_is_geodesic_and_jumps_are_reported(self):
+        from scipy.spatial.transform import Rotation
+        base = np.repeat(np.eye(3)[None], 15, axis=0)
+        changed = base.copy()
+        changed[3] = Rotation.from_euler("z", 60, degrees=True).as_matrix()
+        rows = [{"frame_1based": n, "hands": [{"side": "right", "hand_pose": pose,
+                 "global_orient": np.eye(3)[None], "projected_joints": np.zeros((21, 2))}]}
+                for n, pose in [(1, base), (2, changed)]]
+        summary = pilot.temporal_summary(rows, ("right",))["right"]
+        self.assertAlmostEqual(summary["transitions"][0]["max_finger_degrees"], 60)
+        self.assertEqual(summary["suspicious_transitions"], [2])
+        self.assertTrue(summary["continuity_complete"])
+
 
 if __name__ == "__main__":
     unittest.main()

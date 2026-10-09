@@ -108,6 +108,46 @@ def check_outputs(arrays):
                 np.allclose(np.linalg.det(rotation), 1, atol=1e-4), "Invalid rotation matrix: " + key)
 
 
+def short_window_cases():
+    return [("pilot-greeting-hello-001", n, ("left", "right")) for n in range(88, 95)] + \
+           [("pilot-hospital-cough-003", n, ("right",)) for n in range(156, 163)]
+
+
+def temporal_summary(rows, required_sides):
+    """Observed adjacent frames only; no bridging of missing or ambiguous identity."""
+    from scipy.spatial.transform import Rotation
+    result = {}
+    for side in required_sides:
+        data = {"missing_frames": [], "ambiguous_frames": [], "transitions": [],
+                "suspicious_transitions": [], "training_ready": False}
+        previous = None
+        for row in sorted(rows, key=lambda r: r["frame_1based"]):
+            hands = [h for h in row["hands"] if h["side"] == side]
+            frame = row["frame_1based"]
+            if len(hands) != 1:
+                data["missing_frames" if not hands else "ambiguous_frames"].append(frame)
+                previous = None
+                continue
+            current = hands[0]
+            if previous is not None and frame == previous[0] + 1:
+                old = previous[1]
+                angle = Rotation.from_matrix(current["hand_pose"] @ old["hand_pose"].transpose(0, 2, 1)).magnitude()
+                wrist = Rotation.from_matrix(current["global_orient"] @ old["global_orient"].transpose(0, 2, 1)).magnitude()
+                pixel_step = float(np.linalg.norm(current["projected_joints"][0] - old["projected_joints"][0]))
+                entry = {"from_frame": previous[0], "to_frame": frame,
+                         "max_finger_degrees": float(np.rad2deg(angle.max())),
+                         "wrist_orientation_degrees": float(np.rad2deg(wrist.max())),
+                         "wrist_step_pixels": pixel_step}
+                data["transitions"].append(entry)
+                if entry["max_finger_degrees"] > 45 or entry["wrist_orientation_degrees"] > 30 or pixel_step > 40:
+                    data["suspicious_transitions"].append(frame)
+            previous = (frame, current)
+        data["continuity_complete"] = not data["missing_frames"] and not data["ambiguous_frames"] and \
+            len(data["transitions"]) == max(0, len(rows) - 1)
+        result[side] = data
+    return result
+
+
 def sibling_hand_tool():
     path = Path(__file__).with_name("sign-hand-refine.py")
     spec = importlib.util.spec_from_file_location("sign_hand_refine_wilor", path)
@@ -121,14 +161,17 @@ def run(args):
     root, mano, batch = args.wilor_root.resolve(), args.mano_model.resolve(), args.batch.resolve()
     output = args.output.resolve()
     helper = sibling_hand_tool()
-    selected = helper.task_cases(batch)
+    window = getattr(args, "short_window", False)
+    selected = helper.task_cases(batch, cases=short_window_cases() if window else None)
     require(not output.exists() and all(output != p and p not in output.parents and output not in p.parents
                                        for p in (root, batch, mano.parent)), "Output must be new and separate")
     output.mkdir(parents=True)
     report = {"schema": "signbridge-wilor-keyframe-pilot-v1", "status": "running",
               "created_at": datetime.now(timezone.utc).isoformat(), "training_ready": False,
               "deployment_ready": False, "training_started": False, "full_sequence_refined": False,
-              "smplx_parameters_replaced": False, "scope": "frames 91 and 159, detector-driven hand estimates",
+              "smplx_parameters_replaced": False,
+              "scope": "frames 88-94 and 156-162, 14 images, no temporal smoothing" if window else
+                       "frames 91 and 159, detector-driven hand estimates",
               "hand_pose_convention": "MANO rotation matrices, right-canonical prediction; image-space left mirror stored separately",
               "source_sha256": {}, "cases": []}
     path = output / "report.json"
@@ -204,8 +247,8 @@ def run(args):
         report["renderer_preflight"] = helper.renderer_preflight()
         for task, number, expected_sides, image_path, observations in selected:
             segment = task["segment_id"]
-            folder = output / segment
-            folder.mkdir()
+            folder = output / segment / ("%06d" % number) if window else output / segment
+            folder.mkdir(parents=True)
             stage = "detector:" + segment
             image = cv2.imread(str(image_path))
             require(image is not None, "Cannot read frame image")
@@ -222,6 +265,7 @@ def run(args):
                     np.isin(classes, [0, 1]).all() and (boxes[:, 2:] > boxes[:, :2]).all(),
                     "Invalid hand detector output")
             case = {"segment_id": segment, "frame_1based": number, "required_sides": list(expected_sides),
+                    "output_relative": str(folder.relative_to(output)),
                     "detector_class_names": {str(k): str(v) for k, v in detector.names.items()},
                     "hands": [], "training_ready": False, "mirror_status": task["mirror_status"]}
             report["cases"].append(case)
@@ -290,12 +334,30 @@ def run(args):
             marked.save(folder / "detector.jpg")
             save()
         stage = "source_recheck"
+        if window:
+            report["temporal_audit"] = {}
+            for segment in sorted({c["segment_id"] for c in report["cases"]}):
+                rows = []
+                cases = [c for c in report["cases"] if c["segment_id"] == segment]
+                for c in cases:
+                    hands = []
+                    for item in c["hands"]:
+                        filename = output / c["output_relative"] / item["parameters_file"]
+                        with np.load(filename, allow_pickle=False) as a:
+                            hands.append({"side": item["side"], **{key: a[key].copy() for key in
+                                         ("hand_pose", "global_orient", "projected_joints")}})
+                    rows.append({"frame_1based": c["frame_1based"], "hands": hands})
+                report["temporal_audit"][segment] = temporal_summary(rows, cases[0]["required_sides"])
         for name, digest in report["source_sha256"].items():
             require(sha256(name) == digest, "Source changed during inference: " + name)
         ready = all(c["required_hand_detection_passed"] for c in report["cases"])
+        if window:
+            ready = ready and all(s["continuity_complete"] for v in report["temporal_audit"].values()
+                                  for s in v.values())
         report.update(status="inferred_pending_visual_review" if ready else "missing_required_hand",
                       elapsed_seconds=time.monotonic() - started, source_files_unchanged=True,
-                      limitations=["Two keyframes only; no temporal/contact/semantic acceptance",
+                      limitations=["Short windows only; temporal jumps flagged, no smoothing/contact/semantic acceptance" if window
+                                   else "Two keyframes only; no temporal/contact/semantic acceptance",
                                    "Detector handedness follows official demo; mirror status still unknown",
                                    "MANO and SMPL-X rotations/cameras not retargeted or merged",
                                    "Native pose arrays are right-canonical rotation matrices, not axis angles",
@@ -315,6 +377,7 @@ def main():
     parser.add_argument("--batch", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--device", choices=("cuda", "cpu"), default="cuda")
+    parser.add_argument("--short-window", action="store_true", help="Only frames 88-94 and 156-162; no smoothing")
     return run(parser.parse_args())
 
 

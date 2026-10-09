@@ -94,7 +94,7 @@ def read_native(path):
     return values
 
 
-def task_cases(batch):
+def task_cases(batch, cases=None):
     batch = batch.resolve()
     contract = json.loads((batch / "contract.json").read_text())
     require(contract.get("schema") == "signbridge-smplerx-input-v1" and
@@ -115,7 +115,7 @@ def task_cases(batch):
     for name in ("tasks.jsonl", "contract.json"):
         require(checksums.get(name) == sha256(batch / name), "Input manifest changed: " + name)
     selected = []
-    for segment, number, sides in CASES:
+    for segment, number, sides in CASES if cases is None else cases:
         require(segment in tasks, "Pilot segment missing")
         task = tasks[segment]
         require(task.get("image_transform") == "none" and task.get("content_reviewed") is True and

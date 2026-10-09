@@ -473,6 +473,18 @@ class HandRefineTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "convention"):
             hand.task_cases(batch)
 
+    def test_neighbor_case_selection_preserves_source_hash_and_frame_checks(self):
+        batch = self.batch_fixture()
+        cases = [("pilot-greeting-hello-001", 88, ("left", "right")),
+                 ("pilot-hospital-cough-003", 156, ("right",))]
+        selected = hand.task_cases(batch, cases=cases)
+        self.assertEqual([item[1] for item in selected], [88, 156])
+        for _, number, _, image, _ in selected:
+            self.assertEqual(image.name, "%06d.jpg" % number)
+        selected[0][3].write_bytes(b"tampered neighboring input")
+        with self.assertRaisesRegex(ValueError, "Image changed"):
+            hand.task_cases(batch, cases=cases)
+
     def test_path_traversal_symlinks_and_overwriting_are_rejected(self):
         source = self.root / "source"
         source.mkdir()
