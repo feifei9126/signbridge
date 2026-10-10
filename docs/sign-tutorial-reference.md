@@ -76,6 +76,12 @@ for row in rows:
 
 独立拟合仍须确认相机、解剖侧别、手均值/关节表示、身体约束和原片遮挡，在原帧重新渲染比较，并检查接触、手腕方向、抖动及面部/身体表达。本轮未生成MANO/SMPL-X旋转、3D掌向或真实接触距离，也未将这些NPZ当成项目的133维SMPL-X训练数据。
 
+## 原生MANO关键帧阶段
+
+在首轮参考库生成之后，完成了六种教学片段的WiLoR CPU关键帧推理，得到20个真实MANO参数候选，并逐个重新生成网格/关节验证。13个非上下文候选通过估计二维观测的几何筛查，4个保留分歧或缺失，3个另列为教学窗口的讲解/过渡帧。逐例比较、指标、限定和待GPU工作见本地仓库根目录下本地文件`local-data/tutorial-native-hands-20261010-v1/review.html`与`local-data/tutorial-native-hands-20261010-v1/DELIVERY.md`。
+
+这仍是MANO研究候选，不是SMPL-X参数替换或模型训练。MPS前向触发系统断言，CUDA/远端GPU当前不可用；16帧SMPLer-X任务包仅准备好，状态为`prepared_not_dispatched`。左右手别、源视频镜像和解剖侧别待核验；未通过几何筛查的候选不放宽门槛，也不进入训练。
+
 ## 数据状态与分割
 
 所有新标注保持 `human_approved=false`、`training_ready=false`、`mirror_status=unknown`，所有详细参考保持解剖侧别未确认。之前用户对旧训练片段的人工审核不延伸为这批新教学标注的语义核准。
