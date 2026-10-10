@@ -115,6 +115,14 @@ def load_quality_masks(root, rows, required=False):
     return masks,hashes
 
 
+def quality_masks_required(verification):
+    if verification.get('schema') == 'signbridge-hand-observation-screen-v1':
+        if verification.get('quality_masks_required') is not True:
+            raise ValueError('Hand observation screening requires explicit quality masks')
+        return True
+    return verification.get('schema') == 'signbridge-full-fusion-export-v1'
+
+
 def normalization(arrays, masks=None):
     joined=np.concatenate(arrays,axis=0).astype(np.float64)
     valid=np.ones_like(joined,dtype=bool) if masks is None else np.concatenate(masks,axis=0)
@@ -146,7 +154,7 @@ def train(args):
     segment_ids = getattr(args, "segment_id", None)
     rows, arrays, hashes = load_inputs(root, args.research_only, segment_ids)
     verification=json.loads((root/"verification.json").read_text())
-    quality_masked=verification.get("schema")=="signbridge-full-fusion-export-v1"
+    quality_masked=quality_masks_required(verification)
     masks,mask_hashes=load_quality_masks(root,rows,required=quality_masked)
     hashes+=mask_hashes
     commit = subprocess.check_output(["git", "-C", str(soke), "rev-parse", "HEAD"], text=True).strip()

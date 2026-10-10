@@ -840,6 +840,20 @@ PYOPENGL_PLATFORM=egl OPENBLAS_CORETYPE=Haswell PYTHONDONTWRITEBYTECODE=1 \
   --output local-data/remaining14-evaluation-new-run
 ```
 
+### 自主手部观测筛查与掩码训练实验
+
+用户于2026-10-10授权自主排查并训练。对保留14段的2732帧完成只读审计；暂停的三段新素材未使用。`sign-hand-quality.py` 核对逐帧SMPL-X参考关节投影和MediaPipe观测，按预先固定的技术条件屏蔽手部损失：观测必须有限且在画内、掌尺度至少15像素、平均投影差不超过0.75个掌尺度、手腕差不超过35像素，且前后相邻帧也须满足条件。这些是未标定的自动筛选阈值，不表示手型或手语准确；身体/脸部仍是模型估计。
+
+新 `masked-motions/` 逐项保留原始133维动作数组，缺失或被屏蔽手部未填零、插值或换侧。左手176帧、右手974帧参与手部损失，训练统计与网络内部占位输入也使用同一mask。训练器通过 `quality_masks_required` 强制读取mask，缺失mask不会退回全有效。新权重独立训练1000步并重载，masked训练窗口MSE从 `0.856639` 降至 `0.113416`；Mac CPU对14段token逐项相等，重建最大差 `9.54e-7`。
+
+同时对“加班”113帧、“吃饭”57帧和“严重吗”31帧完成固定WiLoR权重的CUDA关键帧推理与离屏渲染。新 `--case-plan` 与摘要绑定批次、帧和手别，默认旧试验范围不变，不允许重复/无效帧。网络/投影检查通过，但两帧未满足请求手别，报告保持 `missing_required_hand`，未将MANO参数融合回SMPL-X。几帧的MediaPipe左右手点均聚集到同一只可见手，与WiLoR侧别存在分歧；这只是归属异常证据，不自动换侧，也不认定镜像已确认。
+
+将新旧权重在同一旧两段原始参考上比较，raw参数RMSE从 `0.123759` 增至 `0.165733`，左手从 `0.077658` 增至 `0.202024`；body/face略降，不能抵消手部退化。归一化统计和监督范围不同，不能把两次训练MSE直接比较。当前**不采用新权重替换旧权重**，不自动提升数据/模型资格，也没有为放行手型/手别问题放宽阈值。
+
+证据为 `local-data/remaining14-hand-quality-20261010/`：自动逐帧审计、隔离mask数据、`verified/masked-training/` 新权重、WiLoR原生参数/对照图、`hand-side-diagnostic.json`、`comparison.json`、`cpu-inference/parity.json` 和 `review.html`。新的修正方向是加强真实左手观测和手别归属，再做受约束融合；仅增加训练步数或忽略失败不会解决该问题。所有原数据与权重保留，仍为研究实验，不是手语生成模型。
+
+本次自主托管实验最终不晋级任何候选：v1掩码tokenizer的训练内MSE为 `0.113416`，发现重叠手别歧义后更严格的v2为 `0.135545`，v2更差；在相同旧参考和共同mask下，候选总体raw RMSE及左手RMSE均高于原14段权重。WiLoR三帧的MANO输出虽完成数值/渲染检查，但请求手别没有全部满足，状态保持 `missing_required_hand`。结论是当前瓶颈是手部观测和归属质量，不是训练步数；原权重保留，候选不合并，阈值不为放行而放宽。完整决定在 `local-data/remaining14-hand-quality-20261010/FINAL-DECISION.md`。
+
 ## 测试与来源
 
 ```bash
@@ -865,6 +879,7 @@ PYOPENGL_PLATFORM=egl OPENBLAS_CORETYPE=Haswell PYTHONDONTWRITEBYTECODE=1 \
 .venv-sign-data/bin/python signbridge/tests/sign-tokenizer-review.test.py
 .venv-sign-data/bin/python signbridge/tests/sign-tokenizer-infer.test.py
 .venv-sign-data/bin/python signbridge/tests/sign-tokenizer-evaluate.test.py
+.venv-sign-data/bin/python signbridge/tests/sign-hand-quality.test.py
 .venv-sign-data/bin/python signbridge/tests/sign-heldout-eval.test.py
 .venv-sign-data/bin/python signbridge/tests/sign-heldout-review.test.py
 .venv-sign-data/bin/python signbridge/tests/sign-source-candidates.test.py

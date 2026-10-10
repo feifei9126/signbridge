@@ -1,6 +1,7 @@
 """Offline contracts for a bounded WiLoR inference-only pilot."""
 
 import importlib.util
+import json
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -15,6 +16,34 @@ spec.loader.exec_module(pilot)
 
 
 class WiLoRPilotTests(unittest.TestCase):
+    def plan_fixture(self, path, cases):
+        value = {'schema': 'signbridge-wilor-explicit-cases-v1', 'batch_tasks_sha256': 'a' * 64,
+                 'training_ready': False, 'cases': cases}
+        path.write_text(json.dumps(value))
+        return pilot.sha256(path)
+
+    def test_explicit_case_plan_is_digest_bound_and_does_not_expand_scope(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / 'plan.json'
+            sha = self.plan_fixture(path, [{'segment_id': 'pilot-greeting-lunch-006',
+                'frame_1based': 57, 'sides': ['left', 'right']}])
+            self.assertEqual(pilot.read_case_plan(path, sha, 'a' * 64),
+                             [('pilot-greeting-lunch-006', 57, ('left', 'right'))])
+            with self.assertRaises(ValueError):pilot.read_case_plan(path, '0' * 64, 'a' * 64)
+            with self.assertRaises(ValueError):pilot.read_case_plan(path, sha, 'b' * 64)
+
+    def test_case_plan_duplicate_invalid_frames_or_sides_are_rejected(self):
+        good = {'segment_id': 'pilot-greeting-lunch-006', 'frame_1based': 57, 'sides': ['right']}
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / 'plan.json'
+            for cases in ([], [good, good], [{**good, 'segment_id': '../escape'}],
+                          [{**good, 'frame_1based': 0}], [{**good, 'frame_1based': True}],
+                          [{**good, 'sides': []}], [{**good, 'sides': ['right', 'right']}],
+                          [{**good, 'sides': ['unknown']}], [good] * 31):
+                sha = self.plan_fixture(path, cases)
+                with self.subTest(cases=cases), self.assertRaises(ValueError):
+                    pilot.read_case_plan(path, sha, 'a' * 64)
+
     def test_perspective_projection_matches_camera_not_normalized_crop(self):
         points = np.asarray([[1., -2., 5.], [0., 0., 3.]])
         xy = pilot.project_full(points, focal=1000., width=1280, height=720)

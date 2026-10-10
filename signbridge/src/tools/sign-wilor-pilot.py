@@ -6,6 +6,7 @@ import hashlib
 import importlib.util
 import json
 import os
+import re
 import subprocess
 import sys
 import time
@@ -164,6 +165,28 @@ def sibling_hand_tool():
     return module
 
 
+def read_case_plan(path, expected_sha, tasks_sha):
+    require(sha256(path) == expected_sha, 'Explicit case plan digest differs')
+    plan = json.loads(Path(path).read_text())
+    require(plan.get('schema') == 'signbridge-wilor-explicit-cases-v1' and
+            plan.get('training_ready') is False and plan.get('batch_tasks_sha256') == tasks_sha,
+            'Case plan batch or research contract differs')
+    rows = plan.get('cases', [])
+    require(isinstance(rows, list) and 1 <= len(rows) <= 30, 'Bounded nonempty case scope required')
+    cases, seen = [], set()
+    for row in rows:
+        segment, number, sides = row.get('segment_id'), row.get('frame_1based'), row.get('sides')
+        require(isinstance(segment, str) and re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_-]{0,79}', segment),
+                'Unsafe case segment ID')
+        require(type(number) is int and number >= 1, 'Invalid case frame')
+        require(isinstance(sides, list) and sides and all(s in ('left', 'right') for s in sides) and
+                len(set(sides)) == len(sides), 'Invalid case hand sides')
+        require((segment, number) not in seen, 'Duplicate case frame')
+        seen.add((segment, number))
+        cases.append((segment, number, tuple(sides)))
+    return cases
+
+
 def run(args):
     from PIL import Image, ImageDraw
     root, mano, batch = args.wilor_root.resolve(), args.mano_model.resolve(), args.batch.resolve()
@@ -171,8 +194,13 @@ def run(args):
     helper = sibling_hand_tool()
     window = getattr(args, "short_window", False)
     full = getattr(args, "full_sequence", False)
-    require(not (window and full), "Choose one inference scope")
-    selected = helper.task_cases(batch, cases=helper.full_sequence_cases() if full else (short_window_cases() if window else None))
+    case_plan = getattr(args, 'case_plan', None)
+    case_plan_sha = getattr(args, 'case_plan_sha256', None)
+    require(bool(case_plan) == bool(case_plan_sha), 'Case plan requires an explicit digest')
+    require(sum((bool(window), bool(full), bool(case_plan))) <= 1, "Choose one inference scope")
+    cases = read_case_plan(case_plan, case_plan_sha, sha256(batch / 'tasks.jsonl')) if case_plan else \
+        (helper.full_sequence_cases() if full else (short_window_cases() if window else None))
+    selected = helper.task_cases(batch, cases=cases)
     require(not output.exists() and all(output != p and p not in output.parents and output not in p.parents
                                        for p in (root, batch, mano.parent)), "Output must be new and separate")
     output.mkdir(parents=True)
@@ -186,6 +214,11 @@ def run(args):
               "full_sequence_inferred": full,
               "hand_pose_convention": "MANO rotation matrices, right-canonical prediction; image-space left mirror stored separately",
               "source_sha256": {}, "cases": []}
+    if case_plan:
+        report.update(scope='Explicit digest-bound keyframes; no full-sequence correction',
+                      explicit_case_plan_sha256=case_plan_sha,
+                      requested_cases=[{'segment_id': s, 'frame_1based': n, 'sides': list(h)} for s, n, h in cases])
+        report['source_sha256'][str(Path(case_plan).resolve())] = case_plan_sha
     path = output / "report.json"
 
     def save():
@@ -259,7 +292,7 @@ def run(args):
         report["renderer_preflight"] = helper.renderer_preflight()
         for task, number, expected_sides, image_path, observations in selected:
             segment = task["segment_id"]
-            folder = output / segment / ("%06d" % number) if window or full else output / segment
+            folder = output / segment / ("%06d" % number) if window or full or case_plan else output / segment
             folder.mkdir(parents=True)
             stage = "detector:" + segment
             image = cv2.imread(str(image_path))
@@ -337,6 +370,9 @@ def run(args):
                 print(json.dumps({"frame": number, **record}), flush=True)
             found = {h["side"] for h in case["hands"]}
             case["required_hand_detection_passed"] = set(expected_sides) <= found
+            if case_plan:
+                case['required_hand_detection_passed'] = all(
+                    sum(h['side'] == side for h in case['hands']) == 1 for side in expected_sides)
             Image.fromarray(combined).save(folder / "combined-overlay.jpg")
             marked = source.copy()
             drawer = ImageDraw.Draw(marked)
@@ -370,7 +406,8 @@ def run(args):
                       elapsed_seconds=time.monotonic() - started, source_files_unchanged=True,
                       limitations=["Full sequences estimated; missing/ambiguous hands do not imply valid motion" if full else
                                    ("Short windows only; temporal jumps flagged, no smoothing/contact/semantic acceptance" if window
-                                   else "Two keyframes only; no temporal/contact/semantic acceptance"),
+                                   else ("Explicit keyframes only; no temporal/contact/semantic acceptance" if case_plan
+                                         else "Two keyframes only; no temporal/contact/semantic acceptance")),
                                    "Detector handedness follows official demo; mirror status still unknown",
                                    "MANO and SMPL-X rotations/cameras not retargeted or merged",
                                    "Native pose arrays are right-canonical rotation matrices, not axis angles",
@@ -392,6 +429,8 @@ def main():
     parser.add_argument("--device", choices=("cuda", "cpu"), default="cuda")
     parser.add_argument("--full-sequence", action="store_true", help="Reviewed 166+218 frames; missing detections remain missing")
     parser.add_argument("--short-window", action="store_true", help="Only frames 88-94 and 156-162; no smoothing")
+    parser.add_argument('--case-plan', type=Path, help='Bounded explicit keyframes in a verified batch')
+    parser.add_argument('--case-plan-sha256', help='Digest binding the explicit keyframe plan')
     return run(parser.parse_args())
 
 

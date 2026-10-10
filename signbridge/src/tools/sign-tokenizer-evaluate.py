@@ -107,7 +107,7 @@ def load_motion_inputs(root):
     rows, arrays, hashes = smoke.load_inputs(root, True, segment_ids=ids)
     contract = json.loads((root / "verification.json").read_text())
     masks, mask_hashes = smoke.load_quality_masks(
-        root, rows, required=contract.get("schema") == "signbridge-full-fusion-export-v1")
+        root, rows, required=smoke.quality_masks_required(contract))
     return rows, arrays, masks, hashes + mask_hashes
 
 

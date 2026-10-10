@@ -154,6 +154,20 @@ class TokenizerSmokeTests(unittest.TestCase):
         self.assertEqual(windows.shape[1:], (64, 133))
         np.testing.assert_array_equal(windows[-1], array[-64:])
 
+    def test_observation_screen_requires_masks_in_training(self):
+        self.assertTrue(smoke.quality_masks_required({'schema': 'signbridge-hand-observation-screen-v1',
+                                                    'quality_masks_required': True}))
+        self.assertTrue(smoke.quality_masks_required({'schema': 'signbridge-full-fusion-export-v1'}))
+        self.assertFalse(smoke.quality_masks_required({'soke_commit': smoke.SOKE_COMMIT}))
+        with self.assertRaises(ValueError):
+            smoke.quality_masks_required({'schema': 'signbridge-hand-observation-screen-v1',
+                                          'quality_masks_required': False})
+
+    def test_missing_quality_mask_cannot_revert_to_all_ones_for_screened_motion(self):
+        records = self.fixture()
+        with self.assertRaisesRegex(ValueError, 'Missing'):
+            smoke.load_quality_masks(self.root, records, required=True)
+
     def test_constant_feature_scales_remain_finite_and_source_immutable(self):
         arrays = [np.ones((65, 133), dtype=np.float32), np.ones((67, 133), dtype=np.float32)]
         mean, std = smoke.normalization(arrays)
