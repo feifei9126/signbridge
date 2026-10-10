@@ -1,5 +1,9 @@
 # 黑客松展示页
 
+## 手语模型训练工程总报告
+
+完整数据准备、重建、试修、训练、评估、失败和复跑入口见[手语训练全过程总报告](training-master-report.md)。该报告登记9份本地可核验研究权重及1轮尚未下载的远端训练；模型、视频和证据快照留在本地 `local-data/training-master-report-20261010-v1/`，其中 `index.html` 提供全文阅读、证据检索和调用命令，`RESUME-CONTEXT.md` 供后续接手。报告区分研究动作编码与正式文字到手语生成，并校正历史比较口径。
+
 本目录是 SignBridge 的静态演示网页，用 GitHub Pages 从 `main` 分支的 `/docs` 目录发布。配置 Pages 后的公开地址：<https://feifei9126.github.io/signbridge/>。
 
 页面提供实际操作录屏、功能说明和预构建 Chrome 扩展下载。它自身不是扩展运行环境；实时字幕、标签页音频捕获和 3D 浮窗需要先在 Chrome 中加载扩展。
