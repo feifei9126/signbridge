@@ -820,6 +820,26 @@ PYOPENGL_PLATFORM=egl OPENBLAS_CORETYPE=Haswell PYTHONDONTWRITEBYTECODE=1 \
 
 新14段的复核入口为该交付目录中的 `review.html`，包含训练曲线、14段全长关节投影对照和逐段统计。其三栏为原视频、SMPL-X拟合输入、新权重的训练内重建；使用原片的相机、根姿态和未表示下身，因此这些部分不是模型生成，投影图也不进行网格遮挡处理。`cpu-metric-recheck.json` 保存独立CPU训练窗口误差复算，`cpu-inference/parity.json` 保存14段推理一致性结果。
 
+### 新14段权重的冻结未训练片段评估
+
+2026-10-10冻结第1000步的新权重，用没有参加这次14段训练的旧“你好”和“咳嗽”两段（384帧）完成CPU编码、解码和原生关节投影诊断。沿用checkpoint内训练归一化统计，独立复算其来源；没有更新权重、重新选择checkpoint或使用暂停的三段新增素材。两段原始SMPLer-X参数重新严格导入，未混用此前WiLoR融合参考。
+
+总体归一化MSE为 `0.411959`，训练均值基线为 `0.827387`（降低约50.2%）；参数raw RMSE为 `0.123759`。相对模型估计，手关节平均旋转差约4–6度，身体约10–11度，但手部投影平均偏差仍约57–112像素（1280×720画面）。关键帧可见手位置偏移，原始“双指/握拳被展开”的错误也未纠正，不能仅凭平均参数误差提升部署资格。
+
+两段与训练数据共享源文件、人物记录和课程组，且用于过先前模型开发，因此这只是片段未重合的同源诊断，不是独立来源/人物或未触碰测试集；不报告手语准确率。交付为 `local-data/remaining14-eval-20261010/`：`review.html`、`frozen-diagnostic/report.json`、`independent-recheck.json` 和384帧完整对照。`training_ready=false`、`deployment_ready=false`、`independent_generalization_evaluated=false` 保持不变。
+
+工具 `sign-tokenizer-evaluate.py` 要求真实训练报告SHA-256、checkpoint摘要、精确训练ID、导入参考摘要、训练统计重算及评估前后输入一致。拒绝重叠/重复/不安全ID或参考篡改；按有效值数聚合MSE而非按片段等权平均，旋转使用测地角防止轴角分支跳变。命令示例（输出必须新建）：
+
+```bash
+.venv-wilor/bin/python signbridge/src/tools/sign-tokenizer-evaluate.py \
+  --training-results local-data/remaining14-research-20261010/verified/training \
+  --training-motions local-data/remaining14-research-20261010/verified/motions \
+  --evaluation-motions local-data/remaining14-eval-20261010/raw-reference-motions \
+  --soke-root local-data/deps/SOKE \
+  --training-report-sha256 b6e321c180d2edeed9255cbd4809a17d36dccae5d78d205fdb8f493ead3b42c1 \
+  --output local-data/remaining14-evaluation-new-run
+```
+
 ## 测试与来源
 
 ```bash
@@ -844,6 +864,7 @@ PYOPENGL_PLATFORM=egl OPENBLAS_CORETYPE=Haswell PYTHONDONTWRITEBYTECODE=1 \
 .venv-sign-data/bin/python signbridge/tests/sign-sequence-media.test.py
 .venv-sign-data/bin/python signbridge/tests/sign-tokenizer-review.test.py
 .venv-sign-data/bin/python signbridge/tests/sign-tokenizer-infer.test.py
+.venv-sign-data/bin/python signbridge/tests/sign-tokenizer-evaluate.test.py
 .venv-sign-data/bin/python signbridge/tests/sign-heldout-eval.test.py
 .venv-sign-data/bin/python signbridge/tests/sign-heldout-review.test.py
 .venv-sign-data/bin/python signbridge/tests/sign-source-candidates.test.py
