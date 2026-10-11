@@ -118,11 +118,16 @@ class TutorialReconstructTests(unittest.TestCase):
                 self.m.validate_keyframe_order(order)
         self.assertEqual(self.m.validate_keyframe_order([1, 4, 0, 2, 3]), [1, 4, 0, 2, 3])
 
+    def test_large_batch_limit_is_bounded_below_uncontrolled_runaway(self):
+        self.assertTrue(self.m.validate_ids(['one']))
+        self.assertRaises(ValueError, self.m.validate_ids, ['x'] * 9)
+
     def test_case_ids_are_bounded_and_unique(self):
         for ids in ([], ['../escape'], ['same', 'same'], ['valid'] * 9):
             with self.assertRaises(ValueError):
                 self.m.validate_ids(ids)
         self.assertEqual(self.m.validate_ids(['one', 'two']), ['one', 'two'])
+        self.assertEqual(self.m.validate_ids(['x-%d' % i for i in range(80)], maximum=80), ['x-%d' % i for i in range(80)])
 
 
 if __name__ == '__main__':

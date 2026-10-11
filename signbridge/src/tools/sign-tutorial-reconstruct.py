@@ -34,10 +34,10 @@ def read_lines(path):
     return [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
 
 
-def validate_ids(ids):
-    if not 1 <= len(ids) <= 8 or len(set(ids)) != len(ids) or any(
+def validate_ids(ids, maximum=8):
+    if not 1 <= len(ids) <= maximum or len(set(ids)) != len(ids) or any(
             not isinstance(x, str) or re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_-]{0,79}', x) is None for x in ids):
-        raise ValueError('One to eight unique safe annotation IDs required')
+        raise ValueError(f'One to {maximum} unique safe annotation IDs required')
     return ids
 
 
@@ -74,7 +74,7 @@ def compare_observations(projected, left, right, left_detected, right_detected, 
 def prepare(args):
     import cv2
     root, out = args.reference_root.resolve(), args.output.resolve()
-    validate_ids(args.annotation_id)
+    validate_ids(args.annotation_id, maximum=80)
     keyframe_order = validate_keyframe_order(args.keyframe_index)
     if out.exists() or root in out.parents or out in root.parents:
         raise ValueError('Fresh output outside reference delivery required')
@@ -97,12 +97,14 @@ def prepare(args):
         keyframes = json.loads((root / row['artifacts']['keyframes.json']['relative_path']).read_text())['frames']
         flags = read_lines(root / row['artifacts']['reference-flags.jsonl']['relative_path'])
         preferred = [keyframes[i] for i in keyframe_order if i < len(keyframes)]
+        if not args.all_keyframes:
+            preferred = preferred[:2]
         chosen = []
         for frame in preferred:
             number = frame['frame_1based']
-            if any(flags[number-1][s]['eligible_for_2d_fit'] for s in ['left', 'right']):
+            if args.all_keyframes or any(flags[number-1][s]['eligible_for_2d_fit'] for s in ['left', 'right']):
                 chosen.append(frame)
-            if len(chosen) == 2:
+            if not args.all_keyframes and len(chosen) == 2:
                 break
         if not chosen:
             skipped.append({'annotation_id': row['annotation_id'], 'reason': 'no_eligible_saved_keyframe'})
@@ -152,8 +154,8 @@ def check_plan(path, digest):
     references = {r['annotation_id']: r for r in read_lines(reference_index)}
     checked_sources = set()
     cases = plan['cases']
-    if not 1 <= len(cases) <= 16 or len({r['case_id'] for r in cases}) != len(cases):
-        raise ValueError('Bounded unique case scope required')
+    if not 1 <= len(cases) <= 600 or len({r['case_id'] for r in cases}) != len(cases):
+        raise ValueError('Bounded unique case scope required (1-600)')
     for row in cases:
         validate_ids([row['case_id']])
         reference = references.get(row['annotation_id'])
@@ -338,6 +340,7 @@ def main():
     p.add_argument('--reference-root', type=Path, required=True)
     p.add_argument('--annotation-id', nargs='+', required=True)
     p.add_argument('--keyframe-index', nargs='+', type=int, default=[2, 3, 4, 0, 1])
+    p.add_argument('--all-keyframes', action='store_true', help='Use all saved keyframes for a bounded batch')
     p.add_argument('--output', type=Path, required=True)
     p = sub.add_parser('run')
     for key in ['plan', 'wilor-root', 'mano-model', 'output']:
