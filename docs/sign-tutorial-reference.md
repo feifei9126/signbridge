@@ -88,6 +88,12 @@ for row in rows:
 
 全量结果仍是400个稀疏独立关键帧，不是连续视频、动作阶段真值或已训练模型。详细门槛、逐帧对照和剩余条件见本地`local-data/tutorial-native-hands-20261010-v1/full-alignment-download-20261012/FULL-DELIVERY.md`；可直接打开其中的`review/index.html`。`training_ready=false`保持不变。
 
+## shouyu长课的OCR定位参考（2026-10-12）
+
+前一轮未覆盖的33个`shouyu/`源现已扩展出57个稀疏字幕定位窗口：53个词字幕候选、4个身体/表情教学步骤，覆盖28个源。它们全部标记`automatic_caption_index`，不是专家词汇标签。每个窗口提取4秒范围的二维关键点参考，再各取5张独立帧，完成285张MANO推理和对应SMPL-X重建。SMPL-X其中284帧检测到人体，1帧无检测并明确拒绝生成姿态。284个可处理帧中205帧组合几何门槛通过，79帧回退；193个候选应用于独立副本。输出与未核准的边界、OCR原文和来源证据可在本地`local-data/tutorial-shouyu-expansion-20261012/review/index.html`及`FULL-DELIVERY.md`查阅。
+
+该批关键帧同样不连续，且源字幕可能只是教师讲解或例句。所有状态保持`human_approved=false`和`training_ready=false`，不能把投影一致性当作手语准确性。
+
 ## 数据状态与分割
 
 本批80条详细窗口实际全部来自同一个`100`教学系列的8个源视频，课程分组均为`tutorial-series-100`；表演者身份、镜像和语义边界未核准。按来源留出测试集没有独立课程组，随机拆帧会泄漏同一教程。因此309条几何候选不能安全升级为监督训练标签，正式大模型训练仍未启动。

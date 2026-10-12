@@ -52,6 +52,16 @@ class TutorialManoAlignTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 align.load_mano_candidate(path, 'left')
 
+    def test_missing_smplx_detection_is_explicit_and_not_replaced(self):
+        with tempfile.TemporaryDirectory() as directory:
+            params = Path(directory) / '00027_0.npz'
+            meta = Path(directory) / '00027_0.json'
+            self.assertTrue(align.smplx_body_detection_missing(params, meta))
+            params.write_bytes(b'baseline')
+            self.assertTrue(align.smplx_body_detection_missing(params, meta))
+            meta.write_text('{}')
+            self.assertFalse(align.smplx_body_detection_missing(params, meta))
+
 
 if __name__ == '__main__':
     unittest.main()

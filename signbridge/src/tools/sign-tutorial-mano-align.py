@@ -45,6 +45,10 @@ def read_native(path):
     return hand.read_native(Path(path))
 
 
+def smplx_body_detection_missing(params_path, meta_path):
+    return not Path(params_path).is_file() or not Path(meta_path).is_file()
+
+
 def load_mano_candidate(path, expected_side):
     with np.load(path, allow_pickle=False) as archive:
         side_key = "detector_right" if "detector_right" in archive.files else "right"
@@ -140,7 +144,24 @@ def main(args):
             smplx_params_path = smplx_job / "output/smplx" / ("%05d_0.npz" % index)
             meta_path = smplx_job / "output/meta" / ("%05d_0.json" % index)
             image_path = mano_inputs / manifest_case["image"]
-            require(smplx_params_path.is_file() and meta_path.is_file() and image_path.is_file(), "Missing aligned input")
+            require(image_path.is_file(), "Missing tutorial source image")
+            if smplx_body_detection_missing(smplx_params_path, meta_path):
+                case = {
+                    "output_index": index, "case_id": manifest_case["case_id"],
+                    "annotation_id": manifest_case["annotation_id"], "label": manifest_case["label"],
+                    "source_reference_frame_1based": manifest_case.get("source_reference_frame_1based", manifest_case.get("frame_1based")),
+                    "source_seconds_nominal": manifest_case["source_seconds_nominal"],
+                    "smplx_body_detection_missing": True, "candidate_alternatives": [], "selected": {},
+                    "combined_projection_gate_passed": False, "all_candidate_gates_passed": False,
+                    "frame_compare": None, "training_ready": False, "human_approved": False,
+                    "mirror_status": "unknown", "anatomical_handedness_verified": False,
+                }
+                report["cases"].append(case)
+                write_json(output / "report.json", report)
+                print(json.dumps({"frame": index, "label": manifest_case["label"],
+                                  "hands": 0, "combined_gate": False,
+                                  "reason": "smplx_body_detection_missing"}, ensure_ascii=False), flush=True)
+                continue
             params = read_native(smplx_params_path)
             meta = json.loads(meta_path.read_text())
             camera = hand.native_camera(meta, image_path)
