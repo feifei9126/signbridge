@@ -22,7 +22,8 @@ const candidateData = JSON.parse(
 );
 const candidateClips = candidateData.clips || [];
 const phraseCount = data.clips.length + candidateClips.length;
-const catalogCount = phraseCount + 52;
+const composedPhraseCount = 53;
+const catalogCount = phraseCount + composedPhraseCount;
 const browser = await chromium.launch({
   headless: true,
   ...(process.env.SIGNBRIDGE_CHROME
@@ -90,8 +91,17 @@ try {
     await page.locator("#candidate-count").textContent(),
     String(candidateClips.length),
   );
+  assert.equal(
+    await page.locator('[data-source="composition"]').count(),
+    composedPhraseCount,
+  );
+  assert.ok(
+    (await page.locator("#catalog-note").textContent()).includes(
+      "53 条词库组合",
+    ),
+  );
   await screenshot("desktop.png");
-  report.checks.push("initial 14 T08 + 52 dictionary catalog");
+  report.checks.push("70 phrase catalog with explicit source counts");
   await page.evaluate(() => {
     document.querySelector("#play").click();
     document.querySelector('[data-mode="dictionary"]').click();
@@ -106,6 +116,27 @@ try {
   await page.locator('[data-mode="auto"]').click();
   report.checks.push(
     "immediate play / mode switch ignores superseded iframe events",
+  );
+  await page.locator("[data-catalog-view=phrases]").click();
+  await page.locator("#search").fill("我可以帮助你");
+  assert.equal(await page.locator('[data-source="composition"]').count(), 1);
+  await page.locator('[data-source="composition"]').click();
+  assert.equal(await page.locator("#input").inputValue(), "我可以帮助你");
+  await page.locator("#play").click();
+  await page.waitForFunction(() =>
+    document.querySelector("#source-badge").textContent.includes("词库"),
+  );
+  await page.waitForFunction(
+    () => document.querySelector("#status").textContent === "本次播放完成。",
+    { timeout: 15000 },
+  );
+  assert.equal(
+    await page.locator("#tokens").textContent(),
+    "当前播放内置词库动作，不使用 T08 token。",
+  );
+  await page.locator("#search").fill("");
+  report.checks.push(
+    "composed phrase plays dictionary motions and is not routed as trained T08",
   );
   await played("工作忙吗？谢谢🚀");
   await page.waitForFunction(
@@ -213,6 +244,7 @@ try {
     console.log(`Candidate completed ${i + 1}/3: ${clip.id}`);
   }
   await page.locator("[data-mode=dictionary]").click();
+  await page.locator("[data-catalog-view=words]").click();
   assert.equal(await page.locator("#catalog-count").textContent(), "52 / 52");
   const labels = await page.locator("#catalog-list button").allTextContents();
   for (const [i, label] of labels.entries()) {
@@ -263,6 +295,7 @@ try {
   }
   report.checks.push("six read-only keyframe comparison images");
   await page.locator("[data-mode=auto]").click();
+  await page.locator("[data-catalog-view=phrases]").click();
   await page.locator("#input").fill("工作忙吗？谢谢");
   for (const width of [768, 375]) {
     await page.setViewportSize({ width, height: 1000 });
@@ -297,6 +330,11 @@ try {
     () => !document.querySelector("#play").disabled,
   );
   assert.equal(await fallback.locator("#model-count").textContent(), "0");
+  assert.equal(
+    await fallback.locator("#catalog-count").textContent(),
+    "53 / 53",
+  );
+  await fallback.locator("[data-catalog-view=words]").click();
   assert.equal(
     await fallback.locator("#catalog-count").textContent(),
     "52 / 52",

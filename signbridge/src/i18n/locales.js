@@ -24,8 +24,15 @@ const DEMO_ZH = {
   demoStop: "停止",
   demoLoading: "正在加载角色与动作…",
   demoMatches: "已识别内容",
-  demoCatalog: "可用的词与参考短句",
-  demoSearch: "搜索已有词语或完整短句",
+  demoCatalog: "短句与词库",
+  demoCatalogViews: "短句或词库动作",
+  demoPhraseTab: "常用短句入口",
+  demoWordTab: "单词动作",
+  demoPhraseSourceNote:
+    "共 {total} 条：{reference} 条 T08 参考动作、{candidate} 条候选重建、{composed} 条词库组合。组合项逐词播放，未经句级训练或手语者核验。",
+  demoWordSourceNote:
+    "共 {count} 个内置词条；词条动画不是本轮新增的句子训练结果。",
+  demoSearch: "搜索短句或词条",
   demoAvatarLabel: "当前项目角色 · Godette",
   demoStage: "虚拟人物",
   demoReadyBadge: "准备就绪",
@@ -55,7 +62,7 @@ const DEMO_ZH = {
     "实验性展示：T08 负责已有参考动作的编码/重建；文字用于检索，内置词库用于补充。未覆盖文字不会自动生成手语，拼接也不代表正确的手语语法。",
   demoHow: "这份 Demo 怎样工作？",
   demoHowBody:
-    "14 段参考动作由固定 T08 checkpoint 在 CPU 上重新编码并解码，带有来源摘要。匹配完整参考短句时使用 T08，其他已有词语播放内置动作；本轮无需新训练或 GPU。",
+    "短句列表包含 14 条 T08 参考动作、最多 3 条候选重建和 53 条词库组合。组合项只会逐词播放现有词条，并非句级训练或经手语者核验的翻译；候选句也未更新模型权重。",
   demoRetargetNote:
     "SMPL-X 姿态通过源骨架与角色 REST 校准后转换为四元数。根部、下身保持角色待机，表情系数尚未完整映射。手型和穿模仍为实验效果。",
   demoReady: "已就绪，输入文字或选择片段。",
@@ -72,6 +79,7 @@ const DEMO_ZH = {
   demoDictionaryToken: "当前播放内置词库动作，不使用 T08 token。",
   demoSourceT08: "T08 · 参考动作重建",
   demoSourceDictionary: "词库 · 内置动作",
+  demoSourceComposition: "词库组合 · 逐词播放，非句级训练",
   demoResearchLabel: "{text} · {series} · 原图 / baseline / candidate",
   demoResearchMissing: "此工作区尚未打包研究对照图。",
   demoPartialAsset: "T08 资产不可用，现有词库仍可播放。",
@@ -106,8 +114,15 @@ const DEMO_EN = {
   demoRetry: "Reload demo",
   demoLoading: "Loading avatar and motions…",
   demoMatches: "Matched text",
-  demoCatalog: "Available words and reference phrases",
-  demoSearch: "Search words or complete phrases",
+  demoCatalog: "Phrases and dictionary",
+  demoCatalogViews: "Phrase or dictionary view",
+  demoPhraseTab: "Phrase examples",
+  demoWordTab: "Dictionary motions",
+  demoPhraseSourceNote:
+    "{total} entries: {reference} T08 references, {candidate} candidate reconstructions, and {composed} dictionary compositions. Compositions play word by word; they are not sentence-trained or sign-expert reviewed.",
+  demoWordSourceNote:
+    "{count} built-in entries. These word motions are not new sentence-training results.",
+  demoSearch: "Search phrases or dictionary entries",
   demoAvatarLabel: "Project avatar · Godette",
   demoStage: "Avatar",
   demoReadyBadge: "Ready",
@@ -138,7 +153,7 @@ const DEMO_EN = {
     "Experimental showcase: T08 encodes and reconstructs existing reference motions. Text retrieves clips; dictionary entries supplement coverage. Unsupported text is reported. Concatenation does not establish correct sign language grammar.",
   demoHow: "How does this demo work?",
   demoHowBody:
-    "Fourteen reference motions were encoded and decoded on CPU using a frozen T08 checkpoint with source digests. Complete reference phrase matches use T08; other supported words use dictionary motions. No new training or GPU is required.",
+    "The phrase list contains 14 T08 reference motions, up to 3 candidate reconstructions, and 53 dictionary compositions. Compositions play existing word motions in sequence; they are not sentence-trained or sign-expert reviewed. Candidate phrases did not update model weights.",
   demoRetargetNote:
     "SMPL-X poses are calibrated to the avatar skeleton and played as quaternions. The root and lower body remain at rest; facial coefficients are not mapped. Hand shapes and mesh contact remain experimental.",
   demoReady: "Ready. Enter text or choose an example.",
@@ -157,6 +172,8 @@ const DEMO_EN = {
     "The last played dictionary motion does not use T08 tokens.",
   demoSourceT08: "T08 · Reference reconstruction",
   demoSourceDictionary: "Dictionary · Built-in motion",
+  demoSourceComposition:
+    "Dictionary composition · Word-by-word, not sentence-trained",
   demoResearchLabel: "{text} · {series} · Original / baseline / candidate",
   demoResearchMissing:
     "No research comparisons were packaged in this workspace.",

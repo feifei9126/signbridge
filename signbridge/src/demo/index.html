@@ -95,6 +95,26 @@
               <h3 data-i18n="demoCatalog"></h3>
               <span id="catalog-count"></span>
             </div>
+            <div
+              class="mode-group catalog-switch"
+              role="group"
+              aria-label=""
+              data-i18n-aria="demoCatalogViews"
+            >
+              <button
+                type="button"
+                data-catalog-view="phrases"
+                aria-pressed="true"
+                data-i18n="demoPhraseTab"
+              ></button>
+              <button
+                type="button"
+                data-catalog-view="words"
+                aria-pressed="false"
+                data-i18n="demoWordTab"
+              ></button>
+            </div>
+            <p id="catalog-note" class="catalog-note" aria-live="polite"></p>
             <label class="sr-only" for="search" data-i18n="demoSearch"></label
             ><input
               type="search"

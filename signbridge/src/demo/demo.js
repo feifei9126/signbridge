@@ -5,6 +5,7 @@ import {
   validateT08Bundle,
   validateT08CandidateBundle,
 } from "./demo-motion.js";
+import { buildDemoPhraseCatalog } from "./phrase-catalog.js";
 const locale = new URL(location.href).searchParams.get("lang") || "zh-CN";
 setLocale(locale);
 document.documentElement.lang = locale;
@@ -26,6 +27,7 @@ let clips = [],
   model = null,
   candidateModel = null,
   mode = "auto",
+  catalogView = "phrases",
   ready = false,
   modelAvailable = false,
   currentPlan = { items: [], unmatched: "" },
@@ -85,30 +87,46 @@ function renderCatalog() {
     .querySelector("#search")
     .value.trim()
     .toLocaleLowerCase();
-  const catalog = [];
-  if (mode !== "dictionary" && modelAvailable)
-    catalog.push(
-      ...clips.map((c) => ({
-        id: c.id,
-        text: c.text,
-        source: c.runtime_candidate ? "candidate" : "t08",
-      })),
-    );
-  if (mode !== "t08")
-    catalog.push(
-      ...Object.values(SIGNS).map((c) => ({
-        id: c.id,
-        text: c.gloss,
-        source: "dictionary",
-      })),
-    );
+  const phrases = buildDemoPhraseCatalog(modelAvailable ? clips : []);
+  const catalog =
+    catalogView === "phrases"
+      ? phrases.filter(
+          (entry) =>
+            mode === "auto" ||
+            (mode === "t08" && entry.source !== "composition") ||
+            (mode === "dictionary" && entry.source === "composition"),
+        )
+      : mode === "t08"
+        ? []
+        : Object.values(SIGNS).map((c) => ({
+            id: c.id,
+            text: c.gloss,
+            source: "dictionary",
+          }));
   const found = catalog.filter((c) =>
     (c.text + " " + c.id).toLocaleLowerCase().includes(query),
   );
   document.querySelector("#catalog-count").textContent =
     `${found.length} / ${catalog.length}`;
+  document.querySelector("#catalog-note").textContent =
+    catalogView === "phrases"
+      ? t("demoPhraseSourceNote", {
+          total: catalog.length,
+          reference: catalog.filter((entry) => entry.source === "t08").length,
+          candidate: catalog.filter((entry) => entry.source === "candidate")
+            .length,
+          composed: catalog.filter((entry) => entry.source === "composition")
+            .length,
+        })
+      : t("demoWordSourceNote", { count: catalog.length });
   const list = document.querySelector("#catalog-list");
   list.replaceChildren();
+  for (const button of document.querySelectorAll("[data-catalog-view]")) {
+    button.setAttribute(
+      "aria-pressed",
+      String(button.dataset.catalogView === catalogView),
+    );
+  }
   for (const entry of found) {
     const b = element("button", entry.text);
     b.type = "button";
@@ -122,6 +140,7 @@ function renderCatalog() {
                 ?.normalized_reconstruction_mse?.toFixed(3) || "?",
           })
         : t(entry.source === "t08" ? "demoSourceT08" : "demoSourceDictionary");
+    if (entry.source === "composition") b.title = t("demoSourceComposition");
     b.addEventListener("click", () => {
       send("STOP");
       resetUi();
@@ -170,9 +189,15 @@ input.addEventListener("keydown", (e) => {
   }
 });
 document.querySelector("#search").addEventListener("input", renderCatalog);
+for (const button of document.querySelectorAll("[data-catalog-view]"))
+  button.addEventListener("click", () => {
+    catalogView = button.dataset.catalogView;
+    renderCatalog();
+  });
 for (const b of document.querySelectorAll("[data-mode]"))
   b.addEventListener("click", () => {
     mode = b.dataset.mode;
+    if (mode === "t08") catalogView = "phrases";
     send("STOP");
     resetUi();
     for (const n of document.querySelectorAll("[data-mode]")) {

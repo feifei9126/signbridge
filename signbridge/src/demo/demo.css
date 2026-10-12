@@ -263,6 +263,18 @@ textarea {
 .catalog {
   margin-top: 20px;
 }
+.catalog-switch {
+  margin: 10px 0 0;
+}
+.catalog-switch button {
+  min-height: 36px;
+}
+.catalog-note {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
 .catalog > input {
   width: 100%;
   border: 1px solid var(--line);
@@ -292,6 +304,11 @@ textarea {
 .catalog-list button[data-source="t08"] {
   border-color: #b8cfd7;
   background: #f0f6f8;
+}
+.catalog-list button[data-source="composition"] {
+  border-color: #c4d8cd;
+  background: #eff5f1;
+  color: #275643;
 }
 .stage-heading {
   padding: 18px 22px;
