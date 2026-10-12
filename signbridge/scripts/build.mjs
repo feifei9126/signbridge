@@ -157,6 +157,17 @@ async function build() {
       outfile: dp("avatar/iframe-bundle.js"),
       bundle: true,
       external: ["./three.module.js", "./jsm/loaders/GLTFLoader.js"],
+      plugins: [
+        {
+          name: "runtime-three-module",
+          setup(build) {
+            build.onResolve({ filter: /^three$/ }, () => ({
+              path: "./three.module.js",
+              external: true,
+            }));
+          },
+        },
+      ],
       format: "esm",
       platform: "browser",
       target: "es2022",
@@ -276,8 +287,33 @@ async function buildDemo() {
     process.env.SIGNBRIDGE_DEMO_ASSET_DIR ||
     join(ROOT, "../local-data/demo-20261012");
   const motion = join(assets, "t08-motion.json");
+  let runtimeIndex = {
+    schema: "signbridge-t08-runtime-index-v1",
+    checkpoint_sha256: "",
+    clips: [],
+  };
   if (existsSync(motion)) {
     copyFileSync(motion, dp("demo/t08-motion.json"));
+    const source = JSON.parse(readFileSync(motion, "utf8"));
+    if (
+      source.schema !== "signbridge-t08-demo-v1" ||
+      source.research_only !== true ||
+      source.text_to_sign_trained !== false ||
+      !/^[a-f0-9]{64}$/.test(source.checkpoint_sha256) ||
+      source.clips?.length !== 14
+    )
+      throw new Error("Local T08 asset does not match the demo contract");
+    runtimeIndex = {
+      schema: "signbridge-t08-runtime-index-v1",
+      checkpoint_sha256: source.checkpoint_sha256,
+      clips: source.clips.map(({ id, text, aliases, fps, frames }) => ({
+        id,
+        text,
+        aliases,
+        fps,
+        frames,
+      })),
+    };
     console.log("  ✓ demo/T08 local reference motions");
   } else {
     writeFileSync(
@@ -288,6 +324,7 @@ async function buildDemo() {
       "  ℹ T08 assets absent; Demo dictionary mode remains available (see docs/demo.md)",
     );
   }
+  writeFileSync(dp("avatar/t08-index.json"), JSON.stringify(runtimeIndex));
   const researchFile = join(assets, "research.json");
   const research = existsSync(researchFile)
     ? JSON.parse(readFileSync(researchFile, "utf8"))

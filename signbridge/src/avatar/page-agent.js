@@ -43,6 +43,24 @@ if (window.__SIGNBRIDGE_PAGE_AGENT__) {
     state.subtitleEl.style.opacity = text ? "1" : "0";
   }
 
+  function showMotionSource(label) {
+    const overlay = document.querySelector("#signbridge-overlay");
+    if (!overlay || !label) return;
+    let badge = overlay.querySelector("#signbridge-motion-source");
+    if (!badge) {
+      badge = document.createElement("div");
+      badge.id = "signbridge-motion-source";
+      badge.setAttribute("role", "status");
+      badge.setAttribute("aria-live", "polite");
+      badge.style.cssText =
+        "position:absolute;left:8px;top:30px;z-index:30;padding:3px 7px;" +
+        "border-radius:4px;background:rgba(12,32,36,0.82);color:#fff;" +
+        "font:11px/1.4 sans-serif;pointer-events:none;";
+      overlay.appendChild(badge);
+    }
+    badge.textContent = label;
+  }
+
   async function initialize(nextConfig = {}) {
     state.config = { ...state.config, ...nextConfig };
     if (state.initialized) return;
@@ -159,6 +177,9 @@ if (window.__SIGNBRIDGE_PAGE_AGENT__) {
         break;
       case "SIGNBRIDGE_CONFIG":
         state.config = { ...state.config, ...(ev.data.config || {}) };
+        break;
+      case "SIGNBRIDGE_MOTION_SOURCE":
+        showMotionSource(ev.data.label);
         break;
     }
   });

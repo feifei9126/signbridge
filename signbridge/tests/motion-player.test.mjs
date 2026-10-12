@@ -54,13 +54,15 @@ function playerHarness(options = {}) {
   let nextId = 0;
   const callbacks = new Map();
   const visited = [];
+  const interpolated = [];
   const rig = {
     capture: () => ({}),
     createTargets: (pose) => {
       visited.push(pose.name);
       return pose;
     },
-    interpolate: () => {},
+    interpolate: (_from, targets, amount) =>
+      interpolated.push({ targets, amount }),
     reset: () => visited.push("reset"),
   };
   const schedule = (callback, delay) => {
@@ -89,7 +91,7 @@ function playerHarness(options = {}) {
     }
     clock = end;
   }
-  return { player, advance, visited, callbacks };
+  return { player, advance, visited, callbacks, interpolated };
 }
 
 function motion(...names) {
@@ -155,4 +157,43 @@ test("completion fires once after the whole clip but not on cancellation", () =>
   player.stop();
   advance(1000);
   assert.equal(completed, 1);
+});
+
+test("T08 quaternion tracks interpolate sampled poses on the live player timeline", () => {
+  const { player, advance, interpolated } = playerHarness();
+  const samples = [{ frame: 0 }, { frame: 1 }, { frame: 2 }];
+  assert.equal(
+    player.enqueue({
+      type: "quaternion-track",
+      samples,
+      fps: 10,
+      duration: 0.3,
+    }),
+    true,
+  );
+  advance(48);
+  assert.ok(
+    interpolated.some(
+      (sample) =>
+        sample.targets === samples[1] &&
+        sample.amount > 0.4 &&
+        sample.amount < 0.6,
+    ),
+  );
+  advance(400);
+  assert.equal(player.isPlaying, false);
+});
+
+test("stopping a T08 track cancels its animation frame", () => {
+  const { player, callbacks } = playerHarness();
+  player.play({
+    type: "quaternion-track",
+    samples: [{ frame: 0 }, { frame: 1 }],
+    fps: 25,
+    duration: 0.08,
+  });
+  assert.equal(callbacks.size, 1);
+  player.stop();
+  assert.equal(callbacks.size, 0);
+  assert.equal(player.isPlaying, false);
 });

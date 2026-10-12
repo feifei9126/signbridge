@@ -34,6 +34,7 @@ test("build creates every runtime asset", () => {
     "content/injector.js",
     "avatar/avatar-frame.html",
     "avatar/iframe-bundle.js",
+    "avatar/t08-index.json",
     "avatar/model.glb",
     "offscreen/audio-capture.html",
     "offscreen/audio-capture.js",
@@ -245,5 +246,22 @@ test("full-page Demo ships its iframe, local assets and popup entry under the ex
     assert.equal(data.clips.length, 14);
     assert.equal(data.text_to_sign_trained, false);
     assert.equal(data.research_only, true);
+  }
+  const runtimeBundle = readFileSync(
+    join(dist, "avatar/iframe-bundle.js"),
+    "utf8",
+  );
+  assert.match(runtimeBundle, /Realtime motion source: T08/);
+  assert.match(runtimeBundle, /T08 playback unavailable; using dictionary/);
+  assert.doesNotMatch(runtimeBundle, /from\s+["']three["']/);
+  const index = JSON.parse(
+    readFileSync(join(dist, "avatar/t08-index.json"), "utf8"),
+  );
+  if (!data.unavailable) {
+    assert.equal(index.schema, "signbridge-t08-runtime-index-v1");
+    assert.equal(index.checkpoint_sha256, data.checkpoint_sha256);
+    assert.equal(index.clips.length, 14);
+  } else {
+    assert.equal(index.clips.length, 0);
   }
 });

@@ -13,6 +13,13 @@ import {
   compileTranslationMatchers,
 } from "./sign-language-data.js";
 import { createMotionLibrary, selectEnabledMotions } from "./motion-library.js";
+import { t, setLocale } from "../i18n/locales.js";
+import {
+  matchT08Reference,
+  T08_CHECKPOINT_SHA256,
+  validateT08Bundle,
+} from "../demo/demo-motion.js";
+import { createT08Retarget } from "../demo/demo-retarget.js";
 
 let renderer, scene, camera;
 let rig = null;
@@ -28,6 +35,63 @@ let translationMatchers = compileTranslationMatchers();
 let unsubscribeMotions = null;
 let motionLibraryVersion = 0;
 let motionLibraryIdentity = "[]";
+let t08ReferenceClips = [];
+let t08MotionBundlePromise = null;
+let t08Retarget = null;
+const t08TrackCache = new Map();
+let translationQueue = Promise.resolve();
+let translationGeneration = 0;
+
+async function loadT08ReferenceIndex() {
+  try {
+    const response = await fetch(
+      chrome.runtime.getURL("avatar/t08-index.json"),
+    );
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const index = await response.json();
+    if (
+      index?.schema !== "signbridge-t08-runtime-index-v1" ||
+      index.checkpoint_sha256 !== T08_CHECKPOINT_SHA256 ||
+      index.clips?.length !== 14 ||
+      !index.clips.every(
+        (clip) =>
+          typeof clip.id === "string" &&
+          typeof clip.text === "string" &&
+          Array.isArray(clip.aliases) &&
+          Number.isFinite(clip.fps) &&
+          Number.isInteger(clip.frames),
+      )
+    )
+      throw new Error("T08 reference index provenance is invalid");
+    t08ReferenceClips = index.clips;
+    console.info("[SB] T08 reference index ready:", t08ReferenceClips.length);
+  } catch (error) {
+    t08ReferenceClips = [];
+    console.warn("[SB] T08 index unavailable; dictionary fallback:", error);
+  }
+}
+
+function loadT08MotionBundle() {
+  if (!t08MotionBundlePromise) {
+    const pending = (async () => {
+      const response = await fetch(
+        chrome.runtime.getURL("demo/t08-motion.json"),
+      );
+      if (!response.ok) throw new Error(`T08 asset HTTP ${response.status}`);
+      const bundle = validateT08Bundle(await response.json());
+      if (bundle.checkpoint_sha256 !== T08_CHECKPOINT_SHA256)
+        throw new Error("T08 checkpoint differs from the runtime index");
+      t08Retarget = createT08Retarget(rig, modelRoot, bundle);
+      console.info("[SB] T08 token-decoded motion asset loaded");
+      return bundle;
+    })();
+    t08MotionBundlePromise = pending.catch((error) => {
+      t08MotionBundlePromise = null;
+      throw error;
+    });
+  }
+  return t08MotionBundlePromise;
+}
 
 async function loadMotionLibrary() {
   try {
@@ -40,6 +104,8 @@ async function loadMotionLibrary() {
         const motions = selectEnabledMotions(entries);
         const identity = JSON.stringify(motions);
         if (identity !== motionLibraryIdentity) {
+          translationGeneration += 1;
+          translationQueue = Promise.resolve();
           motionPlayer?.stop({ reset: true });
           translationMatchers = compileTranslationMatchers(motions);
           motionLibraryIdentity = identity;
@@ -50,6 +116,8 @@ async function loadMotionLibrary() {
         });
       } catch (error) {
         if (version !== motionLibraryVersion) return;
+        translationGeneration += 1;
+        translationQueue = Promise.resolve();
         motionPlayer?.stop({ reset: true });
         translationMatchers = compileTranslationMatchers();
         motionLibraryIdentity = "[]";
@@ -67,6 +135,63 @@ async function loadMotionLibrary() {
 
 function textToAnimation(text, manual = false) {
   if (!text) return false;
+  const reference = matchT08Reference(text, t08ReferenceClips);
+  if (!reference && !t08MotionBundlePromise)
+    return playDictionaryText(text, manual);
+
+  const generation = translationGeneration;
+  const route = async () => {
+    if (!modelReady || generation !== translationGeneration) return;
+    if (!reference) {
+      playDictionaryText(text, manual);
+      return;
+    }
+    try {
+      const bundle = await loadT08MotionBundle();
+      if (!modelReady || generation !== translationGeneration) return;
+      const clip = bundle.clips.find(
+        (candidate) => candidate.id === reference.id,
+      );
+      if (!clip) throw new Error("T08 clip is missing from its motion asset");
+      if (!t08TrackCache.has(clip.id))
+        t08TrackCache.set(clip.id, t08Retarget.compile(clip));
+      const motion = {
+        type: "quaternion-track",
+        samples: t08TrackCache.get(clip.id),
+        fps: clip.fps,
+        duration: clip.frames / clip.fps,
+      };
+      const played = manual
+        ? motionPlayer?.play(motion) || false
+        : motionPlayer?.enqueue(motion, {
+            key: normalizeText(text).toLowerCase(),
+          }) || false;
+      if (played) {
+        console.info("[SB] Realtime motion source: T08", clip.id);
+        notify("MOTION_SOURCE", {
+          sourceType: "t08",
+          referenceId: clip.id,
+          label: t("demoSourceT08"),
+        });
+      }
+    } catch (error) {
+      console.warn("[SB] T08 playback unavailable; using dictionary:", error);
+      if (modelReady && generation === translationGeneration)
+        playDictionaryText(text, manual);
+    }
+  };
+
+  if (reference || t08MotionBundlePromise) {
+    const next = translationQueue.then(route, route);
+    translationQueue = next.catch((error) => {
+      console.error("[SB] Realtime motion dispatch failed:", error);
+    });
+    return true;
+  }
+  return playDictionaryText(text, manual);
+}
+
+function playDictionaryText(text, manual) {
   const result = translateText(text, 12, translationMatchers);
   if (!result) return false;
   console.log("[SB] Translation coverage:", {
@@ -77,12 +202,18 @@ function textToAnimation(text, manual = false) {
     remainingText: result.remainingText,
   });
   if (!result.matches.length) return false;
-  if (manual) return motionPlayer?.play(result) || false;
-  return (
-    motionPlayer?.enqueue(result, {
-      key: normalizeText(text).toLowerCase(),
-    }) || false
-  );
+  const played = manual
+    ? motionPlayer?.play(result) || false
+    : motionPlayer?.enqueue(result, {
+        key: normalizeText(text).toLowerCase(),
+      }) || false;
+  if (played) {
+    notify("MOTION_SOURCE", {
+      sourceType: "dictionary",
+      label: t("demoSourceDictionary"),
+    });
+  }
+  return played;
 }
 
 // ===== 初始化 =====
@@ -163,6 +294,8 @@ function init(modelUrl) {
       baseModelY = gltf.scene.position.y;
       console.log("[SB] REST saved for", Object.keys(rig.rest).length, "bones");
 
+      await loadT08ReferenceIndex();
+      if (!modelRoot) return;
       modelReady = true;
       modelLoading = false;
       await loadMotionLibrary();
@@ -344,6 +477,9 @@ window.addEventListener("message", (ev) => {
   }
   switch (ev.data.type) {
     case "INIT":
+      setLocale(
+        ev.data.config?.uiLocale === "auto" ? null : ev.data.config?.uiLocale,
+      );
       init(ev.data.modelUrl);
       break;
     case "SUBTITLE_TEXT":
@@ -352,6 +488,8 @@ window.addEventListener("message", (ev) => {
       }
       break;
     case "PLAYBACK_RESET":
+      translationGeneration += 1;
+      translationQueue = Promise.resolve();
       motionPlayer?.stop({ reset: true });
       break;
     case "RESIZE":
@@ -367,6 +505,8 @@ window.addEventListener("pagehide", disposeAvatar, { once: true });
 
 function disposeAvatar() {
   modelReady = false;
+  translationGeneration += 1;
+  translationQueue = Promise.resolve();
   motionLibraryVersion += 1;
   unsubscribeMotions?.();
   motionPlayer?.stop();
@@ -387,6 +527,9 @@ function disposeAvatar() {
     }
   });
   motionPlayer = null;
+  t08TrackCache.clear();
+  t08Retarget = null;
+  t08MotionBundlePromise = null;
   rig = null;
   modelRoot = null;
   renderer?.dispose();

@@ -1,7 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import * as THREE from "three";
-import { planDemoText, validateT08Bundle } from "../src/demo/demo-motion.js";
+import {
+  matchT08Reference,
+  planDemoText,
+  validateT08Bundle,
+} from "../src/demo/demo-motion.js";
 import {
   axisAngleQuaternion,
   sourceWorldRotations,
@@ -74,4 +78,11 @@ test("input and motion count limits preserve the unsupported tail", () => {
   assert.equal(p.items.length, 40);
   assert.equal(p.unmatched, "谢谢".repeat(20));
   assert.equal(planDemoText("宇".repeat(510)).truncated, true);
+});
+
+test("realtime T08 routing selects only a complete reference phrase", () => {
+  assert.equal(matchT08Reference("工作忙吗！？", clips)?.id, "phrase");
+  assert.equal(matchT08Reference("工作忙吗，谢谢", clips), null);
+  assert.equal(matchT08Reference("工作🚀忙吗？", clips), null);
+  assert.equal(matchT08Reference("工作忙吗", []), null);
 });

@@ -165,6 +165,7 @@
     injectPageAgent();
     postMessageToIframe("INIT", {
       modelUrl: chrome.runtime.getURL("avatar/model.glb"),
+      config,
     });
     console.log("[SB-CS] INIT sent to iframe");
   }
@@ -284,6 +285,11 @@
         console.log("[SB-CS] Avatar ready");
       } else if (message.type === "ERROR") {
         showLoadError(message.message || "虚拟人加载失败");
+      } else if (message.type === "MOTION_SOURCE") {
+        console.info("[SB-CS] Realtime motion source:", message.sourceType);
+        postMessageToPage("SIGNBRIDGE_MOTION_SOURCE", {
+          label: message.label,
+        });
       }
       return;
     }

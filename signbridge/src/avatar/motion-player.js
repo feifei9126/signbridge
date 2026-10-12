@@ -3,6 +3,24 @@ function easeInOut(amount) {
 }
 
 function normalizeMotionFrames(input) {
+  if (input?.type === "quaternion-track") {
+    if (
+      !Array.isArray(input.samples) ||
+      input.samples.length < 2 ||
+      !Number.isFinite(input.fps) ||
+      input.fps <= 0 ||
+      !Number.isFinite(input.duration) ||
+      input.duration <= 0
+    )
+      return [];
+    return [
+      {
+        track: input.samples,
+        fps: input.fps,
+        duration: input.duration,
+      },
+    ];
+  }
   const frames = Array.isArray(input) ? input : input?.frames;
   if (!Array.isArray(frames) || frames.length === 0) return [];
   return frames.map((frame) => ({
@@ -65,6 +83,32 @@ function createMotionPlayer(
     }
 
     const frame = queue.shift();
+    if (frame.track) {
+      const startedAt = now();
+      function animateTrack() {
+        if (!playing) return;
+        const elapsed = Math.max(0, now() - startedAt) / 1000;
+        const framePosition = Math.min(
+          elapsed * frame.fps,
+          frame.track.length - 1,
+        );
+        const fromIndex = Math.floor(framePosition);
+        const toIndex = Math.min(fromIndex + 1, frame.track.length - 1);
+        rig.interpolate(
+          frame.track[fromIndex],
+          frame.track[toIndex],
+          framePosition - fromIndex,
+        );
+        if (elapsed >= frame.duration) {
+          frameId = null;
+          playNext();
+        } else {
+          frameId = requestFrame(animateTrack);
+        }
+      }
+      animateTrack();
+      return;
+    }
     const durationMs = frame.duration * 1000;
     const blendMs = Math.max(1, Math.min(durationMs * 0.35, 150));
     const from = rig.capture();

@@ -1,5 +1,5 @@
 import { SIGNS } from "../avatar/sign-language-data.js";
-const CHECKPOINT =
+export const T08_CHECKPOINT_SHA256 =
   "438cbe537ad1b5bf14c795375209eb00d87cea5c3e97ed06f880f9764e8f9a5b";
 const punctuation = /[\s\p{P}]/u;
 export function demoTextKey(text) {
@@ -7,6 +7,17 @@ export function demoTextKey(text) {
     .normalize("NFKC")
     .replace(/[\s\p{P}]/gu, "")
     .toLocaleLowerCase();
+}
+export function matchT08Reference(input, clips = []) {
+  const key = demoTextKey(input);
+  if (!key) return null;
+  return (
+    clips.find((clip) =>
+      [clip.text, ...(clip.aliases || [])].some(
+        (text) => demoTextKey(text) === key,
+      ),
+    ) || null
+  );
 }
 export function planDemoText(input, mode = "auto", clips = []) {
   if (!["auto", "t08", "dictionary"].includes(mode))
@@ -85,7 +96,7 @@ export function planDemoText(input, mode = "auto", clips = []) {
 export function validateT08Bundle(data) {
   if (
     data?.schema !== "signbridge-t08-demo-v1" ||
-    data.checkpoint_sha256 !== CHECKPOINT ||
+    data.checkpoint_sha256 !== T08_CHECKPOINT_SHA256 ||
     data.research_only !== true ||
     data.text_to_sign_trained !== false ||
     data.representation !== "effective-smplx-55-axis-angle" ||

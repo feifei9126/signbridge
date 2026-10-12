@@ -326,6 +326,89 @@ try {
       report.checks.push(
         "actual unpacked extension, popup Demo entry and T08 playback",
       );
+
+      const live = await extensionContext.newPage();
+      const motionSources = [];
+      const frameErrors = [];
+      live.on("pageerror", (error) => frameErrors.push(error.message));
+      await live.addInitScript(() => {
+        window.__signbridgeMessages = [];
+        window.addEventListener("message", (event) => {
+          if (
+            event.source === window &&
+            event.data?.source === "signbridge-iframe"
+          )
+            window.__signbridgeMessages.push(event.data);
+        });
+      });
+      await live.goto(`chrome-extension://${id}/avatar/avatar-frame.html`);
+      await live.waitForFunction(
+        () =>
+          window.__signbridgeMessages?.some(
+            (message) => message.type === "LOADED",
+          ),
+        { timeout: 15000 },
+      );
+      await live.evaluate(() =>
+        window.postMessage(
+          {
+            source: "signbridge-page",
+            type: "INIT",
+            modelUrl: chrome.runtime.getURL("avatar/model.glb"),
+            config: { uiLocale: "zh-CN" },
+          },
+          location.origin,
+        ),
+      );
+      await live.waitForFunction(
+        () =>
+          window.__signbridgeMessages?.some(
+            (message) => message.type === "READY",
+          ),
+        { timeout: 30000 },
+      );
+      await live.evaluate(() =>
+        window.postMessage(
+          {
+            source: "signbridge-page",
+            type: "SUBTITLE_TEXT",
+            text: "工作忙吗？",
+          },
+          location.origin,
+        ),
+      );
+      await live.waitForFunction(
+        () =>
+          window.__signbridgeMessages?.some(
+            (message) =>
+              message.type === "MOTION_SOURCE" && message.sourceType === "t08",
+          ),
+        { timeout: 20000 },
+      );
+      motionSources.push("t08");
+      await live.evaluate(() =>
+        window.postMessage(
+          { source: "signbridge-page", type: "SUBTITLE_TEXT", text: "谢谢" },
+          location.origin,
+        ),
+      );
+      await live.waitForFunction(
+        () =>
+          window.__signbridgeMessages?.some(
+            (message) =>
+              message.type === "MOTION_SOURCE" &&
+              message.sourceType === "dictionary",
+          ),
+        { timeout: 10000 },
+      );
+      motionSources.push("dictionary");
+      assert.deepEqual(motionSources, ["t08", "dictionary"]);
+      assert.deepEqual(frameErrors, []);
+      await live.screenshot({ path: join(out, "extension-live-t08.png") });
+      report.screenshots.push("extension-live-t08.png");
+      report.checks.push(
+        "production avatar iframe routes a live complete reference phrase to T08 and falls back to the dictionary",
+      );
     } finally {
       await extensionContext.close();
     }
