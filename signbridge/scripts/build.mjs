@@ -236,6 +236,7 @@ async function build() {
   }
   console.log("  ✓ offscreen/audio-capture.{html,js}");
 
+  await buildDemo();
   await buildPoseEditor();
   await buildRecordMode();
   for (const tool of ["coverage", "motion-review"]) {
@@ -256,6 +257,55 @@ async function build() {
   }
 
   console.log("\n✅ Build complete!\n");
+}
+
+async function buildDemo() {
+  copyFileSync(join(ROOT, "src/tools/sign-demo-serve.py"), dp("start-demo.py"));
+  writeFileSync(
+    dp("start-demo.command"),
+    '#!/bin/zsh\ncd -- "$(dirname -- "$0")"\nexec /usr/bin/python3 start-demo.py\n',
+    { mode: 0o755 },
+  );
+
+  for (const file of ["index.html", "demo.css", "avatar.html", "avatar.css"]) {
+    copyFileSync(join(ROOT, "src/demo", file), dp("demo", file));
+  }
+  await bundle("demo/demo.js", "demo/demo.js");
+  await bundle("demo/demo-avatar.js", "demo/demo-avatar.js");
+  const assets =
+    process.env.SIGNBRIDGE_DEMO_ASSET_DIR ||
+    join(ROOT, "../local-data/demo-20261012");
+  const motion = join(assets, "t08-motion.json");
+  if (existsSync(motion)) {
+    copyFileSync(motion, dp("demo/t08-motion.json"));
+    console.log("  ✓ demo/T08 local reference motions");
+  } else {
+    writeFileSync(
+      dp("demo/t08-motion.json"),
+      JSON.stringify({ unavailable: true }),
+    );
+    console.log(
+      "  ℹ T08 assets absent; Demo dictionary mode remains available (see docs/demo.md)",
+    );
+  }
+  const researchFile = join(assets, "research.json");
+  const research = existsSync(researchFile)
+    ? JSON.parse(readFileSync(researchFile, "utf8"))
+    : [];
+  if (!Array.isArray(research))
+    throw new Error("Invalid local Demo research manifest");
+  for (const item of research) {
+    if (!/^research\/[a-zA-Z0-9_-]+\.jpg$/.test(item.image))
+      throw new Error("Invalid Demo research image path");
+    const source = join(assets, item.image);
+    if (
+      createHash("sha256").update(readFileSync(source)).digest("hex") !==
+      item.sha256
+    )
+      throw new Error("Demo research image digest differs");
+    copyFileSync(source, dp("demo", item.image));
+  }
+  writeFileSync(dp("demo/research.json"), JSON.stringify(research));
 }
 
 async function buildPoseEditor() {

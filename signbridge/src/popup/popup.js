@@ -40,6 +40,7 @@ class SignBridgePopup {
       btnRecordMode: document.getElementById("btnRecordMode"),
       btnCoverage: document.getElementById("btnCoverage"),
       btnMotionReview: document.getElementById("btnMotionReview"),
+      btnDemo: document.getElementById("btnDemo"),
       textInput: document.getElementById("textInput"),
       btnSendText: document.getElementById("btnSendText"),
       btnHelp: document.getElementById("btnHelp"),
@@ -107,6 +108,9 @@ class SignBridgePopup {
     });
     this.elements.btnCoverage?.addEventListener("click", () => {
       chrome.tabs.create({ url: chrome.runtime.getURL("tools/coverage.html") });
+    });
+    this.elements.btnDemo?.addEventListener("click", () => {
+      chrome.tabs.create({ url: chrome.runtime.getURL("demo/index.html") });
     });
     this.elements.btnMotionReview?.addEventListener("click", () => {
       chrome.tabs.create({

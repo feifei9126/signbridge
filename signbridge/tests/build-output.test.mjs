@@ -216,3 +216,34 @@ test("local Whisper is deployed inside the extension", () => {
   assert.match(worker, /ASR_LOCAL_DEPLOY/);
   assert.equal(existsSync(join(dist, "local-asr")), false);
 });
+
+test("full-page Demo ships its iframe, local assets and popup entry under the existing CSP", () => {
+  for (const file of [
+    "index.html",
+    "demo.css",
+    "demo.js",
+    "avatar.html",
+    "avatar.css",
+    "demo-avatar.js",
+    "t08-motion.json",
+    "research.json",
+  ])
+    assert.ok(existsSync(join(dist, "demo", file)), file);
+  const popup = readFileSync(join(dist, "popup/index.html"), "utf8");
+  assert.match(popup, /id="btnDemo"/);
+  for (const file of ["index.html", "avatar.html"]) {
+    const html = readFileSync(join(dist, "demo", file), "utf8");
+    assert.doesNotMatch(html, /\son\w+=/i);
+    assert.doesNotMatch(html, /<script(?: type="module")?>/i);
+  }
+  const bundle = readFileSync(join(dist, "demo/demo-avatar.js"), "utf8");
+  assert.doesNotMatch(bundle, /from\s+["']three["']/);
+  const data = JSON.parse(
+    readFileSync(join(dist, "demo/t08-motion.json"), "utf8"),
+  );
+  if (!data.unavailable) {
+    assert.equal(data.clips.length, 14);
+    assert.equal(data.text_to_sign_trained, false);
+    assert.equal(data.research_only, true);
+  }
+});

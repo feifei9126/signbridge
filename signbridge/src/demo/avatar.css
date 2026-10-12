@@ -1,0 +1,15 @@
+* {
+  box-sizing: border-box;
+}
+html,
+body,
+#stage {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  background: #e4ebee;
+}
+canvas {
+  display: block;
+}

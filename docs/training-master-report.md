@@ -9,6 +9,18 @@
 **接手入口：** [RESUME-CONTEXT.md](</Users/mac/Documents/ChatGPT/signbridge/local-data/training-master-report-20261010-v1/RESUME-CONTEXT.md>)  
 本次冻结源码：`26d8d7618a1c8d6302443883a8a4a865ef53ac60`。生成时点：`2026-10-10T10:27:18.085402+08:00`。
 
+## 2026-10-12 追加：T08 虚拟人物 Demo 已交付
+
+2026-10-10 的证据目录、历史训练注册表和下面的研发统计保持冻结。新增实验性 Demo 已把 **T08 的14段实际 token 解码动作**转换到当前 Godette 虚拟人，并与 **52个内置动作**共同按文字检索播放；程序阶段无需新GPU训练。它没有把T08改成通用文字生成模型，也没有升级旧研究候选的正式资格。
+
+- 使用与完整文字清单：[Demo说明](demo.md)。
+- 当前验证、发现并修正的问题和成品摘要：[交付验证记录](demo-validation-20261012.md)。
+- 最新可调用资产：`local-data/demo-20261012/t08-motion.json`，T08 checkpoint SHA仍为 `438cbe537ad1b5bf14c795375209eb00d87cea5c3e97ed06f880f9764e8f9a5b`；新增CPU导出不计作新训练。
+- 成品：`local-data/demo-20261012/delivery/`，内含独立Demo包、完整插件包和macOS启动器。
+- 实际证据：`local-data/demo-20261012/browser-qa/report.json`，完整播放14/14参考段及52/52词条，真实扩展弹窗入口通过；149项JS和5项Python测试通过。
+
+下面第0节起为2026-10-10历史冻结结论；有关“尚无动画接入交付”的历史描述应与本次新增实验Demo一起阅读。任意新句生成与正式语言质量仍未完成。
+
 ## 0. 先读：现在处于哪一步
 
 **已经真实跑通的是“授权视频 → 候选/核验片段 → SMPL-X 模型估计 → 133 维动作 → 小型 VQ 动作编码器训练 → checkpoint 重载 → CPU/GPU 推理 → 参数和动画诊断”。还没有训练完成文字到手语生成模型，也没有可部署的手语大模型。**

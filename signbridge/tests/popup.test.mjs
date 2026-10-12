@@ -59,3 +59,40 @@ test("stopping translation updates the audio button so the next click restarts c
   assert.equal(sent.at(-1).type, "ASR_START");
   assert.equal(elements.btnToggleText.textContent, "stop");
 });
+
+test("Demo popup entry opens a full-page extension tab without depending on the current website", async () => {
+  let onClick;
+  const opened = [];
+  runRuntime(code, {
+    document: {
+      getElementById: (id) =>
+        id === "btnDemo"
+          ? {
+              addEventListener(_type, fn) {
+                onClick = fn;
+              },
+            }
+          : null,
+      querySelectorAll: () => [],
+    },
+    testDependencies: {
+      getConfig: async () => ({}),
+      setConfig: async (c) => c,
+      setLocale() {},
+      t: (key) => key,
+    },
+    chrome: {
+      tabs: {
+        query: async () => [],
+        create: (options) => opened.push(options),
+      },
+      runtime: { getURL: (path) => "chrome-extension://test/" + path },
+    },
+  });
+  await flushTasks();
+  onClick();
+  assert.deepEqual(
+    opened.map((o) => o.url),
+    ["chrome-extension://test/demo/index.html"],
+  );
+});

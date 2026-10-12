@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>SignBridge Demo</title>
+    <link rel="icon" href="../icons/icon48.png" />
+    <link rel="stylesheet" href="demo.css" />
+  </head>
+  <body>
+    <header class="top">
+      <a class="brand" href="index.html" aria-label="SignBridge Demo"
+        ><span class="mark">SB</span><strong>SignBridge</strong
+        ><span class="version">DEMO / 01</span></a
+      >
+      <div class="top-right">
+        <span class="live-dot"></span><span data-i18n="demoLocal"></span
+        ><button
+          id="download"
+          class="text-button"
+          data-i18n="demoExport"
+        ></button>
+      </div>
+    </header>
+    <main>
+      <section class="intro">
+        <p class="eyebrow" data-i18n="demoEyebrow"></p>
+        <h1 data-i18n="demoHeading"></h1>
+        <p data-i18n="demoLead"></p>
+      </section>
+      <div class="workspace">
+        <section class="composer" aria-labelledby="input-title">
+          <h2 id="input-title" data-i18n="demoInput"></h2>
+          <div class="mode-group" role="group" data-i18n-aria="demoMode">
+            <button
+              type="button"
+              class="mode active"
+              data-mode="auto"
+              aria-pressed="true"
+              data-i18n="demoAuto"
+            ></button
+            ><button
+              type="button"
+              class="mode"
+              data-mode="t08"
+              aria-pressed="false"
+              data-i18n="demoT08"
+            ></button
+            ><button
+              type="button"
+              class="mode"
+              data-mode="dictionary"
+              aria-pressed="false"
+              data-i18n="demoDictionary"
+            ></button>
+          </div>
+          <label class="sr-only" for="input" data-i18n="demoInput"></label
+          ><textarea
+            id="input"
+            rows="4"
+            maxlength="500"
+            data-i18n-placeholder="demoPlaceholder"
+          ></textarea>
+          <div class="input-footer">
+            <span id="chars"></span><span data-i18n="demoShortcut"></span>
+          </div>
+          <div class="primary-actions">
+            <button
+              id="play"
+              class="primary"
+              disabled
+              data-i18n="demoPlay"
+            ></button
+            ><button id="pause" disabled data-i18n="demoPause"></button
+            ><button id="stop" disabled data-i18n="demoStop"></button>
+          </div>
+          <div
+            id="status"
+            class="status"
+            role="status"
+            aria-live="polite"
+            data-i18n="demoLoading"
+          ></div>
+          <button id="retry" hidden data-i18n="demoRetry"></button>
+          <div class="coverage">
+            <div class="section-label">
+              <h3 data-i18n="demoMatches"></h3>
+              <span id="match-count"></span>
+            </div>
+            <div id="matches" class="match-list"></div>
+            <p id="unknown" class="unknown"></p>
+          </div>
+          <div class="catalog">
+            <div class="section-label">
+              <h3 data-i18n="demoCatalog"></h3>
+              <span id="catalog-count"></span>
+            </div>
+            <label class="sr-only" for="search" data-i18n="demoSearch"></label
+            ><input
+              type="search"
+              id="search"
+              data-i18n-placeholder="demoSearch"
+            />
+            <div id="catalog-list" class="catalog-list"></div>
+          </div>
+        </section>
+        <section class="stage-panel" aria-labelledby="stage-title">
+          <div class="stage-heading">
+            <div>
+              <p class="eyebrow" data-i18n="demoAvatarLabel"></p>
+              <h2 id="stage-title" data-i18n="demoStage"></h2>
+            </div>
+            <span
+              id="source-badge"
+              class="source-badge"
+              data-i18n="demoReadyBadge"
+            ></span>
+          </div>
+          <div class="viewport">
+            <iframe
+              id="avatar"
+              src="avatar.html"
+              title="SignBridge Avatar"
+            ></iframe>
+            <div id="loading" class="loading" data-i18n="demoLoading"></div>
+            <div class="frame-stamp">
+              <span id="current" data-i18n="demoAtRest"></span
+              ><span id="progress-text">0:00</span>
+            </div>
+          </div>
+          <div class="timeline"><div id="progress-bar"></div></div>
+          <div class="stage-controls">
+            <div class="view-group" role="group" data-i18n-aria="demoView">
+              <button
+                data-view="front"
+                aria-pressed="true"
+                data-i18n="demoFront"
+              ></button
+              ><button
+                data-view="left"
+                aria-pressed="false"
+                data-i18n="demoLeft"
+              ></button
+              ><button
+                data-view="right"
+                aria-pressed="false"
+                data-i18n="demoRight"
+              ></button>
+            </div>
+            <label for="speed"
+              ><span data-i18n="demoSpeed"></span
+              ><select id="speed">
+                <option value="0.5">0.5×</option>
+                <option value="0.75">0.75×</option>
+                <option value="1" selected>1×</option>
+                <option value="1.25">1.25×</option>
+                <option value="1.5">1.5×</option>
+              </select></label
+            >
+          </div>
+          <div class="model-info">
+            <div>
+              <span data-i18n="demoModel"></span><strong>T08 · VQ-VAE</strong>
+            </div>
+            <div>
+              <span data-i18n="demoLearned"></span
+              ><strong id="model-count">0</strong>
+            </div>
+            <div><span data-i18n="demoWords"></span><strong>52</strong></div>
+          </div>
+          <details id="token-details">
+            <summary data-i18n="demoTokens"></summary>
+            <p data-i18n="demoTokenNote"></p>
+            <pre id="tokens"></pre>
+          </details>
+        </section>
+      </div>
+      <section class="research">
+        <div class="research-header">
+          <div>
+            <p class="eyebrow" data-i18n="demoEvidence"></p>
+            <h2 data-i18n="demoComparison"></h2>
+          </div>
+          <span data-i18n="demoReadonly"></span>
+        </div>
+        <div id="research-list" class="research-list"></div>
+        <div id="research-preview" hidden>
+          <div class="section-label">
+            <p id="research-caption"></p>
+            <button id="close-preview" data-i18n="demoClose"></button>
+          </div>
+          <img id="research-image" alt="" />
+        </div>
+      </section>
+      <footer class="footnote">
+        <p data-i18n="demoScope"></p>
+        <details>
+          <summary data-i18n="demoHow"></summary>
+          <p data-i18n="demoHowBody"></p>
+          <p data-i18n="demoRetargetNote"></p>
+          <p id="asset-evidence"></p>
+        </details>
+      </footer>
+    </main>
+    <script type="module" src="demo.js"></script>
+  </body>
+</html>
