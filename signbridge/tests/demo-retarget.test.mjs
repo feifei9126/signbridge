@@ -7,7 +7,11 @@ import {
   createT08Retarget,
   sourceWorldRotations,
 } from "../src/demo/demo-retarget.js";
-import { validateT08Bundle, planDemoText } from "../src/demo/demo-motion.js";
+import {
+  validateT08Bundle,
+  validateT08CandidateBundle,
+  planDemoText,
+} from "../src/demo/demo-motion.js";
 
 function skeletonFromGlb() {
   const b = readFileSync(new URL("../src/avatar/model.glb", import.meta.url));
@@ -46,6 +50,34 @@ const asset = new URL(
 const bundle = existsSync(asset)
   ? validateT08Bundle(JSON.parse(readFileSync(asset, "utf8")))
   : null;
+const candidateAsset = new URL(
+  "../../local-data/demo-20261012/t08-candidates.json",
+  import.meta.url,
+);
+const candidateBundle = existsSync(candidateAsset)
+  ? validateT08CandidateBundle(JSON.parse(readFileSync(candidateAsset, "utf8")))
+  : null;
+
+test(
+  "three candidate sequences retarget finite unit quaternions without changing their review status",
+  { skip: !candidateBundle },
+  () => {
+    const root = skeletonFromGlb();
+    const rig = createHumanoidRig(root);
+    const retarget = createT08Retarget(rig, root, candidateBundle);
+    for (const clip of candidateBundle.clips) {
+      assert.equal(clip.runtime_candidate, true);
+      assert.equal(clip.training_ready, false);
+      const tracks = retarget.compile(clip);
+      assert.equal(tracks.length, clip.frames);
+      for (const frame of tracks)
+        for (const q of Object.values(frame)) {
+          assert.ok(q.toArray().every(Number.isFinite));
+          assert.ok(Math.abs(q.length() - 1) < 1e-5);
+        }
+    }
+  },
+);
 
 test(
   "actual Godette hierarchy retargets SMPL-X REST without flipping its head or moving the root",

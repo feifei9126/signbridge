@@ -243,6 +243,17 @@ textarea {
   background: #e2ecf2;
   color: #335564;
 }
+.match-list .candidate,
+.catalog-list button[data-source="candidate"] {
+  border-color: #d8c38d;
+  background: #faf4df;
+  color: #604b20;
+}
+.candidate-warning {
+  color: #75571c;
+  font-size: 11px;
+  line-height: 1.55;
+}
 .unknown {
   font-size: 12px;
   color: var(--warn);

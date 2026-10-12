@@ -17,6 +17,7 @@ import { t, setLocale } from "../i18n/locales.js";
 import {
   matchT08Reference,
   T08_CHECKPOINT_SHA256,
+  validateT08CandidateBundle,
   validateT08Bundle,
 } from "../demo/demo-motion.js";
 import { createT08Retarget } from "../demo/demo-retarget.js";
@@ -37,7 +38,9 @@ let motionLibraryVersion = 0;
 let motionLibraryIdentity = "[]";
 let t08ReferenceClips = [];
 let t08MotionBundlePromise = null;
+let t08CandidateBundlePromise = null;
 let t08Retarget = null;
+let t08CandidateRetarget = null;
 const t08TrackCache = new Map();
 let translationQueue = Promise.resolve();
 let translationGeneration = 0;
@@ -52,19 +55,27 @@ async function loadT08ReferenceIndex() {
     if (
       index?.schema !== "signbridge-t08-runtime-index-v1" ||
       index.checkpoint_sha256 !== T08_CHECKPOINT_SHA256 ||
-      index.clips?.length !== 14 ||
+      ![14, 17].includes(index.clips?.length) ||
+      index.clips?.filter((clip) => !clip.runtime_candidate).length !== 14 ||
       !index.clips.every(
         (clip) =>
           typeof clip.id === "string" &&
           typeof clip.text === "string" &&
           Array.isArray(clip.aliases) &&
           Number.isFinite(clip.fps) &&
-          Number.isInteger(clip.frames),
+          Number.isInteger(clip.frames) &&
+          typeof clip.runtime_candidate === "boolean",
       )
     )
       throw new Error("T08 reference index provenance is invalid");
     t08ReferenceClips = index.clips;
-    console.info("[SB] T08 reference index ready:", t08ReferenceClips.length);
+    console.info(
+      "[SB] T08 runtime index ready:",
+      t08ReferenceClips.filter((clip) => !clip.runtime_candidate).length,
+      "reference +",
+      t08ReferenceClips.filter((clip) => clip.runtime_candidate).length,
+      "candidate phrases",
+    );
   } catch (error) {
     t08ReferenceClips = [];
     console.warn("[SB] T08 index unavailable; dictionary fallback:", error);
@@ -91,6 +102,30 @@ function loadT08MotionBundle() {
     });
   }
   return t08MotionBundlePromise;
+}
+
+function loadT08CandidateBundle() {
+  if (!t08CandidateBundlePromise) {
+    const pending = (async () => {
+      const response = await fetch(
+        chrome.runtime.getURL("demo/t08-candidates.json"),
+      );
+      if (!response.ok)
+        throw new Error(`T08 candidate HTTP ${response.status}`);
+      const bundle = validateT08CandidateBundle(await response.json());
+      t08CandidateRetarget = createT08Retarget(rig, modelRoot, bundle);
+      console.info(
+        "[SB] T08 motion candidate asset loaded:",
+        bundle.clips.length,
+      );
+      return bundle;
+    })();
+    t08CandidateBundlePromise = pending.catch((error) => {
+      t08CandidateBundlePromise = null;
+      throw error;
+    });
+  }
+  return t08CandidateBundlePromise;
 }
 
 async function loadMotionLibrary() {
@@ -136,7 +171,7 @@ async function loadMotionLibrary() {
 function textToAnimation(text, manual = false) {
   if (!text) return false;
   const reference = matchT08Reference(text, t08ReferenceClips);
-  if (!reference && !t08MotionBundlePromise)
+  if (!reference && !t08MotionBundlePromise && !t08CandidateBundlePromise)
     return playDictionaryText(text, manual);
 
   const generation = translationGeneration;
@@ -147,14 +182,22 @@ function textToAnimation(text, manual = false) {
       return;
     }
     try {
-      const bundle = await loadT08MotionBundle();
+      const motionBundle = reference.runtime_candidate
+        ? await loadT08CandidateBundle()
+        : await loadT08MotionBundle();
       if (!modelReady || generation !== translationGeneration) return;
-      const clip = bundle.clips.find(
+      const clip = motionBundle.clips.find(
         (candidate) => candidate.id === reference.id,
       );
       if (!clip) throw new Error("T08 clip is missing from its motion asset");
       if (!t08TrackCache.has(clip.id))
-        t08TrackCache.set(clip.id, t08Retarget.compile(clip));
+        t08TrackCache.set(
+          clip.id,
+          (reference.runtime_candidate
+            ? t08CandidateRetarget
+            : t08Retarget
+          ).compile(clip),
+        );
       const motion = {
         type: "quaternion-track",
         samples: t08TrackCache.get(clip.id),
@@ -167,11 +210,14 @@ function textToAnimation(text, manual = false) {
             key: normalizeText(text).toLowerCase(),
           }) || false;
       if (played) {
-        console.info("[SB] Realtime motion source: T08", clip.id);
+        const sourceType = reference.runtime_candidate ? "candidate" : "t08";
+        console.info(`[SB] Realtime motion source: ${sourceType}`, clip.id);
         notify("MOTION_SOURCE", {
-          sourceType: "t08",
+          sourceType,
           referenceId: clip.id,
-          label: t("demoSourceT08"),
+          label: t(
+            sourceType === "candidate" ? "demoCandidateBadge" : "demoSourceT08",
+          ),
         });
       }
     } catch (error) {
@@ -181,7 +227,7 @@ function textToAnimation(text, manual = false) {
     }
   };
 
-  if (reference || t08MotionBundlePromise) {
+  if (reference || t08MotionBundlePromise || t08CandidateBundlePromise) {
     const next = translationQueue.then(route, route);
     translationQueue = next.catch((error) => {
       console.error("[SB] Realtime motion dispatch failed:", error);
@@ -529,7 +575,9 @@ function disposeAvatar() {
   motionPlayer = null;
   t08TrackCache.clear();
   t08Retarget = null;
+  t08CandidateRetarget = null;
   t08MotionBundlePromise = null;
+  t08CandidateBundlePromise = null;
   rig = null;
   modelRoot = null;
   renderer?.dispose();

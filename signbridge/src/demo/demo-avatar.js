@@ -3,7 +3,10 @@ import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { createHumanoidRig } from "../avatar/humanoid-rig.js";
 import { disposeModel } from "../avatar/dispose-model.js";
 import { SIGNS } from "../avatar/sign-language-data.js";
-import { validateT08Bundle } from "./demo-motion.js";
+import {
+  validateT08Bundle,
+  validateT08CandidateBundle,
+} from "./demo-motion.js";
 import { createT08Retarget } from "./demo-retarget.js";
 import { frameDelta } from "./demo-playback.js";
 const container = document.querySelector("#stage");
@@ -13,6 +16,7 @@ let renderer,
   camera,
   scene,
   bundle,
+  candidateBundle,
   retarget,
   raf = null,
   ready = false,
@@ -76,11 +80,18 @@ function nextItem() {
   }
   const item = plan[itemIndex];
   itemTime = 0;
-  if (item.source === "t08") {
-    const clip = bundle?.clips.find((c) => c.id === item.id);
+  if (item.source === "t08" || item.source === "candidate") {
+    const clip = (
+      item.source === "candidate" ? candidateBundle?.clips : bundle?.clips
+    )?.find((c) => c.id === item.id);
     if (!clip) throw new Error("demoInvalidAsset");
     if (!cache.has(clip.id)) cache.set(clip.id, retarget.compile(clip));
-    track = { kind: "t08", samples: cache.get(clip.id), fps: clip.fps, clip };
+    track = {
+      kind: item.source,
+      samples: cache.get(clip.id),
+      fps: clip.fps,
+      clip,
+    };
     duration = clip.frames / clip.fps;
   } else {
     const sign = SIGNS[item.id];
@@ -95,10 +106,14 @@ function nextItem() {
     count: plan.length,
     duration,
     tokens: track.clip?.tokens || null,
+    normalizedReconstructionMse:
+      track.kind === "candidate"
+        ? track.clip.normalized_reconstruction_mse
+        : null,
   });
 }
 function applyAt(time) {
-  if (track.kind === "t08") {
+  if (track.kind === "t08" || track.kind === "candidate") {
     const frame = Math.min(time * track.fps, track.samples.length - 1),
       i = Math.floor(frame),
       j = Math.min(i + 1, track.samples.length - 1);
@@ -187,12 +202,22 @@ async function init() {
       retarget = null;
       notify("ASSET_WARNING", { error: e.message });
     }
+    try {
+      const response = await fetch("t08-candidates.json");
+      if (!response.ok) throw new Error("demoInvalidCandidateAsset");
+      candidateBundle = validateT08CandidateBundle(await response.json());
+      retarget ||= createT08Retarget(rig, modelRoot, candidateBundle);
+    } catch (e) {
+      candidateBundle = null;
+      notify("ASSET_WARNING", { error: e.message });
+    }
     if (disposed) return;
     ready = true;
     notify("READY", {
-      modelAvailable: Boolean(bundle),
+      modelAvailable: Boolean(bundle || candidateBundle),
       mappedBones: retarget?.mappedBones || 0,
       clipCount: bundle?.clips.length || 0,
+      candidateCount: candidateBundle?.clips.length || 0,
     });
     lastTime = performance.now();
     raf = requestAnimationFrame(tick);
@@ -211,9 +236,10 @@ window.addEventListener("message", (ev) => {
   if (type === "HELLO") {
     if (ready)
       notify("READY", {
-        modelAvailable: Boolean(bundle),
+        modelAvailable: Boolean(bundle || candidateBundle),
         mappedBones: retarget?.mappedBones || 0,
         clipCount: bundle?.clips.length || 0,
+        candidateCount: candidateBundle?.clips.length || 0,
       });
     return;
   }

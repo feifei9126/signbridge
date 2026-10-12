@@ -27,6 +27,10 @@
 
 代码：`signbridge/src/avatar/iframe-bundle.js`（路由与按需加载）、`signbridge/src/avatar/motion-player.js`（四元数序列插值）、`signbridge/src/demo/demo-motion.js`（完整句匹配）、`signbridge/scripts/build.mjs`（运行时索引打包）。浏览器回归脚本：`signbridge/tests/realtime-t08-browser-qa.mjs`。测试使用独立Chromium扩展页；完整句“工作忙吗？”应进入 `pilot-greeting-busy-005`，单词“谢谢”和额外尾词应回退原动作库。此处仍是已训练参考动作查表/重建，不是泛化文字生成。
 
+### 2026-10-12 候选常用句补充
+
+新增三条文字/拟合对照已经用户确认的连续句子，用原T08在CPU上重新编码/解码，单独作为候选：“如果下雨可以借你一把。”“我给她买了一件衣服”“去人民广场怎么走？”。它们未参与T08训练，且镜像与人物分组未确认；`training_ready=false`、候选标志和较高的归一化重建误差保持可见。详见 [候选扩充记录](t08-phrase-expansion-20261012.md)。没有新权重、没有改变原训练/保留划分，不能算作新增训练轮次或正式语言质量通过。
+
 ## 0. 先读：现在处于哪一步
 
 **已经真实跑通的是“授权视频 → 候选/核验片段 → SMPL-X 模型估计 → 133 维动作 → 小型 VQ 动作编码器训练 → checkpoint 重载 → CPU/GPU 推理 → 参数和动画诊断”。还没有训练完成文字到手语生成模型，也没有可部署的手语大模型。**

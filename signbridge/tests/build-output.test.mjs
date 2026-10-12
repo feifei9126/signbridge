@@ -227,6 +227,7 @@ test("full-page Demo ships its iframe, local assets and popup entry under the ex
     "avatar.css",
     "demo-avatar.js",
     "t08-motion.json",
+    "t08-candidates.json",
     "research.json",
   ])
     assert.ok(existsSync(join(dist, "demo", file)), file);
@@ -251,7 +252,8 @@ test("full-page Demo ships its iframe, local assets and popup entry under the ex
     join(dist, "avatar/iframe-bundle.js"),
     "utf8",
   );
-  assert.match(runtimeBundle, /Realtime motion source: T08/);
+  assert.match(runtimeBundle, /Realtime motion source:/);
+  assert.match(runtimeBundle, /loadT08CandidateBundle/);
   assert.match(runtimeBundle, /T08 playback unavailable; using dictionary/);
   assert.doesNotMatch(runtimeBundle, /from\s+["']three["']/);
   const index = JSON.parse(
@@ -260,7 +262,18 @@ test("full-page Demo ships its iframe, local assets and popup entry under the ex
   if (!data.unavailable) {
     assert.equal(index.schema, "signbridge-t08-runtime-index-v1");
     assert.equal(index.checkpoint_sha256, data.checkpoint_sha256);
-    assert.equal(index.clips.length, 14);
+    assert.equal(
+      index.clips.filter((clip) => !clip.runtime_candidate).length,
+      14,
+    );
+    const candidates = JSON.parse(
+      readFileSync(join(dist, "demo/t08-candidates.json"), "utf8"),
+    );
+    assert.equal(
+      index.clips.filter((clip) => clip.runtime_candidate).length,
+      candidates.clips.length,
+    );
+    assert.equal(candidates.training_weights_updated, false);
   } else {
     assert.equal(index.clips.length, 0);
   }

@@ -1,6 +1,10 @@
 import { t, setLocale } from "../i18n/locales.js";
 import { SIGNS } from "../avatar/sign-language-data.js";
-import { planDemoText, validateT08Bundle } from "./demo-motion.js";
+import {
+  planDemoText,
+  validateT08Bundle,
+  validateT08CandidateBundle,
+} from "./demo-motion.js";
 const locale = new URL(location.href).searchParams.get("lang") || "zh-CN";
 setLocale(locale);
 document.documentElement.lang = locale;
@@ -18,7 +22,9 @@ const status = document.querySelector("#status"),
   pauseButton = document.querySelector("#pause"),
   stopButton = document.querySelector("#stop");
 let clips = [],
+  candidates = [],
   model = null,
+  candidateModel = null,
   mode = "auto",
   ready = false,
   modelAvailable = false,
@@ -52,10 +58,14 @@ function refreshPlan() {
   matches.replaceChildren();
   for (const item of currentPlan.items) {
     const span = element("span", item.matchedText);
-    span.className = item.source === "t08" ? "t08" : "";
-    span.title = t(
-      item.source === "t08" ? "demoSourceT08" : "demoSourceDictionary",
-    );
+    span.className = item.source;
+    const candidate = clips.find((clip) => clip.id === item.id);
+    span.title =
+      item.source === "candidate"
+        ? t("demoCandidateDetail", {
+            mse: candidate?.normalized_reconstruction_mse?.toFixed(3) || "?",
+          })
+        : t(item.source === "t08" ? "demoSourceT08" : "demoSourceDictionary");
     matches.append(span);
   }
   document
@@ -78,7 +88,11 @@ function renderCatalog() {
   const catalog = [];
   if (mode !== "dictionary" && modelAvailable)
     catalog.push(
-      ...clips.map((c) => ({ id: c.id, text: c.text, source: "t08" })),
+      ...clips.map((c) => ({
+        id: c.id,
+        text: c.text,
+        source: c.runtime_candidate ? "candidate" : "t08",
+      })),
     );
   if (mode !== "t08")
     catalog.push(
@@ -99,9 +113,15 @@ function renderCatalog() {
     const b = element("button", entry.text);
     b.type = "button";
     b.dataset.source = entry.source;
-    b.title = t(
-      entry.source === "t08" ? "demoSourceT08" : "demoSourceDictionary",
-    );
+    b.title =
+      entry.source === "candidate"
+        ? t("demoCandidateDetail", {
+            mse:
+              clips
+                .find((clip) => clip.id === entry.id)
+                ?.normalized_reconstruction_mse?.toFixed(3) || "?",
+          })
+        : t(entry.source === "t08" ? "demoSourceT08" : "demoSourceDictionary");
     b.addEventListener("click", () => {
       send("STOP");
       resetUi();
@@ -202,6 +222,9 @@ window.addEventListener("message", (e) => {
     document.querySelector("#model-count").textContent = String(
       message.clipCount,
     );
+    document.querySelector("#candidate-count").textContent = String(
+      message.candidateCount || candidates.length,
+    );
     refreshPlan();
     renderCatalog();
     document.querySelector("#retry").hidden = true;
@@ -221,9 +244,16 @@ window.addEventListener("message", (e) => {
     stopButton.disabled = false;
     current = message;
     document.querySelector("#current").textContent = message.item.label;
-    document.querySelector("#source-badge").textContent = t(
-      message.item.source === "t08" ? "demoSourceT08" : "demoSourceDictionary",
-    );
+    document.querySelector("#source-badge").textContent =
+      message.item.source === "candidate"
+        ? t("demoCandidateDetail", {
+            mse: message.normalizedReconstructionMse.toFixed(3),
+          })
+        : t(
+            message.item.source === "t08"
+              ? "demoSourceT08"
+              : "demoSourceDictionary",
+          );
     document.querySelector("#tokens").textContent = message.tokens
       ? JSON.stringify(message.tokens, null, 2)
       : t("demoDictionaryToken");
@@ -276,6 +306,9 @@ document.querySelector("#download").addEventListener("click", () => {
           id: current.item.id,
           source: current.item.source,
           tokens: current.tokens,
+          candidate: current.item.source === "candidate",
+          normalizedReconstructionMse: current.normalizedReconstructionMse,
+          trainingDataMember: current.item.source === "t08",
         }
       : null,
   };
@@ -333,12 +366,30 @@ try {
   if (!r.ok) throw new Error("demoInvalidAsset");
   model = validateT08Bundle(await r.json());
   clips = model.clips;
+  try {
+    const candidatesResponse = await fetch("t08-candidates.json");
+    if (!candidatesResponse.ok) throw new Error("demoInvalidCandidateAsset");
+    candidateModel = validateT08CandidateBundle(
+      await candidatesResponse.json(),
+    );
+    candidates = candidateModel.clips;
+    clips = [...clips, ...candidates];
+  } catch {
+    candidates = [];
+    candidateModel = null;
+  }
   document.querySelector("#asset-evidence").textContent = t("demoCheckpoint", {
     hash: model.checkpoint_sha256,
     steps: model.checkpoint_step,
   });
   renderCatalog();
   refreshPlan();
+  document.querySelector("#candidate-count").textContent = String(
+    candidates.length,
+  );
+  document.querySelector("#candidate-warning").textContent = candidates.length
+    ? t("demoCandidateWarning")
+    : "";
 } catch {
   setStatus("demoPartialAsset");
 }

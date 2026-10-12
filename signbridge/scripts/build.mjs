@@ -292,6 +292,15 @@ async function buildDemo() {
     checkpoint_sha256: "",
     clips: [],
   };
+  let candidateAsset = {
+    schema: "signbridge-t08-motion-candidates-v1",
+    training_checkpoint_sha256: "",
+    training_weights_updated: false,
+    training_ready: false,
+    text_to_sign_trained: false,
+    research_only: true,
+    clips: [],
+  };
   if (existsSync(motion)) {
     copyFileSync(motion, dp("demo/t08-motion.json"));
     const source = JSON.parse(readFileSync(motion, "utf8"));
@@ -312,6 +321,7 @@ async function buildDemo() {
         aliases,
         fps,
         frames,
+        runtime_candidate: false,
       })),
     };
     console.log("  ✓ demo/T08 local reference motions");
@@ -322,6 +332,39 @@ async function buildDemo() {
     );
     console.log(
       "  ℹ T08 assets absent; Demo dictionary mode remains available (see docs/demo.md)",
+    );
+  }
+  const candidates = join(assets, "t08-candidates.json");
+  if (existsSync(candidates)) {
+    copyFileSync(candidates, dp("demo/t08-candidates.json"));
+    candidateAsset = JSON.parse(readFileSync(candidates, "utf8"));
+    if (
+      candidateAsset.schema !== "signbridge-t08-motion-candidates-v1" ||
+      candidateAsset.training_checkpoint_sha256 !==
+        runtimeIndex.checkpoint_sha256 ||
+      candidateAsset.training_weights_updated !== false ||
+      candidateAsset.training_ready !== false ||
+      candidateAsset.clips?.length !== 3
+    )
+      throw new Error(
+        "Local T08 candidate asset does not match the review contract",
+      );
+    runtimeIndex.clips.push(
+      ...candidateAsset.clips.map(
+        ({ id, text, aliases, fps, frames, runtime_candidate }) => ({
+          id,
+          text,
+          aliases,
+          fps,
+          frames,
+          runtime_candidate,
+        }),
+      ),
+    );
+  } else {
+    writeFileSync(
+      dp("demo/t08-candidates.json"),
+      JSON.stringify(candidateAsset),
     );
   }
   writeFileSync(dp("avatar/t08-index.json"), JSON.stringify(runtimeIndex));

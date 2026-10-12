@@ -4,6 +4,7 @@ import * as THREE from "three";
 import {
   matchT08Reference,
   planDemoText,
+  validateT08CandidateBundle,
   validateT08Bundle,
 } from "../src/demo/demo-motion.js";
 import {
@@ -85,4 +86,75 @@ test("realtime T08 routing selects only a complete reference phrase", () => {
   assert.equal(matchT08Reference("工作忙吗，谢谢", clips), null);
   assert.equal(matchT08Reference("工作🚀忙吗？", clips), null);
   assert.equal(matchT08Reference("工作忙吗", []), null);
+});
+
+test("candidate references require provenance, remain separate from training, and route as candidates", () => {
+  const candidate = {
+    id: "candidate",
+    text: "如果下雨可以借你一把。",
+    aliases: ["如果下雨可以借你一把。"],
+    runtime_candidate: true,
+    training_data_member: false,
+    training_ready: false,
+    mirror_orientation_confirmed: false,
+    speaker_identity_confirmed: false,
+    authorization_status: "user_reported",
+    motion_review_decision_sha256:
+      "8297549518aaed82f88b94ff20550f4d708ddfe2229a1c614300a7f962752507",
+    model_output: "token_decode_candidate",
+    normalized_reconstruction_mse: 0.5,
+    frames: 100,
+    fps: 25,
+    poses: Array.from({ length: 100 }, () =>
+      Array.from({ length: 55 }, () => [0, 0, 0]),
+    ),
+    tokens: {
+      body: Array(25).fill(0),
+      left: Array(25).fill(0),
+      right: Array(25).fill(0),
+    },
+    token_decode_parity_max: 0,
+    feature_sha256: "a".repeat(64),
+    source_sha256: "b".repeat(64),
+  };
+  const bundle = {
+    schema: "signbridge-t08-motion-candidates-v1",
+    training_checkpoint_sha256:
+      "438cbe537ad1b5bf14c795375209eb00d87cea5c3e97ed06f880f9764e8f9a5b",
+    training_weights_updated: false,
+    training_ready: false,
+    text_to_sign_trained: false,
+    research_only: true,
+    training_checkpoint_step: 1000,
+    representation: "effective-smplx-55-axis-angle",
+    smplx_rest_model_sha256:
+      "376021446ddc86e99acacd795182bbef903e61d33b76b9d8b359c2b0865bd992",
+    restJoints: Array.from({ length: 55 }, () => [0, 0, 0]),
+    parents: [-1, ...Array.from({ length: 54 }, (_, index) => index)],
+    clips: [
+      candidate,
+      { ...candidate, id: "candidate-2", text: "我给她买了一件衣服" },
+      { ...candidate, id: "candidate-3", text: "去人民广场怎么走？" },
+    ],
+  };
+  assert.equal(validateT08CandidateBundle(bundle).clips.length, 3);
+  assert.equal(
+    planDemoText(candidate.text, "auto", [candidate]).items[0].source,
+    "candidate",
+  );
+  assert.throws(() =>
+    validateT08CandidateBundle({
+      ...bundle,
+      clips: [{ ...candidate, training_data_member: true }],
+    }),
+  );
+  assert.throws(() =>
+    validateT08CandidateBundle({
+      ...bundle,
+      clips: bundle.clips.map((clip) => ({
+        ...clip,
+        token_decode_parity_max: NaN,
+      })),
+    }),
+  );
 });

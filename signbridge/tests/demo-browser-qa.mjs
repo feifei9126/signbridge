@@ -17,6 +17,12 @@ const url =
 const data = JSON.parse(
   await readFile(join(root, "dist/demo/t08-motion.json"), "utf8"),
 );
+const candidateData = JSON.parse(
+  await readFile(join(root, "dist/demo/t08-candidates.json"), "utf8"),
+);
+const candidateClips = candidateData.clips || [];
+const phraseCount = data.clips.length + candidateClips.length;
+const catalogCount = phraseCount + 52;
 const browser = await chromium.launch({
   headless: true,
   ...(process.env.SIGNBRIDGE_CHROME
@@ -36,6 +42,7 @@ const report = {
   browser: browser.version(),
   url,
   t08: [],
+  candidates: [],
   dictionary: [],
   checks: [],
   errors: [],
@@ -74,8 +81,15 @@ async function played(text) {
 try {
   await page.goto(url);
   await ready();
-  assert.equal(await page.locator("#catalog-count").textContent(), "66 / 66");
+  assert.equal(
+    await page.locator("#catalog-count").textContent(),
+    `${catalogCount} / ${catalogCount}`,
+  );
   assert.equal(await page.locator("#model-count").textContent(), "14");
+  assert.equal(
+    await page.locator("#candidate-count").textContent(),
+    String(candidateClips.length),
+  );
   await screenshot("desktop.png");
   report.checks.push("initial 14 T08 + 52 dictionary catalog");
   await page.evaluate(() => {
@@ -144,7 +158,10 @@ try {
   await page.locator("#speed").selectOption("1.5");
   report.checks.push("three views and speed");
   await page.locator("[data-mode=t08]").click();
-  assert.equal(await page.locator("#catalog-count").textContent(), "14 / 14");
+  assert.equal(
+    await page.locator("#catalog-count").textContent(),
+    `${phraseCount} / ${phraseCount}`,
+  );
   for (const [i, clip] of data.clips.entries()) {
     await played(clip.text);
     await page.waitForFunction(
@@ -168,6 +185,32 @@ try {
       playback: "completed",
     });
     console.log(`T08 completed ${i + 1}/14: ${clip.id}`);
+  }
+  for (const [i, clip] of candidateClips.entries()) {
+    await played(clip.text);
+    await page.waitForFunction(() =>
+      document.querySelector("#source-badge").textContent.includes("候选"),
+    );
+    assert.deepEqual(
+      JSON.parse(await page.locator("#tokens").textContent()),
+      clip.tokens,
+    );
+    await page.waitForTimeout(500);
+    await screenshot(`candidate-${i + 1}.png`);
+    await page.waitForFunction(
+      () => document.querySelector("#status").textContent === "本次播放完成。",
+      undefined,
+      { timeout: Math.ceil(clip.duration * 1600) + 10000 },
+    );
+    report.candidates.push({
+      id: clip.id,
+      frames: clip.frames,
+      tokensVerified: true,
+      candidateLabelVerified: true,
+      trainingWeightsUpdated: false,
+      playback: "completed",
+    });
+    console.log(`Candidate completed ${i + 1}/3: ${clip.id}`);
   }
   await page.locator("[data-mode=dictionary]").click();
   assert.equal(await page.locator("#catalog-count").textContent(), "52 / 52");
@@ -242,6 +285,13 @@ try {
       body: '{"unavailable":true}',
     }),
   );
+  await fallback.route("**/t08-candidates.json", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: '{"clips":[]}',
+    }),
+  );
   await fallback.goto(url);
   await fallback.waitForFunction(
     () => !document.querySelector("#play").disabled,
@@ -303,7 +353,7 @@ try {
       );
       assert.equal(
         await demo.locator("#catalog-count").textContent(),
-        "66 / 66",
+        `${catalogCount} / ${catalogCount}`,
       );
       await demo.locator("#play").click();
       await demo.waitForFunction(

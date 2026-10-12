@@ -7,11 +7,11 @@
 | 项目 | 结果 | 证据 |
 | --- | --- | --- |
 | 构建、Lint、格式 | 全部通过，`npm run verify` 退出 0 | `local-data/demo-20261012/verify.log` |
-| JavaScript 测试 | 149 通过、0 失败、0 跳过 | 同上；覆盖 matcher、播放时钟、真实骨架、插件入口及原有功能 |
-| Python 测试 | 5 通过 | `sign-demo-export.test.py` 3 项；`sign-demo-serve.test.py` 2 项 |
+| JavaScript 测试 | 最新 `npm run verify` 为 154 通过、0 失败、0 跳过 | `local-data/demo-20261012/candidate-verify-final.log` |
+| Python 测试 | 7 通过 | 原导出器3项、候选导出器2项、本地服务2项 |
 | 实际 T08 token 解码 | 14 段、2,732 帧，最大 forward/decode 差 `2.1457672119140625e-6` | `local-data/demo-20261012/export.log` |
 | 骨架重定向 | 实际 Godette 层级 40 个骨骼；全部序列四元数有限、单位长度，手臂方向与源世界旋转一致 | `demo-retarget.test.mjs` |
-| 浏览器完整播放 | 14/14 T08 与 52/52 内置动作完成播放 | `local-data/demo-20261012/browser-qa/report.json` |
+| 浏览器完整播放 | 最新回归详见下方，14/14原T08、3/3候选与52/52内置动作完成播放 | `local-data/demo-20261012/browser-qa/report.json` |
 | 浏览器交互 | 13 组验收通过 | 同上，包含控制、快速模式切换、导出、研究图片和失败恢复 |
 | 网络与运行错误 | 正常演示路径 0 个错误、0 个 HTTP 失败 | 同上；错误恢复另用人为损坏响应验证 |
 | 解压扩展 | 真实扩展加载、真实弹窗入口、T08 播放通过 | 同上 `extension` 字段与 `extension.png` |
@@ -23,6 +23,17 @@
 独立 Demo 验收不能证明插件实时字幕调用了T08。新增实时字幕路由后，扩展自身 iframe 浏览器验收额外通过：完整“工作忙吗？”匹配并播放 `pilot-greeting-busy-005`；单词“谢谢”继续走内置字典；“工作忙吗？谢谢”不误触发不匹配的整句T08参考。截图和结果位于 `local-data/demo-20261012/realtime-browser-qa/`。独立 Demo 14段和52词条的前述结果保持有效；插件完整构建、Lint、152项JavaScript测试及5项Python测试通过。
 
 运行时先加载约2KB的T08句子索引；仅在首次完整句命中时读取解码姿态资产。T08运行资源或校验失败会回退现有词库。浏览器验收不批准手语语义、动作自然度或未训练句子的生成能力。
+
+## 2026-10-12 候选短句补充
+
+交付候选句后，浏览器回归完整播放 **14 条原参考 + 3 条候选 + 52 条词库**。三条候选均校验了 token、候选徽标和播放完成。插件实时 iframe另验证“去人民广场怎么走？”进入candidate来源、不是训练参考标签。
+
+- 候选资产 SHA256：`ea273b6279f72b05f84c9915f02ce651cc805ec2f476bbac77d7fc095c69409f`；checkpoint SHA仍为`438cbe537ad1b5bf14c795375209eb00d87cea5c3e97ed06f880f9764e8f9a5b`，本轮未更新权重。
+- 新归一化MSE：0.6633 / 0.4655 / 0.5073；与原14条平均0.0824相比明显较高，保持candidate状态。三段原始拟合片段已用户对照通过，但镜像方向/说话人仍未确认。
+- 新增 Python候选来源测试2项；整体 JavaScript 154项通过，Python候选导出/原导出/本地服务合计7项通过；`npm run verify`退出0。
+- 逐条真实浏览器回归：14/14 原T08、3/3 candidate、52/52词库，浏览器无页面错误。证明轨迹能播放及来源标签正确，不证明候选语义/手语质量已正式批准。
+
+候选完整清单、扩充策略、复现命令及训练前提见 [T08候选扩充记录](t08-phrase-expansion-20261012.md)。
 
 浏览器验收于北京时间 **2026-10-12 11:08:09 至 11:09:55** 运行。主验收浏览器版本由本机报告记录为 `154.0.8037.99`；另使用 Chrome for Testing 验证解压扩展。没有视觉基线可供自动像素差比较，未声称已经完成视觉回归或全面无障碍认证；本轮检查了实际截图、按钮、输入标签、键盘操作和布局。
 
@@ -37,8 +48,8 @@
 
 | 成品 | 大小 | SHA256 |
 | --- | ---: | --- |
-| `SignBridge-Demo-20261012.zip` | 4,959,054 字节 | `c2aa35e0cbd1f06e36f397c2218d36d953669e4f5e62933e2f818e5a2871cc68` |
-| `SignBridge-Extension-Demo-20261012.zip` | 11,590,162 字节 | `ed24edabb6f31d67130e5778b5798354466e0d90bdbbe5989f61ac13bf28957a` |
+| `SignBridge-Demo-20261012.zip` | 5,472,193 字节 | `528f2701f496a2e94b91b14bd7a4ee31fe0b4809e334bd5d6b0bf5feee8f7585` |
+| `SignBridge-Extension-Demo-20261012.zip` | 12,016,960 字节 | `cf4630c24a853f4e4ca31c433bf609a6bee884d03a03e40e45ea057569d74d62` |
 
 独立包只包含展示页面、当前角色、离线解码动作、六张候选对照图和静态服务启动器。完整插件包包括原有插件功能与新增 Demo 入口。两者均不含 SSH 凭据、PyTorch checkpoint、SMPL-X/MANO 模型本体或原始教学视频。解压后的独立目录为 `local-data/demo-20261012/delivery/SignBridge-Demo-20261012/`，内有 `FILES.json` 可核对每个成品文件摘要。
 

@@ -151,6 +151,40 @@ try {
   report.checks.push(
     "extra unmatched words do not trigger a false exact T08 reference match",
   );
+  await page.evaluate(() => {
+    window.__signbridgeMessages = [];
+    window.postMessage(
+      { source: "signbridge-page", type: "PLAYBACK_RESET" },
+      location.origin,
+    );
+    window.postMessage(
+      {
+        source: "signbridge-page",
+        type: "SUBTITLE_TEXT",
+        text: "去人民广场怎么走？",
+      },
+      location.origin,
+    );
+  });
+  await page.waitForFunction(
+    () =>
+      window.__signbridgeMessages?.some(
+        (message) =>
+          message.type === "MOTION_SOURCE" &&
+          message.sourceType === "candidate" &&
+          message.referenceId === "new-58a5b3d6622ea72a-0068" &&
+          message.label.includes("候选"),
+      ),
+    undefined,
+    { timeout: 30000 },
+  );
+  await page.waitForTimeout(750);
+  await page
+    .locator("canvas")
+    .screenshot({ path: join(output, "live-candidate-frame.png") });
+  report.checks.push(
+    "reviewed candidate phrase routes as a candidate reconstruction without a training claim",
+  );
   report.status = "passed";
 } catch (error) {
   report.status = "failed";
