@@ -240,6 +240,109 @@ def prepare_gpu_inputs(plan_path, output):
     return value
 
 
+def alignment_summary(report):
+    cases = report.get('cases')
+    expected = report.get('frames')
+    if (report.get('status') != 'alignment_candidates_pending_visual_review' or
+            not isinstance(cases, list) or type(expected) is not int or len(cases) != expected or
+            report.get('training_ready') is not False or report.get('human_approved') is not False or
+            report.get('training_started') is not False):
+        raise ValueError('Only a complete, unapproved alignment report can be reviewed')
+    ids = set()
+    for row in cases:
+        case_id = row.get('case_id')
+        if (not isinstance(case_id, str) or re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_-]{0,120}', case_id) is None or
+                case_id in ids or row.get('training_ready') is not False or
+                type(row.get('combined_projection_gate_passed')) is not bool or
+                type(row.get('all_candidate_gates_passed')) is not bool or
+                not isinstance(row.get('candidate_alternatives'), list)):
+            raise ValueError('Invalid or promoted alignment case')
+        ids.add(case_id)
+    return {
+        'cases': expected,
+        'combined_gate_passed': sum(row['combined_projection_gate_passed'] for row in cases),
+        'combined_gate_failed': sum(not row['combined_projection_gate_passed'] for row in cases),
+        'all_candidates_gate_passed': sum(row['all_candidate_gates_passed'] for row in cases),
+        'no_mano_candidate_cases': sum(not row['candidate_alternatives'] for row in cases),
+        'mano_alternatives': sum(len(row['candidate_alternatives']) for row in cases),
+        'training_ready': False,
+        'human_approved': False,
+        'training_started': False,
+        'semantic_accuracy': 'not_assessed',
+    }
+
+
+def build_alignment_review(alignment_root, output):
+    alignment_root, output = Path(alignment_root).resolve(), Path(output).resolve()
+    if output.exists() or output in alignment_root.parents or alignment_root in output.parents:
+        raise ValueError('Alignment review must use a fresh directory outside source results')
+    report_path = alignment_root / 'report.json'
+    report = json.loads(report_path.read_text())
+    summary = alignment_summary(report)
+    sums_path = alignment_root / 'SHA256SUMS'
+    sums = {}
+    for line in sums_path.read_text().splitlines():
+        checksum, relative = line.split('  ', 1)
+        file = (alignment_root / relative).resolve()
+        if alignment_root not in file.parents or catchup.sha(file) != checksum:
+            raise ValueError('Alignment output checksum mismatch: ' + relative)
+        sums[relative] = checksum
+
+    output.mkdir(parents=True)
+    rows = []
+    for row in report['cases']:
+        case_id = row['case_id']
+        image_name = row.get('frame_compare')
+        image = None
+        if image_name:
+            relative = str(Path(case_id) / image_name)
+            if relative not in sums:
+                raise ValueError('Frame comparison is absent from integrity manifest: ' + case_id)
+            source = alignment_root / relative
+            target = output / 'comparisons' / (case_id + '.jpg')
+            target.parent.mkdir(parents=True, exist_ok=True)
+            try:
+                os.link(source, target)
+            except OSError:
+                shutil.copy2(source, target)
+            image = str(target.relative_to(output))
+        selected = row.get('selected', {})
+        failed_sides = [side for side, value in selected.items() if value.get('candidate_gate_passed') is not True]
+        rows.append({
+            'case_id': case_id,
+            'label': row.get('label', ''),
+            'source_id': row.get('source_id', ''),
+            'source_reference_frame_1based': row.get('source_reference_frame_1based'),
+            'source_seconds_nominal': row.get('source_seconds_nominal'),
+            'image': image,
+            'combined_projection_gate_passed': row['combined_projection_gate_passed'],
+            'all_candidate_gates_passed': row['all_candidate_gates_passed'],
+            'candidate_alternatives': len(row['candidate_alternatives']),
+            'selected_sides': sorted(selected),
+            'failed_selected_sides': failed_sides,
+            'smplx_body_detection_missing': row.get('smplx_body_detection_missing', False),
+            'training_ready': False,
+            'human_approved': False,
+        })
+    catchup.write_json(output / 'summary.json', {
+        'schema': 'signbridge-alignment-review-summary-v1',
+        'source_alignment_report_sha256': catchup.sha(report_path),
+        'source_alignment_manifest_sha256': catchup.sha(sums_path),
+        **summary,
+    })
+    catchup.write_lines(output / 'cases.jsonl', rows)
+    shutil.copy2(report_path, output / 'alignment-report.json')
+    page = '''<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>MANO–SMPL-X 关键帧 A/B 复核</title>
+<link rel="stylesheet" href="review.css"><header><p>SignBridge · 2026-10-14</p><h1>MANO–SMPL-X 关键帧 A/B 复核</h1><p id="summary"></p><p>候选重建仅用于人工查看；模型投影门槛不代表手语语义正确。失败项仍保留，全部数据均未批准、未进入训练。</p></header>
+<main><nav><label>筛选 <select id="filter"><option value="all">全部</option><option value="pass">组合门槛通过</option><option value="fail">组合门槛未通过</option><option value="noguess">无MANO候选</option></select></label><label>搜索 <input id="search" type="search" placeholder="句子、case 或来源"></label></nav><nav class="pager"><button id="previous" type="button" disabled>上一页</button><p id="count" role="status" aria-live="polite"></p><button id="next" type="button">下一页</button></nav><div id="list"></div></main><script type="module" src="review.js"></script></html>'''
+    (output / 'index.html').write_text(page)
+    shutil.copy2(Path(__file__).with_name('catchup-review') / 'alignment-review.js', output / 'review.js')
+    shutil.copy2(Path(__file__).with_name('catchup-review') / 'alignment-review.css', output / 'review.css')
+    (output / 'SHA256SUMS').write_text(''.join(catchup.sha(file) + '  ' + str(file.relative_to(output)) + '\n' for file in sorted(output.rglob('*')) if file.is_file() and file.name != 'SHA256SUMS'))
+    print(json.dumps({'output': str(output), **summary}, ensure_ascii=False))
+    return summary
+
+
 def audit(args):
     from concurrent.futures import ThreadPoolExecutor
     import cv2
@@ -316,15 +419,18 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--audit', action='store_true')
     parser.add_argument('--gpu-inputs', action='store_true')
+    parser.add_argument('--alignment-review', action='store_true')
     parser.add_argument('--gpu-status', type=Path, help='Actual connection-check JSON; omitted means not checked')
-    for key in ('index', 'pack', 'observations', 'output', 'plan'):
+    for key in ('index', 'pack', 'observations', 'output', 'plan', 'alignment'):
         parser.add_argument('--' + key, type=Path)
     args = parser.parse_args()
-    required = ('index', 'output') if args.audit else ('plan', 'output') if args.gpu_inputs else ('index', 'pack', 'observations', 'output')
+    required = ('alignment', 'output') if args.alignment_review else ('index', 'output') if args.audit else ('plan', 'output') if args.gpu_inputs else ('index', 'pack', 'observations', 'output')
     if any(getattr(args, key) is None for key in required):
         parser.error('Missing fields: ' + ', '.join(required))
     if args.audit:
         audit(args)
+    elif args.alignment_review:
+        build_alignment_review(args.alignment, args.output)
     elif args.gpu_inputs:
         value = prepare_gpu_inputs(args.plan, args.output)
         print(json.dumps({'cases': value['frames'], 'status': value['status'], 'training_ready': False}))
