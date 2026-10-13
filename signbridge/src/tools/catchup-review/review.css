@@ -1,0 +1,117 @@
+:root {
+  color-scheme: light;
+  font:
+    16px/1.65 system-ui,
+    sans-serif;
+  color: #17332d;
+  background: #f3f6f4;
+}
+body {
+  max-width: 1250px;
+  margin: auto;
+  padding: 24px;
+}
+header,
+section {
+  background: #fff;
+  padding: 24px;
+  border: 1px solid #cbdad3;
+  border-radius: 10px;
+  margin-bottom: 20px;
+}
+h1 {
+  font-size: 28px;
+  margin: 12px 0;
+}
+h2 {
+  font-size: 20px;
+}
+h3 {
+  font-size: 16px;
+}
+p {
+  overflow-wrap: anywhere;
+}
+a {
+  color: #176c53;
+}
+button,
+input {
+  font: inherit;
+  border: 1px solid #afc4b9;
+  border-radius: 6px;
+  background: white;
+  color: inherit;
+  padding: 9px 14px;
+}
+button {
+  cursor: pointer;
+  min-height: 44px;
+}
+button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+button[aria-pressed="true"] {
+  background: #176c53;
+  color: white;
+}
+button:focus-visible,
+input:focus-visible,
+summary:focus-visible,
+a:focus-visible {
+  outline: 3px solid #d39c22;
+  outline-offset: 3px;
+}
+input {
+  display: block;
+  width: min(100%, 620px);
+  box-sizing: border-box;
+  margin-top: 6px;
+}
+.views,
+.pager {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin: 16px 0;
+}
+.limits {
+  border-left: 4px solid #ac7929;
+  padding-left: 12px;
+}
+.pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+}
+video {
+  width: 100%;
+  max-height: 380px;
+  background: #111;
+}
+img {
+  max-width: 100%;
+}
+details {
+  margin-top: 16px;
+}
+summary {
+  cursor: pointer;
+}
+@media (max-width: 680px) {
+  body {
+    padding: 12px;
+  }
+  header,
+  section {
+    padding: 16px;
+  }
+  .pair {
+    grid-template-columns: 1fr;
+  }
+  h1 {
+    font-size: 24px;
+  }
+}

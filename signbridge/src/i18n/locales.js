@@ -1,4 +1,33 @@
 const DEMO_ZH = {
+  catchupTitle: "手语视频续处理 · 原片与手部参考",
+  catchupSummary:
+    "{files} 个视频文件 / {sources} 份不同内容 · 新增 {windows} 段连续参考 / {frames} 帧 · 另有 {sampled} 帧独立手部观测",
+  catchupLimits:
+    "本页是标注候选和技术观测。字幕可能有错字或多句对话，边界、镜像和人物分组待确认；未开始训练，未生成新的 SMPL-X 参数。5帧抽样不代表整段已标注。",
+  catchupReferences: "新增连续片段",
+  catchupSources: "全部视频进度",
+  catchupCaptions: "原始字幕候选",
+  catchupIndex: "程序调用索引",
+  catchupRegistry: "完整来源登记",
+  catchupReport: "阶段报告",
+  catchupSearch: "搜索句子、视频名或来源 ID",
+  catchupPage: "{count} 项 · 第 {page}/{pages} 页",
+  catchupPrevious: "上一页",
+  catchupNext: "下一页",
+  catchupOriginal: "原片候选窗口",
+  catchupOverlay: "关键点叠加预览",
+  catchupSync: "同步播放 / 暂停",
+  catchupKeyframes: "展开5帧原图与手部裁剪",
+  catchupKeyframeAlt: "{text} 的原图与估计手部槽裁剪",
+  catchupIndependentAlt: "该来源5个独立抽样帧的手部观测",
+  catchupCoverage:
+    "技术观测可用帧：left {left}/{frames}，right {right}/{frames}；这不是准确率或解剖侧别核验。",
+  catchupSourceStages:
+    "旧参考 {prior} 段 · 旧连续动作 {motions} 段 · 新连续参考 {fresh} 段 · 新独立抽样 {sampled} 帧；完整视频处理仍见报告。",
+  catchupHksl:
+    "标题提示香港手语，语言尚待核验；独立保存，未纳入中国手语句子训练。",
+  catchupEmptyCaption: "无可读取字幕",
+  catchupMediaError: "媒体播放失败，请检查本地文件并重试。",
   demoSample: "工作忙吗？谢谢",
   demoRetry: "重新加载演示",
   demoLimit: "每次最多播放40个动作，其余文字列在暂不支持内容中。",
@@ -92,6 +121,35 @@ const DEMO_ZH = {
   demoTooLong: "输入过长，仅匹配前500个字符。",
 };
 const DEMO_EN = {
+  catchupTitle: "Video catch-up · Source clips and hand references",
+  catchupSummary:
+    "{files} video files / {sources} unique contents · {windows} new reference windows / {frames} frames · {sampled} independent hand observations",
+  catchupLimits:
+    "Caption candidates and estimated observations only. Text, boundaries, mirroring and signer groups are unverified; no new training or SMPL-X parameters. Five samples do not annotate an entire video.",
+  catchupReferences: "New continuous windows",
+  catchupSources: "All source progress",
+  catchupCaptions: "Raw caption candidates",
+  catchupIndex: "Fitting index",
+  catchupRegistry: "Source registry",
+  catchupReport: "Stage report",
+  catchupSearch: "Search text, video name or source ID",
+  catchupPage: "{count} items · Page {page}/{pages}",
+  catchupPrevious: "Previous",
+  catchupNext: "Next",
+  catchupOriginal: "Source candidate window",
+  catchupOverlay: "Landmark preview",
+  catchupSync: "Play / pause together",
+  catchupKeyframes: "Five source frames and hand crops",
+  catchupKeyframeAlt: "Source images and estimated hand crops for {text}",
+  catchupIndependentAlt: "Five independent hand observation samples",
+  catchupCoverage:
+    "Eligible estimated frames: left {left}/{frames}, right {right}/{frames}; this is not accuracy or anatomical verification.",
+  catchupSourceStages:
+    "{prior} prior references · {motions} prior motions · {fresh} new reference windows · {sampled} independent samples. Whole-video completion remains described in the report.",
+  catchupHksl:
+    "Title suggests Hong Kong Sign Language; unverified, stored separately and excluded from CSL sentence training.",
+  catchupEmptyCaption: "No readable caption",
+  catchupMediaError: "Media playback failed. Check the local files and retry.",
   demoOpen: "Open demo workspace",
   demoLocal: "Local offline demo",
   demoExport: "Export session",
