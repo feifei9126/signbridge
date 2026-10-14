@@ -111,6 +111,47 @@ class TutorialReferenceTests(unittest.TestCase):
                 self.m.build(SimpleNamespace(manifest=manifest, annotations=annotations, output=output))
             self.assertEqual(evidence.read_text(), 'preserve-me')
 
+    def test_failed_candidate_is_quarantined_without_temporary_overlay_and_manifested(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            staging = root / '.staging' / 'tutorial-greeting-001'
+            staging.mkdir(parents=True)
+            (staging / 'clip.mp4').write_bytes(b'partial clip')
+            (staging / 'overlay-working.avi').write_bytes(b'temporary overlay')
+            (staging / 'landmarks.npz').write_bytes(b'partial points')
+
+            record = self.m.preserve_failed_candidate(
+                root, 'tutorial-greeting-001', staging, RuntimeError('synthetic extractor failure'))
+
+            failed = root / 'failed-candidates' / 'tutorial-greeting-001'
+            self.assertFalse((root / 'samples' / 'tutorial-greeting-001').exists())
+            self.assertTrue((failed / 'clip.mp4').is_file())
+            self.assertTrue((failed / 'landmarks.npz').is_file())
+            self.assertFalse((failed / 'overlay-working.avi').exists())
+            self.assertTrue(record['temporary_overlay_removed'])
+            self.assertFalse(record['completed'])
+            manifest = [json.loads(line) for line in (root / 'failures.jsonl').read_text().splitlines()]
+            self.assertEqual(len(manifest), 1)
+            self.assertEqual(manifest[0]['annotation_id'], 'tutorial-greeting-001')
+            self.assertEqual(manifest[0]['error_type'], 'RuntimeError')
+
+    def test_successful_candidate_is_published_atomically_without_overwrite(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            staging = root / '.staging' / 'tutorial-greeting-001'
+            staging.mkdir(parents=True)
+            artifact = staging / 'clip.mp4'
+            artifact.write_bytes(b'complete')
+
+            published = self.m.publish_staged_candidate(
+                root, 'tutorial-greeting-001', staging)
+
+            self.assertEqual(published, (root / 'samples' / 'tutorial-greeting-001').resolve())
+            self.assertEqual((published / 'clip.mp4').read_bytes(), b'complete')
+            self.assertFalse(staging.exists())
+            with self.assertRaisesRegex(ValueError, 'already exists'):
+                self.m.publish_staged_candidate(root, 'tutorial-greeting-001', staging)
+
     def test_duplicate_hand_observations_are_masked_not_swapped(self):
         left=np.repeat(np.array([[.4,.4,0.]],dtype=np.float32),21,axis=0)
         left[[5,9,13,17],0]+=.04
