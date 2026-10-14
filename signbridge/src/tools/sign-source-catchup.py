@@ -48,6 +48,14 @@ def language_hint(title):
     return 'HKSL_title_hint_unverified' if re.search('香港.*手[语語]', title) else 'unconfirmed'
 
 
+def conservative_source_group(relative_path, source_id):
+    if re.search('中国手语培训教程|国家通用标准规范手语', relative_path):
+        return 'unverified-csl-standard-course-family'
+    if '欢行手语' in relative_path:
+        return 'unverified-huanxing-course-family'
+    return 'unverified-source-' + source_id
+
+
 def panel_text(lines):
     """Caption layout observed in the supplied lesson series, not a general OCR rule."""
     selected = []
@@ -174,9 +182,10 @@ def build_index(args):
                          'prior_manifests': [{'path': str(p), 'source_id': r['source_id']} for p, r in known[checksum]],
                          'cached_ocr': str(screens[checksum]['file']) if checksum in screens else None,
                          'prior_reference_windows': refs[checksum], 'prior_continuous_motions': motions[checksum],
+                         'proposed_split_group': conservative_source_group(current['relative_path'], current['source_id']),
                          'stage': 'continuous_motion_present_pending_quality' if motions[checksum] else 'reference_windows_present_pending_review' if refs[checksum] else 'caption_screened_pending_reference' if checksum in screens else 'inventory_only',
                          'language_hint': language_hint(current['relative_path']), 'training_ready': False})
-        if manifest_path != args.new_manifest.resolve():
+        if manifest_path != args.new_manifest.resolve() or checksum not in screens:
             continue
         screen = screens[checksum]
         rows = read_lines(screen['file'])
@@ -203,7 +212,7 @@ def build_index(args):
                                 'candidate_content_kind': kind, 'label_evidence': 'positioned_original_OCR_with_image_hashes',
                                 'boundary_review': 'sparse_ocr_window', 'mirror_status': 'unknown',
                                 'signer_identity': 'unconfirmed', 'split': 'unassigned',
-                                'split_group': 'unverified-textbook-family' if '倪兰' in current['relative_path'] else 'unverified-puji-course-family' if re.search('第.+课：', current['relative_path']) else 'unverified-source-' + current['source_id'],
+                                'split_group': 'unverified-textbook-family' if '倪兰' in current['relative_path'] else 'unverified-puji-course-family' if re.search('第.+课：', current['relative_path']) else conservative_source_group(current['relative_path'], current['source_id']),
                                 'language': 'unconfirmed', 'language_hint': language_hint(current['relative_path']),
                                 'human_approved': False, 'training_ready': False, 'semantics_approved': False,
                                 'boundaries_approved': False, 'evidence': evidence,

@@ -1,5 +1,9 @@
 """Catch-up indexing keeps caption evidence, duplicates and incomplete stages explicit."""
 import importlib.util
+import json
+import tempfile
+from types import SimpleNamespace
+from unittest.mock import patch
 from pathlib import Path
 import unittest
 
@@ -53,6 +57,20 @@ class CatchupTests(unittest.TestCase):
         self.assertEqual(value, 'HKSL_title_hint_unverified')
         self.assertEqual(self.module.language_hint('普通教学.mp4'), 'unconfirmed')
 
+    def test_course_chapters_share_conservative_group_without_claiming_same_signer(self):
+        self.assertEqual(
+            self.module.conservative_source_group('4/中国手语培训教程/第01集.mp4', 's1'),
+            self.module.conservative_source_group('4/中国手语培训教程/第44集.mp4', 's2'),
+        )
+        self.assertEqual(
+            self.module.conservative_source_group('4/欢行手语/初级篇.mp4', 's1'),
+            self.module.conservative_source_group('4/欢行手语/中级篇.mp4', 's2'),
+        )
+        self.assertNotEqual(
+            self.module.conservative_source_group('4/中国手语培训教程/第01集.mp4', 's1'),
+            self.module.conservative_source_group('4/欢行手语/初级篇.mp4', 's2'),
+        )
+
     def test_content_dedup_uses_hash_and_keeps_all_aliases(self):
         rows = [{'sha256': 'a' * 64, 'relative_path': 'one.mp4'},
                 {'sha256': 'a' * 64, 'relative_path': 'renamed.mp4'},
@@ -60,6 +78,51 @@ class CatchupTests(unittest.TestCase):
         groups = self.module.group_by_hash(rows)
         self.assertEqual(len(groups), 2)
         self.assertEqual(len(groups['a' * 64]), 2)
+
+    def test_mixed_inventory_keeps_unscreened_source_and_indexes_only_real_ocr(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            root, dataset, screen = base / 'videos', base / 'data', base / 'screen'
+            root.mkdir(); dataset.mkdir(); screen.mkdir()
+            for name in ('sign-language-pilot', 'tutorial-hand-reference-20261010-v1',
+                         'tutorial-hand-reference-20261010-v2'):
+                folder = dataset / name; folder.mkdir()
+                (folder / 'sources.json').write_text(json.dumps({'sources': []}))
+            sources = []
+            for sid in ('source-inventory', 'source-screened'):
+                video = root / (sid + '.mp4'); video.write_bytes(sid.encode())
+                sources.append({'source_id': sid, 'relative_path': video.name,
+                                'sha256': self.module.sha(video), 'duration_seconds': 30.})
+            manifest = base / 'sources.json'
+            manifest.write_text(json.dumps({'sources': sources}))
+            folder = screen / 'source-screened'; folder.mkdir()
+            observations = []
+            for number, seconds in enumerate((2., 4., 6.), 1):
+                image = folder / f'{number}.jpg'; image.write_bytes(b'evidence')
+                row = self.row(seconds, self.line('单人演示-A', x=.01, y=.86),
+                               self.line('你好', x=.25, y=.14))
+                row.update(image=str(image.relative_to(screen)),
+                           image_sha256=self.module.sha(image), sampling_interval_seconds=2.)
+                observations.append(row)
+            self.module.write_lines(folder / 'ocr.jsonl', observations)
+            (screen / 'screen.json').write_text(json.dumps({'sources': [{
+                'source_id': 'source-screened', 'source_sha256': sources[1]['sha256']}]}))
+            args = SimpleNamespace(source_root=root, dataset=dataset, new_manifest=manifest,
+                                   new_screen=screen, output=base / 'output')
+            with patch('builtins.print'):
+                self.module.build_index(args)
+            result = json.loads((args.output / 'source-registry.json').read_text())
+            records = {row['source_id']: row for row in result['sources']}
+            self.assertEqual(records['source-inventory']['stage'], 'inventory_only')
+            self.assertIsNone(records['source-inventory']['cached_ocr'])
+            self.assertEqual(records['source-inventory']['proposed_split_group'], 'unverified-source-source-inventory')
+            self.assertFalse(records['source-inventory']['training_ready'])
+            candidates = self.module.read_lines(args.output / 'sentence-reference-candidates.jsonl')
+            self.assertEqual(len(candidates), 1)
+            self.assertEqual(candidates[0]['source_id'], 'source-screened')
+            self.assertEqual(candidates[0]['label'], '你好')
+            self.assertFalse(candidates[0]['human_approved'])
+            self.assertFalse(candidates[0]['training_ready'])
 
     def test_ocr_coordinates_cannot_be_nonfinite_or_outside_image(self):
         for bounds in ([.65, float('nan'), .25, .07], [.65, 1.2, .25, .07]):
