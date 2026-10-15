@@ -54,7 +54,12 @@ const escape = (text) =>
       ],
   );
 
-export function buildIntakeReview({ batch, output, locale = "zh-CN" }) {
+export function buildIntakeReview({
+  batch,
+  output,
+  locale = "zh-CN",
+  refinement = null,
+}) {
   batch = realpathSync(batch);
   output = resolve(output);
   output = join(realpathSync(dirname(output)), basename(output));
@@ -118,7 +123,20 @@ export function buildIntakeReview({ batch, output, locale = "zh-CN" }) {
         evidence.image_sha256,
       );
   }
-  const references = validation.references || [];
+  const revised = refinement ? json(refinement) : null;
+  if (
+    revised &&
+    (revised.schema !== "signbridge-reference-refinement-report-v1" ||
+      revised.status !== "audited_pending_human_review" ||
+      revised.human_approved !== false ||
+      revised.training_ready !== false ||
+      revised.model_training_ready !== false ||
+      revised.samples !== revised.references?.length ||
+      revised.frames !==
+        revised.references.reduce((sum, row) => sum + row.frames, 0))
+  )
+    throw new Error("Refinement must retain audited, unapproved provenance");
+  const references = revised ? revised.references : validation.references || [];
   const byReference = new Map();
   for (const row of references) {
     if (
@@ -132,6 +150,26 @@ export function buildIntakeReview({ batch, output, locale = "zh-CN" }) {
       throw new Error("Invalid or duplicate 2D reference provenance");
     for (const item of Object.values(row.artifacts))
       artifact(batch, item.path, item.sha256);
+    if (revised) {
+      const prior = row.previous_reference;
+      if (
+        row.revision_of_annotation_id !== row.annotation_id ||
+        row.semantics_approved !== false ||
+        row.boundaries_approved !== false ||
+        row.language !== "unconfirmed" ||
+        row.mirror_status !== "unknown" ||
+        row.split !== "unassigned" ||
+        prior?.annotation_id !== row.annotation_id ||
+        prior.source_sha256 !== row.source_sha256
+      )
+        throw new Error("Invalid refinement lineage or fabricated approval");
+      for (const item of Object.values(prior.artifacts))
+        artifact(batch, item.path, item.sha256);
+      for (const item of [row.keyframe_sheet, row.visual_evidence].filter(
+        Boolean,
+      ))
+        artifact(batch, item.path, item.sha256);
+    }
     byReference.set(row.annotation_id, row);
   }
   const byCandidate = new Map(
@@ -140,7 +178,7 @@ export function buildIntakeReview({ batch, output, locale = "zh-CN" }) {
   const selected = [
     ...new Set([
       ...references.map((row) => row.annotation_id),
-      ...shortlist.map((row) => row.annotation_id),
+      ...(revised ? [] : shortlist.map((row) => row.annotation_id)),
     ]),
   ].map((id) => {
     if (!byCandidate.has(id))
@@ -168,7 +206,21 @@ export function buildIntakeReview({ batch, output, locale = "zh-CN" }) {
       const media = ref
         ? `<p>${escape(t("catchupCoverage", { left: ref.usable_hand_observation_frames.left, right: ref.usable_hand_observation_frames.right, frames: ref.frames }))}</p><p><code>${escape(ref.review_flags.join(" / "))}</code></p><div class="videos"><section><h3>${escape(t("catchupOriginal"))}</h3><video controls preload="none" width="${Number(ref.width)}" height="${Number(ref.height)}" src="${href(inside(batch, ref.artifacts["clip.mp4"].path))}"></video></section><section><h3>${escape(t("catchupOverlay"))}</h3><video controls preload="none" width="${Number(ref.width)}" height="${Number(ref.height)}" src="${href(inside(batch, ref.artifacts["overlay.mp4"].path))}"></video></section></div>`
         : "";
-      return `<article id="${escape(row.annotation_id)}"><h2>${escape(row.label_candidate)} <small>${escape(t("intakePending"))}</small></h2><p>${escape(t("intakeWindow", { start: row.start_seconds_nominal.toFixed(2), end: row.end_seconds_nominal.toFixed(2), confidence: (row.ocr_confidence_mean * 100).toFixed(0) + "%" }))}</p><p>${escape(source.relative_path)}</p><p><code>${escape(row.annotation_id)} · ${escape(row.source_sha256)}</code></p><a href="${href(original(source))}#t=${row.start_seconds_nominal},${row.end_seconds_nominal}">${escape(t("intakeOriginal"))}</a><div class="evidence">${images}</div>${media}</article>`;
+      const proposal = revised
+        ? `<p>${escape(t("intakePrevious", { start: ref.previous_reference.start_seconds, end: ref.previous_reference.end_seconds, text: ref.previous_reference.label }))}</p><p>${escape(t("intakeCoverageComparison", { before: ((ref.coverage_before.any_hand_detected_frames / ref.coverage_before.frames) * 100).toFixed(0), after: ((ref.coverage_after.any_hand_detected_frames / ref.coverage_after.frames) * 100).toFixed(0) }))}</p><p>${escape(t("intakeRefinedWindow", { start: ref.start_seconds, end: ref.end_seconds, frames: ref.frames, duration: (ref.frames / ref.fps).toFixed(2) }))}</p><div class="videos"><section><h3>${escape(t("intakeBefore"))}</h3><video controls preload="none" width="${Number(ref.previous_reference.width) || 540}" height="${Number(ref.previous_reference.height) || 960}" src="${href(inside(batch, ref.previous_reference.artifacts["clip.mp4"].path))}"></video></section><section><h3>${escape(t("intakeAfter"))}</h3><video controls preload="none" width="${Number(ref.width)}" height="${Number(ref.height)}" src="${href(inside(batch, ref.artifacts["clip.mp4"].path))}"></video></section></div><details><summary>${escape(t("catchupKeyframes"))}</summary>${[
+            ref.keyframe_sheet,
+            ref.visual_evidence,
+          ]
+            .filter(Boolean)
+            .map(
+              (item) =>
+                `<img loading="lazy" src="${href(inside(batch, item.path))}" alt="${escape(ref.label)}">`,
+            )
+            .join("")}</details>`
+        : "";
+      const start = revised ? ref.start_seconds : row.start_seconds_nominal,
+        end = revised ? ref.end_seconds : row.end_seconds_nominal;
+      return `<article id="${escape(row.annotation_id)}"><h2>${escape(revised ? ref.label : row.label_candidate)} <small>${escape(t(revised ? "intakeRefinementPending" : "intakePending"))}</small></h2><p>${escape(t("intakeWindow", { start: row.start_seconds_nominal.toFixed(2), end: row.end_seconds_nominal.toFixed(2), confidence: (row.ocr_confidence_mean * 100).toFixed(0) + "%" }))}</p><p>${escape(source.relative_path)}</p><p><code>${escape(row.annotation_id)} · ${escape(row.source_sha256)}</code></p><a href="${href(original(source))}#t=${start},${end}">${escape(t("intakeOriginal"))}</a>${proposal}<div class="evidence">${images}</div>${revised ? `<details><summary>${escape(t("catchupOverlay"))}</summary>${media}</details>` : media}</article>`;
     })
     .join("");
   const sourceCards = inventory.unique_sources
@@ -177,7 +229,9 @@ export function buildIntakeReview({ batch, output, locale = "zh-CN" }) {
       return `<details><summary>${escape(source.relative_path)}${row.duplicate_with_prior_registry ? " · " + escape(t("intakeDuplicate")) : ""}</summary><p><code>${escape(row.content_class)} · ${escape(source.sha256)}</code></p><img loading="lazy" class="overview" width="960" height="640" src="${href(inside(join(batch, "intake-v1"), source.overview))}" alt="${escape(source.relative_path)}"><p><a href="${href(original(source))}">${escape(t("intakeOriginal"))}</a></p></details>`;
     })
     .join("");
-  const title = t("intakeTitle", { name: basename(intake.source_root) });
+  const title = t(revised ? "intakeRefinementTitle" : "intakeTitle", {
+    name: basename(intake.source_root),
+  });
   const summary = t("intakeSummary", {
     files: intake.sources.length,
     unique: inventory.unique_sources.length,
@@ -193,6 +247,7 @@ export function buildIntakeReview({ batch, output, locale = "zh-CN" }) {
     summary,
     candidates: selected,
     references,
+    refinement,
     sources: inventory.unique_sources,
     training_ready: false,
     human_approved: false,
@@ -225,6 +280,7 @@ if (
       batch: { type: "string" },
       output: { type: "string" },
       locale: { type: "string", default: "zh-CN" },
+      refinement: { type: "string" },
     },
   });
   if (!values.batch || !values.output)

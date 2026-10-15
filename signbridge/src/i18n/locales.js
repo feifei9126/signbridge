@@ -1,4 +1,13 @@
 const DEMO_ZH = {
+  intakeRefinementTitle: "来源 {name} · 动作边界复核",
+  intakeRefinementPending: "文字与边界建议 · 未人工确认",
+  intakePrevious: "原候选窗口 {start}–{end}s：{text}",
+  intakeBefore: "原候选窗口（供对比）",
+  intakeAfter: "调整后的候选窗口",
+  intakeRefinedWindow:
+    "调整后名义区间 {start}–{end}s；实际解码 {frames} 帧 / {duration}s。临近视频结尾的动作仍需核对是否完整。",
+  intakeCoverageComparison:
+    "观测到至少一只手的帧占比：原窗口 {before}% → 调整后 {after}%。这是不同窗口的取材对比，不代表检测器准确率提升。",
   intakeTitle: "来源 {name} · 新视频复核",
   intakeSummary:
     "{files} 个文件 / {unique} 份不同内容；{screened} 个来源完成 OCR，{candidates} 条文字候选；{references} 段、{frames} 帧完成 2D 参考。",
@@ -142,6 +151,15 @@ const DEMO_ZH = {
   demoTooLong: "输入过长，仅匹配前500个字符。",
 };
 const DEMO_EN = {
+  intakeRefinementTitle: "Source {name} · Motion boundary review",
+  intakeRefinementPending: "Text/boundary proposal · Not human-confirmed",
+  intakePrevious: "Previous candidate window {start}–{end}s: {text}",
+  intakeBefore: "Previous candidate window",
+  intakeAfter: "Revised candidate window",
+  intakeRefinedWindow:
+    "Revised nominal window {start}–{end}s; {frames} decoded frames / {duration}s. Check completion near the original video end.",
+  intakeCoverageComparison:
+    "Frames with at least one observed hand: {before}% → {after}%. Different windows are compared; this is not improved detector accuracy.",
   intakeTitle: "Source {name} · New video review",
   intakeSummary:
     "{files} files / {unique} unique contents; {screened} sources screened, {candidates} caption candidates; {references} 2D references / {frames} frames.",

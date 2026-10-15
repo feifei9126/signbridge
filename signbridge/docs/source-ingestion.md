@@ -48,3 +48,37 @@ node src/tools/sign-intake-review.mjs \
 ```
 
 该工具要求 `validation.json` 已通过，验证来源与图像摘要，拒绝虚构审批、越界路径和覆盖已有复核目录；页面不含自动批准控件。
+
+## 2026-10-16：来源 6 的窗口修订与重建候选包
+
+对首轮 12 段回查原视频后发现，稀疏 OCR 的标题持续时间不能代表手语示范时间。“文创商店在那边”的原 9–19 秒窗口大部分是双手放下的口头讲解；“不是的，请跟我来……”原 0–5 秒也尚未开始手语。仅加大检测器能力不能解决这种取材错误。
+
+本轮保留全部旧片段，新增 `source-6/refinement-20261016-v1/`。根据有摘要的原片首尾接触表，制作 12 条**助手目视粗边界及文字建议**，重新裁取原视频中的连续组合示范；部分建议补上了 OCR 漏掉的分句和错字，但 `text_verified` 继续为空，语义、边界和人类审批均未变为通过。新索引重复使用原候选 ID 标明修订关系，必须同时按输入摘要和版本目录定位，不能只凭 ID 覆盖旧记录。
+
+新提取实际为 2,779 帧、111.16 秒；名义时间窗估计为 111.64 秒，不能把估计的 2,791 帧冒充实际帧数。两个窗口的实际视频比名义区间短约 0.08 秒，已列入时长差异标志；10 段靠近原视频结尾，仍需检查动作是否在源文件内完整结束。源时间映射是裁剪起点加 25 FPS 的名义时间，并非逐个原始 PTS 的精确对应。
+
+同一配置的 MediaPipe 观测中，新窗口共有 2,237/2,779 帧检测到至少一只手，原窗口为 996/2,125；约为 80.5% 对 46.9%。这是不同时间窗中动作内容占比的对比，不是检测器准确率上升，也不是手语正确率。按原来的单侧低于 20% 规则，低覆盖片段从 7 段变为 1 段；该段多数为单手表达，不能凭另一侧缺失自动判错。所有缺失数据仍为 NaN 加原掩码，不填点、不改侧别。
+
+`src/tools/sign-reference-refinement.py` 在新的输出目录内复核来源、旧／新片段、观测数组、时间轴、完整解码、实际帧数和摘要，并生成与既有候选序列 runner 兼容的 `signbridge-smplerx-candidate-sequences-v1` 包：12 个连续视频、原二维观测、逐帧名义时间映射、空的独立 MANO 关键帧清单及内部 SHA-256。它是实验重建输入，未启动 GPU、未产生 SMPL-X 参数、未训练。首次本地审计因摘要清单的写入顺序失败，保存在 `audit/failure.json`；修复并通过回归测试后重做至 `audit-v2/`，没有重跑视频提取。
+
+有效入口：
+
+- `source-6/refinement-20261016-v1/review-v1/index.html`：12 个原／新窗口对照，保留旧 OCR 和新的建议文字、关键帧及覆盖对比。
+- `source-6/refinement-20261016-v1/audit-v2/report.json`：逐段实际帧数、覆盖、尾部风险及输入摘要。
+- `source-6/refinement-20261016-v1/audit-v2/package/`：通过现有 `validate_package` 的连续重建候选输入。
+
+复现时两个工具均须指定新的输出目录，避免覆盖证据：
+
+```bash
+.venv-sign-data/bin/python signbridge/src/tools/sign-reference-refinement.py \
+  --batch local-data/data-expansion-20261015/source-6 \
+  --references local-data/data-expansion-20261015/source-6/refinement-20261016-v1/references \
+  --output local-data/data-expansion-20261015/source-6/refinement-20261016-v1/audit-new
+cd signbridge
+node src/tools/sign-intake-review.mjs \
+  --batch ../local-data/data-expansion-20261015/source-6 \
+  --refinement refinement-20261016-v1/audit-v2/report.json \
+  --output ../local-data/data-expansion-20261015/source-6/refinement-20261016-v1/review-new
+```
+
+下一阶段优先核对建议文字和首尾完整性，再用小批连续重建检查手部、相机和时序稳定性。候选包和数值核验不构成训练资格，不能据此制造语言、镜像、人物、split 或质量审批。
