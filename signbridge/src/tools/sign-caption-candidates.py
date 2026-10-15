@@ -29,9 +29,13 @@ def parse_line(line):
     x,y,width,height=box
     if not (isinstance(confidence,(int,float)) and math.isfinite(confidence)):
         raise ValueError('Invalid OCR confidence')
-    if confidence<.5 or not re.search('[\u4e00-\u9fff]',text) or height<.016:
+    sign_marker=re.match(r'^手语[\s:：]+(.+)$',text)
+    marked_region=sign_marker and .02<=x<=.90 and .45<=y<=.88 and x+width<=1.01
+    if confidence<(.25 if marked_region else .5) or not re.search('[\u4e00-\u9fff]',text) or height<.016:
         return None
-    if .035<=y<=.28 and .05<=x and x+width<=.98:
+    if marked_region:
+        rule='marked_sign_caption_candidate'
+    elif .035<=y<=.28 and .05<=x and x+width<=.98:
         rule='bottom_caption_candidate'
     elif .05<=x and .30<=y<=.80 and x+width<=.53 and height>=.025:
         rule='left_panel_caption_candidate'
@@ -42,12 +46,50 @@ def parse_line(line):
     if re.search('国家通用手语|手语学堂|中国手语|手语学校|bilibili|哔哩哔哩|扫码|点赞|投币|关注',text,re.I):
         return None
     marker=re.match(r'^(?:下面(?:一个|的)词|下一个词)[\s:：，,]*(.+)$',text)
-    label=(marker.group(1) if marker else text).strip(' ：:，,。')
+    label=(sign_marker.group(1) if marked_region else marker.group(1) if marker else text).strip(' ：:，,。')
     if not label or len(label)>50 or not normalized(label):return None
-    if not marker and re.search('手背|掌心|伸出|伸开|左手|右手|拇指|小指|食指|手指|手掌|手腕|手形|手型|怎么做|做法|然后|下面一个词',label):
+    if not (marker or marked_region) and re.search('手背|掌心|伸出|伸开|左手|右手|拇指|小指|食指|手指|手掌|手腕|手形|手型|怎么做|做法|然后|下面一个词',label):
         return None
     return {'label':label,'confidence':float(confidence),'box':box,
             'rule':'lesson_word_marker' if marker else rule,'text_raw':text}
+
+
+def observation_labels(observation):
+    lines=observation.get('lines',[])
+    parsed=[parse_line(row) for row in lines]
+    order=sorted(range(len(lines)),key=lambda i:-lines[i]['bounding_box'][1])
+    consumed=set();labels={}
+    for i in order:
+        if i in consumed or parsed[i] is None:continue
+        value=dict(parsed[i])
+        if value['rule']=='marked_sign_caption_candidate':
+            components=[dict(lines[i])];last=lines[i]['bounding_box']
+            for j in order:
+                if j==i or j in consumed:continue
+                row=lines[j];box=row['bounding_box'];text=str(row.get('text','')).strip()
+                if parsed[j] and parsed[j]['rule']=='marked_sign_caption_candidate':continue
+                aligned=abs((box[0]+box[2]/2)-(last[0]+last[2]/2))<=.2
+                adjacent=0<last[1]-box[1]<=1.4*max(last[3],box[3])
+                similar_height=.6<=box[3]/last[3]<=1.5
+                if (not aligned or not adjacent or not similar_height or box[1]<.45 or
+                        row.get('confidence',0)<.5 or not re.search('[\u4e00-\u9fff]',text)):
+                    continue
+                components.append(dict(row));consumed.add(j);last=box
+                if len(components)>=4:break
+            if len(components)>1:
+                value['label']=''.join([value['label']]+[r['text'] for r in components[1:]])
+                value['text_raw']='\n'.join(r['text'] for r in components)
+                value['confidence']=min(r['confidence'] for r in components)
+                left=min(r['bounding_box'][0] for r in components);bottom=min(r['bounding_box'][1] for r in components)
+                right=max(r['bounding_box'][0]+r['bounding_box'][2] for r in components)
+                top=max(r['bounding_box'][1]+r['bounding_box'][3] for r in components)
+                value['box']=[left,bottom,right-left,top-bottom]
+            value['ocr_components']=components
+        key=normalized(value['label'])
+        priority=(value['rule']=='marked_sign_caption_candidate',value['confidence'])
+        previous=labels.get(key)
+        if previous is None or priority>(previous['rule']=='marked_sign_caption_candidate',previous['confidence']):labels[key]=value
+    return labels
 
 
 def caption_groups(observations,duration,interval):
@@ -59,12 +101,7 @@ def caption_groups(observations,duration,interval):
         if not (isinstance(seconds,(int,float)) and math.isfinite(seconds) and 0<=seconds<duration) or previous is not None and seconds<=previous:
             raise ValueError('Unordered or out-of-range OCR timeline')
         previous=seconds
-        labels={}
-        for line in observation.get('lines',[]):
-            parsed=parse_line(line)
-            if parsed:
-                key=normalized(parsed['label'])
-                if key not in labels or parsed['confidence']>labels[key]['confidence']:labels[key]=parsed
+        labels=observation_labels(observation)
         active={key:value for key,value in active.items() if key in labels}
         for key,value in labels.items():
             group=active.get(key)
@@ -74,6 +111,8 @@ def caption_groups(observations,duration,interval):
             group['evidence'].append({'source_seconds':seconds,'image':observation['image'],
                 'image_sha256':observation['image_sha256'],'text_raw':value['text_raw'],
                 'confidence':value['confidence'],'bounding_box':value['box']})
+            if value.get('ocr_components'):
+                group['evidence'][-1]['ocr_components']=value['ocr_components']
     return groups
 
 

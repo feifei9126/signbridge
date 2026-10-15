@@ -77,13 +77,17 @@ def caption_spans(rows,source_duration,sampling_interval):
 
 
 def conservative_group(source):
+    if '公共服务类手语' in source['relative_path']:
+        return 'unverified-public-service-tutorial-family'
+    if '手语教学' in source['relative_path'] and '完结' in source['relative_path']:
+        return 'unverified-completed-lesson-tutorial-family'
     return 'unverified-textbook-family' if source['relative_path'].startswith('1/') else 'unverified-tutorial-family-'+source['source_id']
 
 
 def candidate_record(source,segment,span):
     safe_id(segment);safe_id(source['source_id'])
     return {**span,'segment_id':segment,'source_id':source['source_id'],'source_sha256':source.get('sha256'),
-        'language':'zh-CSL','text_verified':'','signer_id':'unconfirmed-'+source['source_id'],
+        'language':source.get('language','unconfirmed'),'text_verified':'','signer_id':'unconfirmed-'+source['source_id'],
         'split_group':conservative_group(source),'split':'unassigned','mirror_status':'unknown',
         'sample_type':'sentence_candidate' if span['section']=='single_person_demo' else 'word_or_instruction_unconfirmed',
         'semantics_status':'needs_review','boundaries_status':'needs_review','motion_review_status':'not_prepared',

@@ -16,6 +16,14 @@ SPEC.loader.exec_module(data)
 KINDS = {'step_instruction','complete_demonstration','continuous_narrative','theory','word_candidate'}
 
 
+def extract_reference_clip(source, output, start_seconds, duration):
+    subprocess.run(['ffmpeg','-hide_banner','-loglevel','error','-nostdin','-n','-ss',str(start_seconds),
+        '-i',str(source),'-t',str(duration),'-an','-vf',
+        'fps=25,scale=960:960:force_original_aspect_ratio=decrease:force_divisible_by=2',
+        '-c:v','libx264','-crf','20','-preset','veryfast','-threads','2','-pix_fmt','yuv420p',
+        '-movflags','+faststart',str(output)],check=True,timeout=180)
+
+
 def _candidate_paths(output, annotation_id, staging_directory):
     output = Path(output).resolve()
     if not isinstance(annotation_id, str) or re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_-]{0,79}', annotation_id) is None:
@@ -180,7 +188,7 @@ def build(args):
         folder=staging_root/row['annotation_id'];folder.mkdir()
         try:
             duration=row['end_seconds']-row['start_seconds']
-            subprocess.run(['ffmpeg','-hide_banner','-loglevel','error','-nostdin','-n','-ss',str(row['start_seconds']),'-i',str(path),'-t',str(duration),'-an','-vf','fps=25,scale=960:960:force_original_aspect_ratio=decrease','-c:v','libx264','-crf','20','-preset','veryfast','-threads','2','-pix_fmt','yuv420p','-movflags','+faststart',str(folder/'clip.mp4')],check=True,timeout=180)
+            extract_reference_clip(path,folder/'clip.mp4',row['start_seconds'],duration)
             quality=data.landmarks(folder/'clip.mp4',folder,row['start_seconds'])
             frames=quality['frames'];width=quality['width'];height=quality['height']
             with np.load(folder/'landmarks.npz',allow_pickle=False) as a:

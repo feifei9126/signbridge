@@ -77,6 +77,15 @@ class SourceCandidateTests(unittest.TestCase):
         self.assertFalse(r['model_training_ready'])
         self.assertFalse(r['independent_source_approved'])
 
+    def test_new_candidate_does_not_invent_csl_language_or_independent_course_signers(self):
+        first = {'source_id':'s1','relative_path':'bilibili/【Day 1】公共服务类手语教学（一）.mp4'}
+        second = {'source_id':'s2','relative_path':'bilibili/【Day 2】公共服务类手语教学（一）.mp4'}
+        row = self.c.candidate_record(first,'candidate1',{'text_candidate':'你好','start_seconds':1.,
+            'end_seconds':3.,'section':'single_person_demo','observed_times':[2.]})
+        self.assertEqual(row['language'], 'unconfirmed')
+        self.assertEqual(self.c.conservative_group(first), self.c.conservative_group(second))
+        self.assertEqual(row['split'], 'unassigned')
+
     def test_normalization_does_not_merge_distinct_questions_or_coerce_words_to_sentences(self):
         self.assertNotEqual(self.c.normalized_text('你好吗？'),self.c.normalized_text('你去哪？'))
         row=self.c.candidate_record({'relative_path':'2/tutorial.mp4','source_id':'s2'},'x',

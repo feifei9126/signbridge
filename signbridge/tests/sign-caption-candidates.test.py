@@ -53,5 +53,29 @@ class CaptionTests(unittest.TestCase):
         self.assertEqual(row['language'],'unconfirmed')
         self.assertEqual(row['mirror_status'],'unknown')
 
+    def test_upper_explicit_sign_caption_keeps_low_confidence_for_review_only(self):
+        marker={'text':'手语：你好，欢迎（来）','confidence':.3,'bounding_box':[.12,.77,.78,.06]}
+        parsed=module.parse_line(marker)
+        self.assertIsNotNone(parsed)
+        self.assertEqual(parsed['label'],'你好，欢迎（来）')
+        self.assertEqual(parsed['rule'],'marked_sign_caption_candidate')
+        self.assertEqual(parsed['confidence'],.3)
+        self.assertIsNone(module.parse_line({'text':'普通标题','confidence':.3,'bounding_box':[.12,.77,.78,.06]}))
+
+    def test_multiline_sign_caption_joins_only_adjacent_lines_below_the_marker(self):
+        rows=[{'source_seconds':0.,'image':'frame.jpg','image_sha256':'a'*64,'lines':[
+            {'text':'闪电超人在手语星球','confidence':.9,'bounding_box':[.5,.95,.45,.03]},
+            {'text':'手语：你好，欢迎（来）','confidence':.3,'bounding_box':[.12,.77,.78,.06]},
+            {'text':'陈家祠参观。我是志愿者。','confidence':1.,'bounding_box':[.08,.73,.87,.054]},
+            {'text':'汉语口语解释','confidence':1.,'bounding_box':[.2,.12,.6,.04]},
+        ]}]
+        groups=module.caption_groups(rows,10.,2.)
+        marked=[g for g in groups if g['extraction_rule']=='marked_sign_caption_candidate']
+        self.assertEqual(len(marked),1)
+        self.assertEqual(marked[0]['label_candidate'],'你好，欢迎（来）陈家祠参观。我是志愿者。')
+        self.assertEqual(marked[0]['evidence'][0]['confidence'],.3)
+        self.assertNotIn('闪电',marked[0]['label_candidate'])
+        self.assertNotIn('汉语',marked[0]['label_candidate'])
+
 
 if __name__=='__main__':unittest.main()

@@ -47,6 +47,20 @@ class InventoryTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             module.group_sources([{'source_id':'x','sha256':'not-a-digest','relative_path':'x.mp4'}],{})
 
+    def test_source6_analysis_and_song_videos_are_not_auto_screened_as_sign_labels(self):
+        titles = [
+            '手语和汉语语序差别在哪 re给你看（一）',
+            '【闪记手语鉴定】鉴定一下网络热门手语视频（1）',
+            '不知道如何避雷麻麻地的手语教学视频？来学怎么选择有质量的资源！',
+            '【手语】私信评论的高频问题Q&A',
+            '«老爹大战米奇»之手语翻译究竟在忙什么',
+        ]
+        for title in titles:
+            with self.subTest(title=title):
+                self.assertEqual(module.classify(title), 'explanation_or_service_unconfirmed')
+        self.assertEqual(module.classify('【手语教学】闪电版本的«世界赠予我的»'), 'song_or_choreography_candidate')
+        self.assertEqual(module.classify('【Day 1】公共服务类手语教学（一）'), 'tutorial_content_unconfirmed')
+
 
 if __name__=='__main__':
     unittest.main()

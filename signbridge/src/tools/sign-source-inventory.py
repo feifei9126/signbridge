@@ -33,11 +33,11 @@ def discover_manifests(dataset, excluded_roots):
 def classify(title):
     if re.search('中国手语VS美国|世界手语不一样|国际手语', title):
         return 'cross_language_or_international_unconfirmed'
-    if re.search('舞蹈|手语舞|麦田之歌|这世界那么多人|感谢（手语版）', title):
+    if re.search('舞蹈|手语舞|麦田之歌|这世界那么多人|世界赠予我的|感谢（手语版）', title):
         return 'song_or_choreography_candidate'
     if re.search('手形_[A-Za-z]|入手学习-字母', title):
         return 'handshape_or_alphabet_reference'
-    if re.search('有何好处|看得清、听得懂', title):
+    if re.search('有何好处|看得清、听得懂|语序差别|手语鉴定|鉴定一下|如何避雷|质量的资源|高频问题|究竟在忙什么|Q[&＆]A', title, re.I):
         return 'explanation_or_service_unconfirmed'
     if '国家通用手语' in title:
         return 'standard_csl_tutorial_candidate'

@@ -1,4 +1,13 @@
 const DEMO_ZH = {
+  intakeTitle: "来源 {name} · 新视频复核",
+  intakeSummary:
+    "{files} 个文件 / {unique} 份不同内容；{screened} 个来源完成 OCR，{candidates} 条文字候选；{references} 段、{frames} 帧完成 2D 参考。",
+  intakeLimits:
+    "字幕语义、动作边界、镜像、手别和人物分组待确认。这里只展示 OCR 候选及二维观测，没有生成新的 SMPL-X 动作或训练模型；training_ready=false。",
+  intakePending: "OCR候选 · 未复核",
+  intakeWindow: "名义区间 {start}–{end}s · OCR均值 {confidence}",
+  intakeOriginal: "查看授权原视频区间",
+  intakeDuplicate: "与旧批次内容重复",
   catchupTitle: "手语视频续处理 · 原片与手部参考",
   catchupSummary:
     "{files} 个视频文件 / {sources} 份不同内容 · 新增 {windows} 段连续参考 / {frames} 帧 · 另有 {sampled} 帧独立手部观测",
@@ -133,6 +142,16 @@ const DEMO_ZH = {
   demoTooLong: "输入过长，仅匹配前500个字符。",
 };
 const DEMO_EN = {
+  intakeTitle: "Source {name} · New video review",
+  intakeSummary:
+    "{files} files / {unique} unique contents; {screened} sources screened, {candidates} caption candidates; {references} 2D references / {frames} frames.",
+  intakeLimits:
+    "Text meaning, boundaries, mirroring, handedness and signer groups are unverified. OCR candidates and 2D observations only; no new SMPL-X motions or model training. training_ready=false.",
+  intakePending: "OCR candidate · Unreviewed",
+  intakeWindow:
+    "Nominal window {start}–{end}s · Mean OCR confidence {confidence}",
+  intakeOriginal: "Open authorized source interval",
+  intakeDuplicate: "Same bytes as an earlier source",
   catchupTitle: "Video catch-up · Source clips and hand references",
   catchupSummary:
     "{files} video files / {sources} unique contents · {windows} new reference windows / {frames} frames · {sampled} independent hand observations",

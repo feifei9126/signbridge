@@ -2,6 +2,8 @@
 import importlib.util
 import json
 import tempfile
+import shutil
+import subprocess
 from types import SimpleNamespace
 from unittest import mock
 import unittest
@@ -26,6 +28,20 @@ class TutorialReferenceTests(unittest.TestCase):
                 'boundary_review': 'assistant_visual', 'mirror_status': 'unknown',
                 'hand_shape_note': '食指指向镜头，再伸拇指；视频中的分步讲解',
                 'signer_identity': 'unconfirmed', 'human_approved': False}
+
+    @unittest.skipUnless(shutil.which('ffmpeg') and shutil.which('ffprobe'), 'FFmpeg tools required')
+    def test_portrait_reference_with_odd_scaled_width_encodes_even_dimensions(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory);source=root/'portrait.mkv';output=root/'clip.mp4'
+            subprocess.run(['ffmpeg','-v','error','-f','lavfi','-i','testsrc=size=317x563:rate=25',
+                '-t','0.2','-c:v','ffv1','-pix_fmt','bgr0',str(source)],check=True,capture_output=True)
+            self.m.extract_reference_clip(source,output,0.,.2)
+            probe=json.loads(subprocess.check_output(['ffprobe','-v','error','-select_streams','v:0',
+                '-show_entries','stream=width,height,nb_frames,r_frame_rate','-of','json',str(output)]))['streams'][0]
+            self.assertEqual(probe['width']%2,0)
+            self.assertEqual(probe['height']%2,0)
+            self.assertEqual(probe['r_frame_rate'],'25/1')
+            self.assertEqual(int(probe['nb_frames']),5)
 
     def test_assistant_labels_are_not_promoted_to_human_approval(self):
         r = self.m.validate_annotation(self.example(), 10.)
