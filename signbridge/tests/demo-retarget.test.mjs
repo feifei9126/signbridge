@@ -184,3 +184,42 @@ test(
     }
   },
 );
+
+test(
+  "lazy retarget calibration uses REST even after dictionary playback",
+  { skip: !bundle },
+  () => {
+    const root = skeletonFromGlb(),
+      rig = createHumanoidRig(root);
+    const pose = { poses: [bundle.clips[2].poses[60]] };
+    const expected = createT08Retarget(rig, root, bundle).compile(pose)[0];
+    const raised = rig.createTargets({
+      leftUpperArm: { x: 1, y: 0.3, z: 0.5 },
+      rightLowerArm: { x: 0.7, y: 0.3, z: 0 },
+    });
+    rig.interpolate(raised, raised, 1);
+    const playingPose = rig.capture();
+    const retarget = createT08Retarget(rig, root, bundle);
+    for (const [name, value] of Object.entries(playingPose))
+      assert.deepEqual(
+        rig.bones[name].quaternion.toArray(),
+        value.toArray(),
+        `calibration must preserve playing pose: ${name}`,
+      );
+    const actual = retarget.compile(pose)[0];
+    for (const [name, value] of Object.entries(playingPose))
+      assert.deepEqual(
+        rig.bones[name].quaternion.toArray(),
+        value.toArray(),
+        `compilation must preserve playing pose: ${name}`,
+      );
+    for (const name of Object.keys(expected))
+      assert.ok(
+        actual[name]
+          .clone()
+          .normalize()
+          .angleTo(expected[name].clone().normalize()) < 1e-6,
+        `calibration drift after dictionary playback: ${name}`,
+      );
+  },
+);

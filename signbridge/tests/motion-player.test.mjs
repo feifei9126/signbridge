@@ -197,3 +197,71 @@ test("stopping a T08 track cancels its animation frame", () => {
   assert.equal(callbacks.size, 0);
   assert.equal(player.isPlaying, false);
 });
+
+test("a subtitle can atomically mix learned quaternion tracks and dictionary frames", () => {
+  const started = [];
+  const { player, advance, visited, interpolated } = playerHarness({
+    onMotionStart: (info) => started.push(info.sourceType),
+  });
+  const samples = [{ frame: 0 }, { frame: 1 }, { frame: 2 }];
+  assert.equal(
+    player.play({
+      type: "motion-sequence",
+      motions: [
+        {
+          type: "quaternion-track",
+          samples,
+          fps: 10,
+          duration: 0.3,
+          sourceInfo: { sourceType: "t08" },
+        },
+        { frames: motion("thanks"), sourceInfo: { sourceType: "dictionary" } },
+      ],
+    }),
+    true,
+  );
+  assert.deepEqual(started, ["t08"]);
+  advance(200);
+  assert.deepEqual(visited, []);
+  assert.ok(interpolated.some((value) => value.targets === samples[2]));
+  advance(200);
+  assert.deepEqual(started, ["t08", "dictionary"]);
+  assert.deepEqual(visited, ["thanks"]);
+  advance(500);
+  assert.equal(player.isPlaying, false);
+});
+test("source notifications occur on playback, not when a later subtitle is queued", () => {
+  const started = [];
+  const { player, advance } = playerHarness({
+    onMotionStart: (info) => started.push(info.sourceType),
+  });
+  player.enqueue({
+    frames: motion("learned"),
+    sourceInfo: { sourceType: "t08" },
+  });
+  player.enqueue({
+    frames: motion("dictionary"),
+    sourceInfo: { sourceType: "dictionary" },
+  });
+  assert.deepEqual(started, ["t08"]);
+  advance(600);
+  assert.deepEqual(started, ["t08", "dictionary"]);
+});
+test("invalid or nested mixed sequences fail atomically", () => {
+  assert.deepEqual(
+    normalizeMotionFrames({
+      type: "motion-sequence",
+      motions: [{ frames: motion("valid") }, null],
+    }),
+    [],
+  );
+  assert.deepEqual(
+    normalizeMotionFrames({
+      type: "motion-sequence",
+      motions: [
+        { type: "motion-sequence", motions: [{ frames: motion("nested") }] },
+      ],
+    }),
+    [],
+  );
+});

@@ -89,7 +89,12 @@ export function planDemoText(input, mode = "auto", clips = []) {
       unknown.push(chars[cursor++]);
       continue;
     }
-    items.push({ ...match, matchedText: chars.slice(cursor, end).join("") });
+    items.push({
+      ...match,
+      matchedText: chars.slice(cursor, end).join(""),
+      start: cursor,
+      end,
+    });
     cursor = end;
     if (items.length >= 40) {
       unknown.push(...chars.slice(cursor));

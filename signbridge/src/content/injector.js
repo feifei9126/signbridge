@@ -289,6 +289,10 @@
         console.info("[SB-CS] Realtime motion source:", message.sourceType);
         postMessageToPage("SIGNBRIDGE_MOTION_SOURCE", {
           label: message.label,
+          sourceType: message.sourceType,
+          referenceId: message.referenceId,
+          modelOutput: message.modelOutput,
+          fallbackReason: message.fallbackReason,
         });
       }
       return;

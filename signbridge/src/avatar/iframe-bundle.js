@@ -15,17 +15,16 @@ import {
 import { createMotionLibrary, selectEnabledMotions } from "./motion-library.js";
 import { t, setLocale } from "../i18n/locales.js";
 import {
-  matchT08Reference,
   T08_CHECKPOINT_SHA256,
   validateT08CandidateBundle,
   validateT08Bundle,
-  motionSource,
 } from "../demo/demo-motion.js";
 import { createT08Retarget } from "../demo/demo-retarget.js";
 import {
   validateExperimentalIndex,
   createExperimentalLoader,
 } from "../demo/experimental-motion.js";
+import { planRealtimeText } from "./runtime-motion-plan.js";
 
 let renderer, scene, camera;
 let rig = null;
@@ -200,101 +199,113 @@ async function loadMotionLibrary() {
 // ===== 字幕 → 手语 =====
 
 function textToAnimation(text, manual = false) {
-  if (!text) return false;
-  const reference = matchT08Reference(text, t08ReferenceClips);
-  if (
-    !reference &&
-    !t08MotionBundlePromise &&
-    !t08CandidateBundlePromise &&
-    !experimentalLoader
-  )
-    return playDictionaryText(text, manual);
-
+  if (!text || !modelReady) return false;
+  if (manual) {
+    translationGeneration++;
+    translationQueue = Promise.resolve();
+    motionPlayer?.stop({ reset: true });
+  }
   const generation = translationGeneration;
+  const plan = planRealtimeText(text, t08ReferenceClips, translationMatchers);
+  console.info("[SB] Realtime motion plan:", {
+    items: plan.items.map(({ id, source, text }) => ({ id, source, text })),
+    unmatched: plan.unmatched,
+    truncated: plan.truncated,
+    remainingText: plan.remainingText,
+  });
+  if (!plan.items.length) return false;
   const route = async () => {
     if (!modelReady || generation !== translationGeneration) return;
-    if (!reference) {
-      playDictionaryText(text, manual);
-      return;
-    }
-    try {
-      const sourceType = motionSource(reference);
-      const motionBundle =
-        sourceType === "experimental"
-          ? null
-          : reference.runtime_candidate
-            ? await loadT08CandidateBundle()
-            : await loadT08MotionBundle();
-      const clip =
-        sourceType === "experimental"
-          ? await experimentalLoader.load(reference.id)
-          : motionBundle.clips.find(
-              (candidate) => candidate.id === reference.id,
-            );
-      if (!modelReady || generation !== translationGeneration) return;
-      if (!clip) throw new Error("T08 clip is missing from its motion asset");
-      if (!t08TrackCache.has(clip.id))
-        t08TrackCache.set(
-          clip.id,
-          (sourceType === "experimental"
-            ? experimentalRetarget
-            : reference.runtime_candidate
-              ? t08CandidateRetarget
-              : t08Retarget
-          ).compile(clip),
-        );
-      if (t08TrackCache.size > 12)
-        t08TrackCache.delete(t08TrackCache.keys().next().value);
-      const motion = {
-        type: "quaternion-track",
-        samples: t08TrackCache.get(clip.id),
-        fps: clip.fps,
-        duration: clip.frames / clip.fps,
-      };
-      const played = manual
-        ? motionPlayer?.play(motion) || false
-        : motionPlayer?.enqueue(motion, {
-            key: normalizeText(text).toLowerCase(),
-          }) || false;
-      if (played) {
-        console.info(`[SB] Realtime motion source: ${sourceType}`, clip.id);
-        notify("MOTION_SOURCE", {
-          sourceType,
-          referenceId: clip.id,
-          label: t(
-            sourceType === "experimental"
-              ? "demoExperimentalBadge"
-              : sourceType === "candidate"
-                ? "demoCandidateBadge"
-                : "demoSourceT08",
-          ),
-        });
+    const motions = [];
+    for (const item of plan.items) {
+      if (item.source === "dictionary") {
+        const motion = dictionaryMotion(item.text, item.translation);
+        if (motion) motions.push(motion);
+        continue;
       }
-    } catch (error) {
-      console.warn("[SB] T08 playback unavailable; using dictionary:", error);
-      if (modelReady && generation === translationGeneration)
-        playDictionaryText(text, manual);
+      try {
+        const sourceType = item.source;
+        const motionBundle =
+          sourceType === "experimental"
+            ? null
+            : sourceType === "candidate"
+              ? await loadT08CandidateBundle()
+              : await loadT08MotionBundle();
+        const clip =
+          sourceType === "experimental"
+            ? await experimentalLoader.load(item.id)
+            : motionBundle.clips.find((candidate) => candidate.id === item.id);
+        if (!modelReady || generation !== translationGeneration) return;
+        if (!clip) throw new Error("T08 clip is missing from its motion asset");
+        if (!t08TrackCache.has(clip.id))
+          t08TrackCache.set(
+            clip.id,
+            (sourceType === "experimental"
+              ? experimentalRetarget
+              : sourceType === "candidate"
+                ? t08CandidateRetarget
+                : t08Retarget
+            ).compile(clip),
+          );
+        if (t08TrackCache.size > 12)
+          t08TrackCache.delete(t08TrackCache.keys().next().value);
+        motions.push({
+          type: "quaternion-track",
+          samples: t08TrackCache.get(clip.id),
+          fps: clip.fps,
+          duration: clip.frames / clip.fps,
+          sourceInfo: {
+            sourceType,
+            referenceId: clip.id,
+            modelOutput: clip.model_output,
+            frames: clip.frames,
+            matchedText: item.text,
+            label: t(
+              sourceType === "experimental"
+                ? "demoExperimentalBadge"
+                : sourceType === "candidate"
+                  ? "demoCandidateBadge"
+                  : "demoSourceT08",
+            ),
+          },
+        });
+      } catch (error) {
+        console.warn(
+          "[SB] T08 playback unavailable; using dictionary:",
+          item.id,
+          error,
+        );
+        if (!modelReady || generation !== translationGeneration) return;
+        const fallback = dictionaryMotion(
+          item.text,
+          translateText(item.text, 12, translationMatchers),
+          item.id,
+          error.message,
+        );
+        if (fallback) motions.push(fallback);
+      }
     }
+    if (!modelReady || generation !== translationGeneration || !motions.length)
+      return;
+    const motion = { type: "motion-sequence", motions };
+    if (manual) motionPlayer?.play(motion);
+    else
+      motionPlayer?.enqueue(motion, { key: normalizeText(text).toLowerCase() });
   };
-
-  if (
-    reference ||
-    t08MotionBundlePromise ||
-    t08CandidateBundlePromise ||
-    experimentalLoader
-  ) {
-    const next = translationQueue.then(route, route);
-    translationQueue = next.catch((error) => {
-      console.error("[SB] Realtime motion dispatch failed:", error);
-    });
-    return true;
-  }
-  return playDictionaryText(text, manual);
+  const next = translationQueue.then(route, route);
+  translationQueue = next.catch((error) => {
+    console.error("[SB] Realtime motion dispatch failed:", error);
+  });
+  return true;
 }
 
-function playDictionaryText(text, manual) {
-  const result = translateText(text, 12, translationMatchers);
-  if (!result) return false;
+function dictionaryMotion(
+  text,
+  result,
+  referenceId = null,
+  fallbackReason = null,
+) {
+  if (!result?.matches.length) return null;
   console.log("[SB] Translation coverage:", {
     matches: result.matches.map((match) => match.text),
     motionIds: result.matches.map((match) => match.id),
@@ -302,19 +313,16 @@ function playDictionaryText(text, manual) {
     truncated: result.truncated,
     remainingText: result.remainingText,
   });
-  if (!result.matches.length) return false;
-  const played = manual
-    ? motionPlayer?.play(result) || false
-    : motionPlayer?.enqueue(result, {
-        key: normalizeText(text).toLowerCase(),
-      }) || false;
-  if (played) {
-    notify("MOTION_SOURCE", {
+  return {
+    frames: result.frames,
+    sourceInfo: {
       sourceType: "dictionary",
-      label: t("demoSourceDictionary"),
-    });
-  }
-  return played;
+      referenceId,
+      matchedText: text,
+      fallbackReason,
+      label: t(fallbackReason ? "demoSourceFallback" : "demoSourceDictionary"),
+    },
+  };
 }
 
 // ===== 初始化 =====
@@ -374,7 +382,16 @@ function init(modelUrl) {
       const boneCount = primaryMesh?.skeleton?.bones.length || 0;
       console.log("[SB] Bones:", boneCount);
       rig = createHumanoidRig(gltf.scene);
-      motionPlayer = createMotionPlayer(rig);
+      motionPlayer = createMotionPlayer(rig, {
+        onMotionStart(info) {
+          console.info(
+            "[SB] Realtime motion source:",
+            info.sourceType,
+            info.referenceId,
+          );
+          notify("MOTION_SOURCE", info);
+        },
+      });
       console.log(
         "[SB] Humanoid profile:",
         rig.profile.id,

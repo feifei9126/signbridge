@@ -90,6 +90,17 @@ try {
     undefined,
     { timeout: 30000 },
   );
+  await page.waitForFunction(
+    () =>
+      window.__signbridgeMessages?.some(
+        (message) =>
+          message.type === "MOTION_SOURCE" &&
+          message.sourceType === "t08" &&
+          message.referenceId === "pilot-greeting-busy-005",
+      ),
+    undefined,
+    { timeout: 30000 },
+  );
   await page.waitForTimeout(750);
   const pose = await page.locator("canvas").screenshot();
   report.t08PoseScreenshotSha256 = createHash("sha256")
@@ -142,14 +153,34 @@ try {
       window.__signbridgeMessages?.some(
         (message) =>
           message.type === "MOTION_SOURCE" &&
-          message.sourceType === "dictionary",
+          message.sourceType === "t08" &&
+          message.referenceId === "pilot-greeting-busy-005",
       ),
     undefined,
     { timeout: 10000 },
   );
+  await page.waitForFunction(
+    () =>
+      window.__signbridgeMessages?.some(
+        (message) =>
+          message.type === "MOTION_SOURCE" &&
+          message.sourceType === "dictionary" &&
+          message.matchedText?.includes("谢谢"),
+      ),
+    undefined,
+    { timeout: 15000 },
+  );
+  assert.deepEqual(
+    await page.evaluate(() =>
+      window.__signbridgeMessages
+        .filter((message) => message.type === "MOTION_SOURCE")
+        .map((message) => message.sourceType),
+    ),
+    ["t08", "dictionary"],
+  );
   assert.deepEqual(report.pageErrors, []);
   report.checks.push(
-    "extra unmatched words do not trigger a false exact T08 reference match",
+    "a complete trained span inside a mixed subtitle retains its T08 motion",
   );
   await page.evaluate(() => {
     window.__signbridgeMessages = [];

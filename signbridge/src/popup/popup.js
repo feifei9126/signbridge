@@ -41,6 +41,7 @@ class SignBridgePopup {
       btnCoverage: document.getElementById("btnCoverage"),
       btnMotionReview: document.getElementById("btnMotionReview"),
       btnDemo: document.getElementById("btnDemo"),
+      version: document.getElementById("extension-version"),
       textInput: document.getElementById("textInput"),
       btnSendText: document.getElementById("btnSendText"),
       btnHelp: document.getElementById("btnHelp"),
@@ -51,6 +52,8 @@ class SignBridgePopup {
   }
 
   _applyTranslations() {
+    if (this.elements.version)
+      this.elements.version.textContent = `v${chrome.runtime.getManifest().version}`;
     document.querySelectorAll("[data-i18n]").forEach((element) => {
       element.textContent = t(element.dataset.i18n);
     });

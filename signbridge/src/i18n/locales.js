@@ -115,6 +115,7 @@ const DEMO_ZH = {
   demoDictionaryToken: "当前播放内置词库动作，不使用 T08 token。",
   demoSourceT08: "T08 · 参考动作重建",
   demoSourceDictionary: "词库 · 内置动作",
+  demoSourceFallback: "词库回退 · 参考动作加载失败",
   demoSourceComposition: "词库组合 · 逐词播放，非句级训练",
   demoResearchLabel: "{text} · {series} · 原图 / baseline / candidate",
   demoResearchMissing: "此工作区尚未打包研究对照图。",
@@ -246,6 +247,7 @@ const DEMO_EN = {
     "The last played dictionary motion does not use T08 tokens.",
   demoSourceT08: "T08 · Reference reconstruction",
   demoSourceDictionary: "Dictionary · Built-in motion",
+  demoSourceFallback: "Dictionary fallback · Reference unavailable",
   demoSourceComposition:
     "Dictionary composition · Word-by-word, not sentence-trained",
   demoResearchLabel: "{text} · {series} · Original / baseline / candidate",

@@ -43,7 +43,8 @@ if (window.__SIGNBRIDGE_PAGE_AGENT__) {
     state.subtitleEl.style.opacity = text ? "1" : "0";
   }
 
-  function showMotionSource(label) {
+  function showMotionSource(info) {
+    const { label } = info;
     const overlay = document.querySelector("#signbridge-overlay");
     if (!overlay || !label) return;
     let badge = overlay.querySelector("#signbridge-motion-source");
@@ -59,6 +60,12 @@ if (window.__SIGNBRIDGE_PAGE_AGENT__) {
       overlay.appendChild(badge);
     }
     badge.textContent = label;
+    badge.dataset.sourceType = info.sourceType || "";
+    badge.dataset.referenceId = info.referenceId || "";
+    badge.dataset.modelOutput = info.modelOutput || "";
+    badge.title = [label, info.referenceId, info.fallbackReason]
+      .filter(Boolean)
+      .join(" · ");
   }
 
   async function initialize(nextConfig = {}) {
@@ -179,7 +186,7 @@ if (window.__SIGNBRIDGE_PAGE_AGENT__) {
         state.config = { ...state.config, ...(ev.data.config || {}) };
         break;
       case "SIGNBRIDGE_MOTION_SOURCE":
-        showMotionSource(ev.data.label);
+        showMotionSource(ev.data);
         break;
     }
   });

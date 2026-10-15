@@ -96,3 +96,25 @@ test("Demo popup entry opens a full-page extension tab without depending on the 
     ["chrome-extension://test/demo/index.html"],
   );
 });
+
+test("popup version reflects the installed manifest instead of a stale hardcoded label", async () => {
+  const version = {};
+  runRuntime(code, {
+    document: {
+      getElementById: (id) => (id === "extension-version" ? version : null),
+      querySelectorAll: () => [],
+    },
+    testDependencies: {
+      getConfig: async () => ({}),
+      setConfig: async (c) => c,
+      setLocale() {},
+      t: (key) => key,
+    },
+    chrome: {
+      tabs: { query: async () => [] },
+      runtime: { getManifest: () => ({ version: "1.0.1" }) },
+    },
+  });
+  await flushTasks();
+  assert.equal(version.textContent, "v1.0.1");
+});

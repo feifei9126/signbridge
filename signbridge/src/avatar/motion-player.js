@@ -3,6 +3,19 @@ function easeInOut(amount) {
 }
 
 function normalizeMotionFrames(input) {
+  if (input?.type === "motion-sequence") {
+    if (
+      !Array.isArray(input.motions) ||
+      !input.motions.length ||
+      input.motions.length > 40
+    )
+      return [];
+    const parts = input.motions.map((motion) =>
+      motion?.type === "motion-sequence" ? [] : normalizeMotionFrames(motion),
+    );
+    return parts.some((part) => !part.length) ? [] : parts.flat();
+  }
+  let normalized;
   if (input?.type === "quaternion-track") {
     if (
       !Array.isArray(input.samples) ||
@@ -13,23 +26,26 @@ function normalizeMotionFrames(input) {
       input.duration <= 0
     )
       return [];
-    return [
+    normalized = [
       {
         track: input.samples,
         fps: input.fps,
         duration: input.duration,
       },
     ];
+  } else {
+    const frames = Array.isArray(input) ? input : input?.frames;
+    if (!Array.isArray(frames) || frames.length === 0) return [];
+    normalized = frames.map((frame) => ({
+      value: frame?.value && typeof frame.value === "object" ? frame.value : {},
+      duration:
+        Number.isFinite(frame?.duration) && frame.duration > 0
+          ? frame.duration
+          : 0.8,
+    }));
   }
-  const frames = Array.isArray(input) ? input : input?.frames;
-  if (!Array.isArray(frames) || frames.length === 0) return [];
-  return frames.map((frame) => ({
-    value: frame?.value && typeof frame.value === "object" ? frame.value : {},
-    duration:
-      Number.isFinite(frame?.duration) && frame.duration > 0
-        ? frame.duration
-        : 0.8,
-  }));
+  if (input.sourceInfo) normalized[0].sourceInfo = input.sourceInfo;
+  return normalized;
 }
 
 function createMotionPlayer(
@@ -43,6 +59,7 @@ function createMotionPlayer(
     maxPendingMotions = 2,
     maxPendingAgeMs = 6000,
     onComplete = () => {},
+    onMotionStart = () => {},
   } = {},
 ) {
   let queue = [];
@@ -83,6 +100,7 @@ function createMotionPlayer(
     }
 
     const frame = queue.shift();
+    if (frame.sourceInfo) onMotionStart(frame.sourceInfo);
     if (frame.track) {
       const startedAt = now();
       function animateTrack() {

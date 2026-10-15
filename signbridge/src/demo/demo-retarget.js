@@ -71,80 +71,88 @@ for (const [side, starts] of [
   }
 }
 export function createT08Retarget(rig, modelRoot, bundle) {
-  modelRoot.updateMatrixWorld(true);
-  const rest = bundle.restJoints.map((v) => new THREE.Vector3(...v));
-  const palmNormals = {};
-  for (const [side, w, index, little] of [
-    ["left", 20, 25, 31],
-    ["right", 21, 40, 46],
-  ])
-    palmNormals[side] = new THREE.Vector3()
-      .crossVectors(
-        rest[index].clone().sub(rest[w]),
-        rest[little].clone().sub(rest[w]),
-      )
-      .normalize();
-  const targetPalm = {};
-  for (const side of ["left", "right"]) {
-    const w = rig.bones[side + "Hand"].getWorldPosition(new THREE.Vector3());
-    const index = rig.bones[side + "IndexProximal"]
-      .getWorldPosition(new THREE.Vector3())
-      .sub(w);
-    const little = rig.bones[side + "LittleProximal"]
-      .getWorldPosition(new THREE.Vector3())
-      .sub(w);
-    targetPalm[side] = new THREE.Vector3()
-      .crossVectors(index, little)
-      .normalize();
+  const playingPose = rig.capture();
+  let binding;
+  try {
+    rig.reset();
+    modelRoot.updateMatrixWorld(true);
+    const rest = bundle.restJoints.map((v) => new THREE.Vector3(...v));
+    const palmNormals = {};
+    for (const [side, w, index, little] of [
+      ["left", 20, 25, 31],
+      ["right", 21, 40, 46],
+    ])
+      palmNormals[side] = new THREE.Vector3()
+        .crossVectors(
+          rest[index].clone().sub(rest[w]),
+          rest[little].clone().sub(rest[w]),
+        )
+        .normalize();
+    const targetPalm = {};
+    for (const side of ["left", "right"]) {
+      const w = rig.bones[side + "Hand"].getWorldPosition(new THREE.Vector3());
+      const index = rig.bones[side + "IndexProximal"]
+        .getWorldPosition(new THREE.Vector3())
+        .sub(w);
+      const little = rig.bones[side + "LittleProximal"]
+        .getWorldPosition(new THREE.Vector3())
+        .sub(w);
+      targetPalm[side] = new THREE.Vector3()
+        .crossVectors(index, little)
+        .normalize();
+    }
+    binding = links.map(([name, joint, next]) => {
+      const bone = rig.bones[name];
+      if (!bone) throw new Error("demoMissingBone");
+      const restWorld = bone.getWorldQuaternion(new THREE.Quaternion());
+      const restPosition = bone.getWorldPosition(new THREE.Vector3());
+      const sourceDir =
+        next !== null
+          ? rest[next].clone().sub(rest[joint])
+          : rest[joint].clone().sub(rest[bundle.parents[joint]]);
+      let targetChild;
+      if (name.endsWith("UpperArm"))
+        targetChild = rig.bones[name.replace("UpperArm", "LowerArm")];
+      else if (name.endsWith("LowerArm"))
+        targetChild = rig.bones[name.replace("LowerArm", "Hand")];
+      else if (name.endsWith("Shoulder"))
+        targetChild = rig.bones[name.replace("Shoulder", "UpperArm")];
+      else if (name.endsWith("Hand"))
+        targetChild = rig.bones[name.replace("Hand", "MiddleProximal")];
+      else if (name === "neck") targetChild = rig.bones.head;
+      else if (next !== null) targetChild = bone.children.find((c) => c.isBone);
+      const targetDir = targetChild
+        ? targetChild.getWorldPosition(new THREE.Vector3()).sub(restPosition)
+        : restPosition
+            .clone()
+            .sub(bone.parent.getWorldPosition(new THREE.Vector3()));
+      const side = name.startsWith("left")
+        ? "left"
+        : name.startsWith("right")
+          ? "right"
+          : null;
+      const isFinger = joint >= 25 || name.endsWith("Hand");
+      const sourceNormal = isFinger
+        ? palmNormals[side]
+        : new THREE.Vector3(0, 0, 1);
+      const targetNormal = isFinger
+        ? targetPalm[side]
+        : new THREE.Vector3(0, 0, 1);
+      const correction = boneFrame(sourceDir, sourceNormal).multiply(
+        boneFrame(targetDir, targetNormal).invert(),
+      );
+      // Neck/head are already upright in both skeletons; face/hair child offsets
+      // are not segment directions and must not rotate the avatar's head at REST.
+      const alignedRest =
+        name === "neck" || name === "head"
+          ? restWorld
+          : correction.multiply(restWorld);
+      return { name, bone, joint, alignedRest };
+    });
+  } finally {
+    rig.interpolate(playingPose, playingPose, 1);
+    modelRoot.updateMatrixWorld(true);
   }
-  const binding = links.map(([name, joint, next]) => {
-    const bone = rig.bones[name];
-    if (!bone) throw new Error("demoMissingBone");
-    const restWorld = bone.getWorldQuaternion(new THREE.Quaternion());
-    const restPosition = bone.getWorldPosition(new THREE.Vector3());
-    const sourceDir =
-      next !== null
-        ? rest[next].clone().sub(rest[joint])
-        : rest[joint].clone().sub(rest[bundle.parents[joint]]);
-    let targetChild;
-    if (name.endsWith("UpperArm"))
-      targetChild = rig.bones[name.replace("UpperArm", "LowerArm")];
-    else if (name.endsWith("LowerArm"))
-      targetChild = rig.bones[name.replace("LowerArm", "Hand")];
-    else if (name.endsWith("Shoulder"))
-      targetChild = rig.bones[name.replace("Shoulder", "UpperArm")];
-    else if (name.endsWith("Hand"))
-      targetChild = rig.bones[name.replace("Hand", "MiddleProximal")];
-    else if (name === "neck") targetChild = rig.bones.head;
-    else if (next !== null) targetChild = bone.children.find((c) => c.isBone);
-    const targetDir = targetChild
-      ? targetChild.getWorldPosition(new THREE.Vector3()).sub(restPosition)
-      : restPosition
-          .clone()
-          .sub(bone.parent.getWorldPosition(new THREE.Vector3()));
-    const side = name.startsWith("left")
-      ? "left"
-      : name.startsWith("right")
-        ? "right"
-        : null;
-    const isFinger = joint >= 25 || name.endsWith("Hand");
-    const sourceNormal = isFinger
-      ? palmNormals[side]
-      : new THREE.Vector3(0, 0, 1);
-    const targetNormal = isFinger
-      ? targetPalm[side]
-      : new THREE.Vector3(0, 0, 1);
-    const correction = boneFrame(sourceDir, sourceNormal).multiply(
-      boneFrame(targetDir, targetNormal).invert(),
-    );
-    // Neck/head are already upright in both skeletons; face/hair child offsets
-    // are not segment directions and must not rotate the avatar's head at REST.
-    const alignedRest =
-      name === "neck" || name === "head"
-        ? restWorld
-        : correction.multiply(restWorld);
-    return { name, bone, joint, alignedRest };
-  });
   function poseTargets(pose) {
     rig.reset();
     modelRoot.updateMatrixWorld(true);
@@ -170,7 +178,13 @@ export function createT08Retarget(rig, modelRoot, bundle) {
     return targets;
   }
   function compile(clip) {
-    return clip.poses.map((p) => poseTargets(p));
+    const snapshot = rig.capture();
+    try {
+      return clip.poses.map((p) => poseTargets(p));
+    } finally {
+      rig.interpolate(snapshot, snapshot, 1);
+      modelRoot.updateMatrixWorld(true);
+    }
   }
   return { compile, mappedBones: binding.length };
 }
