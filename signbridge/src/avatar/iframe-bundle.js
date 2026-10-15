@@ -25,6 +25,7 @@ import {
   createExperimentalLoader,
 } from "../demo/experimental-motion.js";
 import { planRealtimeText } from "./runtime-motion-plan.js";
+import { MOTION_SMOOTHING_PROFILE } from "../demo/motion-stabilization.js";
 
 let renderer, scene, camera;
 let rig = null;
@@ -258,11 +259,14 @@ function textToAnimation(text, manual = false) {
             sourceType,
             referenceId: clip.id,
             modelOutput: clip.model_output,
+            presentation: clip.experimental ? MOTION_SMOOTHING_PROFILE : "raw",
             frames: clip.frames,
             matchedText: item.text,
             label: t(
               sourceType === "experimental"
-                ? "demoExperimentalBadge"
+                ? clip.quality_warning
+                  ? "demoExperimentalSmoothedWarningBadge"
+                  : "demoExperimentalSmoothedBadge"
                 : sourceType === "candidate"
                   ? "demoCandidateBadge"
                   : "demoSourceT08",

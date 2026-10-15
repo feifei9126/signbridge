@@ -203,6 +203,13 @@ try {
     ["dictionary", "t08", "experimental"],
   );
   assert.equal(mixed[2].modelOutput, "smplx_fit_demo");
+  assert.equal(mixed[2].presentation, "quaternion-temporal-v1");
+  assert.equal(
+    await page
+      .locator("#signbridge-motion-source")
+      .getAttribute("data-presentation"),
+    "quaternion-temporal-v1",
+  );
   report.sources.push(...mixed);
   report.checks.push(
     "dictionary prefix, trained phrase and source-4 fit play in order, with current-source badges",

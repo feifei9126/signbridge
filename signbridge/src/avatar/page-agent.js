@@ -63,6 +63,7 @@ if (window.__SIGNBRIDGE_PAGE_AGENT__) {
     badge.dataset.sourceType = info.sourceType || "";
     badge.dataset.referenceId = info.referenceId || "";
     badge.dataset.modelOutput = info.modelOutput || "";
+    badge.dataset.presentation = info.presentation || "raw";
     badge.title = [label, info.referenceId, info.fallbackReason]
       .filter(Boolean)
       .join(" · ");

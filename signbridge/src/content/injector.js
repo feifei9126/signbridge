@@ -292,6 +292,7 @@
           sourceType: message.sourceType,
           referenceId: message.referenceId,
           modelOutput: message.modelOutput,
+          presentation: message.presentation,
           fallbackReason: message.fallbackReason,
         });
       }

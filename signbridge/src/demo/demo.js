@@ -84,16 +84,22 @@ function refreshPlan() {
 function playableClips() {
   return clips.filter((clip) => availableSources.has(motionSource(clip)));
 }
-function sourceLabel(source, clip) {
+function sourceLabel(source, clip, stabilized) {
   if (source === "candidate")
     return t("demoCandidateDetail", {
       mse: clip?.normalized_reconstruction_mse?.toFixed(3) || "?",
     });
   if (source === "experimental")
     return t(
-      clip?.quality_warning
-        ? "demoExperimentalWarningBadge"
-        : "demoExperimentalBadge",
+      stabilized === true
+        ? clip?.quality_warning
+          ? "demoExperimentalSmoothedWarningBadge"
+          : "demoExperimentalSmoothedBadge"
+        : stabilized === false
+          ? "demoExperimentalRawBadge"
+          : clip?.quality_warning
+            ? "demoExperimentalWarningBadge"
+            : "demoExperimentalBadge",
     );
   return t(
     source === "t08"
@@ -242,6 +248,11 @@ document
   .addEventListener("change", (e) =>
     send("SPEED", { speed: Number(e.target.value) }),
   );
+document
+  .querySelector("#motion-smoothing")
+  .addEventListener("change", (event) =>
+    send("SMOOTHING", { enabled: event.target.checked }),
+  );
 window.addEventListener("message", (e) => {
   if (
     e.source !== frame.contentWindow ||
@@ -252,9 +263,15 @@ window.addEventListener("message", (e) => {
   const message = e.data;
   // Ignore queued events from a clip superseded by stop, mode change or replay.
   if (
-    ["CURRENT", "PROGRESS", "PAUSED", "FINISHED", "STOPPED", "ERROR"].includes(
-      message.type,
-    ) &&
+    [
+      "CURRENT",
+      "PROGRESS",
+      "PAUSED",
+      "FINISHED",
+      "STOPPED",
+      "ERROR",
+      "PRESENTATION",
+    ].includes(message.type) &&
     !message.fatal &&
     message.requestId !== requestId
   )
@@ -262,6 +279,9 @@ window.addEventListener("message", (e) => {
   if (message.type === "READY") {
     ready = true;
     modelAvailable = message.modelAvailable;
+    send("SMOOTHING", {
+      enabled: document.querySelector("#motion-smoothing").checked,
+    });
     availableSources = new Set(message.sources || []);
     document.querySelector("#loading").hidden = true;
     document.querySelector("#model-count").textContent = String(
@@ -295,6 +315,7 @@ window.addEventListener("message", (e) => {
     document.querySelector("#source-badge").textContent = sourceLabel(
       message.item.source,
       clips.find((clip) => clip.id === message.item.id),
+      message.item.source === "experimental" ? message.stabilized : undefined,
     );
     document.querySelector("#tokens").textContent = message.tokens
       ? JSON.stringify(message.tokens, null, 2)
@@ -308,6 +329,16 @@ window.addEventListener("message", (e) => {
       count: message.count,
       text: message.item.label,
     });
+  } else if (message.type === "PRESENTATION") {
+    if (current?.item.id === message.clipId) {
+      current.stabilized = message.stabilized;
+      current.presentation = message.presentation;
+      document.querySelector("#source-badge").textContent = sourceLabel(
+        current.item.source,
+        clips.find((clip) => clip.id === current.item.id),
+        message.stabilized,
+      );
+    }
   } else if (message.type === "PROGRESS") {
     document.querySelector("#progress-bar").style.width =
       `${Math.min(100, (message.elapsed / message.duration) * 100)}%`;
@@ -356,6 +387,7 @@ document.querySelector("#download").addEventListener("click", () => {
           experimental: current.item.source === "experimental",
           humanApproved: current.item.source === "experimental" ? false : null,
           trainingReady: false,
+          presentation: current.presentation || "raw",
           motionAssetSha256:
             clips.find((clip) => clip.id === current.item.id)?.sha256 || null,
           normalizedReconstructionMse: current.normalizedReconstructionMse,

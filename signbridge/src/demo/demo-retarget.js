@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { stabilizeQuaternionTrack } from "./motion-stabilization.js";
 export function axisAngleQuaternion(vector) {
   if (vector?.length !== 3 || !vector.every(Number.isFinite))
     throw new Error("demoInvalidRotation");
@@ -177,10 +178,11 @@ export function createT08Retarget(rig, modelRoot, bundle) {
     modelRoot.updateMatrixWorld(true);
     return targets;
   }
-  function compile(clip) {
+  function compile(clip, { stabilize = clip.experimental === true } = {}) {
     const snapshot = rig.capture();
     try {
-      return clip.poses.map((p) => poseTargets(p));
+      const frames = clip.poses.map((p) => poseTargets(p));
+      return stabilize ? stabilizeQuaternionTrack(frames, clip.fps) : frames;
     } finally {
       rig.interpolate(snapshot, snapshot, 1);
       modelRoot.updateMatrixWorld(true);

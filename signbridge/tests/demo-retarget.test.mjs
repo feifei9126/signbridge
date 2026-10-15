@@ -223,3 +223,41 @@ test(
       );
   },
 );
+
+test(
+  "experimental clips are stabilized by default while raw and T08 tracks remain available",
+  { skip: !bundle },
+  () => {
+    const root = skeletonFromGlb(),
+      rig = createHumanoidRig(root);
+    const retarget = createT08Retarget(rig, root, bundle);
+    const clip = {
+      experimental: true,
+      fps: 25,
+      poses: Array.from({ length: 40 }, (_, i) => {
+        const pose = Array.from({ length: 55 }, () => [0, 0, 0]);
+        pose[18] = [0, 0, i * 0.003 + (i % 2 ? 0.12 : -0.12)];
+        return pose;
+      }),
+    };
+    const raw = retarget.compile(clip, { stabilize: false });
+    const filtered = retarget.compile(clip);
+    const energy = (frames) =>
+      frames.slice(1, -1).reduce(
+        (sum, f, i) =>
+          sum +
+          frames[i].leftLowerArm
+            .clone()
+            .slerp(frames[i + 2].leftLowerArm, 0.5)
+            .angleTo(f.leftLowerArm),
+        0,
+      );
+    assert.ok(energy(filtered) < energy(raw) * 0.2);
+    const reference = retarget.compile({ ...clip, experimental: false });
+    for (let i = 0; i < raw.length; i++)
+      assert.deepEqual(
+        reference[i].leftLowerArm.toArray(),
+        raw[i].leftLowerArm.toArray(),
+      );
+  },
+);

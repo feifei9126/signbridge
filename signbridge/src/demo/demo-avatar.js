@@ -9,6 +9,7 @@ import {
 } from "./demo-motion.js";
 import { createT08Retarget } from "./demo-retarget.js";
 import { frameDelta } from "./demo-playback.js";
+import { MOTION_SMOOTHING_PROFILE } from "./motion-stabilization.js";
 import {
   validateExperimentalIndex,
   createExperimentalLoader,
@@ -30,6 +31,7 @@ let renderer,
   disposed = false;
 let running = false,
   paused = false,
+  stabilization = true,
   speed = 1,
   plan = [],
   itemIndex = 0,
@@ -39,6 +41,21 @@ let running = false,
   duration = 0,
   requestId = 0;
 const cache = new Map();
+function compiledSamples(clip, source) {
+  const stabilize = clip.experimental === true && stabilization;
+  const key = `${clip.id}:${stabilize ? MOTION_SMOOTHING_PROFILE : "raw"}`;
+  if (!cache.has(key)) {
+    cache.set(
+      key,
+      (source === "experimental" ? experimentalRetarget : retarget).compile(
+        clip,
+        { stabilize },
+      ),
+    );
+    if (cache.size > 8) cache.delete(cache.keys().next().value);
+  }
+  return cache.get(key);
+}
 const notify = (type, data = {}) =>
   parent.postMessage(
     { source: "signbridge-demo-avatar", type, requestId, ...data },
@@ -99,21 +116,12 @@ async function nextItem() {
           )?.find((c) => c.id === item.id);
     if (disposed || generation !== requestId || !running) return;
     if (!clip) throw new Error("demoInvalidAsset");
-    if (!cache.has(clip.id)) {
-      cache.set(
-        clip.id,
-        (item.source === "experimental"
-          ? experimentalRetarget
-          : retarget
-        ).compile(clip),
-      );
-      if (cache.size > 8) cache.delete(cache.keys().next().value);
-    }
     track = {
       kind: item.source,
-      samples: cache.get(clip.id),
+      samples: compiledSamples(clip, item.source),
       fps: clip.fps,
       clip,
+      stabilized: clip.experimental === true && stabilization,
     };
     duration = clip.frames / clip.fps;
   } else {
@@ -131,6 +139,8 @@ async function nextItem() {
     duration,
     tokens: track.clip?.tokens || null,
     qualityWarning: track.clip?.quality_warning || false,
+    stabilized: track.stabilized || false,
+    presentation: track.stabilized ? MOTION_SMOOTHING_PROFILE : "raw",
     normalizedReconstructionMse:
       track.kind === "candidate"
         ? track.clip.normalized_reconstruction_mse
@@ -321,6 +331,22 @@ window.addEventListener("message", (ev) => {
       if (![0.5, 0.75, 1, 1.25, 1.5].includes(Number(ev.data.speed)))
         throw new Error("demoInvalidMode");
       speed = Number(ev.data.speed);
+    } else if (type === "SMOOTHING") {
+      if (typeof ev.data.enabled !== "boolean")
+        throw new Error("demoInvalidMode");
+      if (stabilization === ev.data.enabled) return;
+      stabilization = ev.data.enabled;
+      if (track?.clip?.experimental) {
+        track.samples = compiledSamples(track.clip, track.kind);
+        track.stabilized = stabilization;
+        applyAt(itemTime);
+        lastTime = performance.now();
+        notify("PRESENTATION", {
+          clipId: track.clip.id,
+          stabilized: stabilization,
+          presentation: stabilization ? MOTION_SMOOTHING_PROFILE : "raw",
+        });
+      }
     } else if (type === "VIEW") {
       if (!["front", "left", "right"].includes(ev.data.view))
         throw new Error("demoInvalidMode");

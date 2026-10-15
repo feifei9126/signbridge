@@ -179,6 +179,10 @@ test("experimental source labels exist in every supported locale", () => {
       "demoExperimentalToken",
       "demoExperimentalWarning",
       "demoInvalidExperimentalAsset",
+      "demoSmoothing",
+      "demoExperimentalSmoothedBadge",
+      "demoExperimentalSmoothedWarningBadge",
+      "demoExperimentalRawBadge",
     ])
       assert.ok(dictionary[key], key);
   }

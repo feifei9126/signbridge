@@ -113,6 +113,8 @@ async function canvasShot() {
 try {
   await page.goto(url);
   await ready();
+  assert.equal(await page.locator("#motion-smoothing").count(), 1);
+  assert.equal(await page.locator("#motion-smoothing").isChecked(), true);
   assert.equal(
     await page.locator("#catalog-count").textContent(),
     `${catalog.length} / ${catalog.length}`,
@@ -122,6 +124,9 @@ try {
   report.checks.push("deduplicated catalog; no pose downloads before playback");
   for (const [i, clip] of index.clips.entries()) {
     await play(clip.text);
+    assert.ok(
+      (await page.locator("#source-badge").textContent()).includes("平滑"),
+    );
     await page.waitForFunction(
       () =>
         parseFloat(document.querySelector("#progress-text").textContent) > 0.25,
@@ -151,6 +156,10 @@ try {
   );
   const example = index.clips.find((c) => c.text === "认识你很高兴");
   await play(example.text);
+  await page.waitForFunction(
+    () =>
+      parseFloat(document.querySelector("#progress-text").textContent) > 0.4,
+  );
   await page.locator("#pause").click();
   await page.waitForFunction(() =>
     document.querySelector("#status").textContent.includes("已暂停"),
@@ -158,6 +167,23 @@ try {
   const time = await page.locator("#progress-text").textContent();
   await page.waitForTimeout(250);
   assert.equal(await page.locator("#progress-text").textContent(), time);
+  const stable = await canvasShot();
+  await page.locator("#motion-smoothing").uncheck();
+  await page.waitForFunction(() =>
+    document.querySelector("#source-badge").textContent.includes("原始"),
+  );
+  const raw = await canvasShot();
+  assert.notEqual(stable.hash, raw.hash);
+  assert.equal(await page.locator("#progress-text").textContent(), time);
+  assert.ok((await page.locator("#status").textContent()).includes("已暂停"));
+  await page.locator("#motion-smoothing").check();
+  await page.waitForFunction(() =>
+    document.querySelector("#source-badge").textContent.includes("平滑"),
+  );
+  assert.equal(await page.locator("#progress-text").textContent(), time);
+  report.checks.push(
+    "raw/smoothed comparison preserves pause state and timeline position",
+  );
   await page.locator("#pause").click();
   await page.locator("#speed").selectOption("1.5");
   for (const view of ["left", "right", "front"]) {
@@ -175,6 +201,7 @@ try {
   assert.equal(session.lastPlayedMotion.trainingDataMember, false);
   assert.equal(session.lastPlayedMotion.humanApproved, false);
   assert.equal(session.lastPlayedMotion.motionAssetSha256, example.sha256);
+  assert.equal(session.lastPlayedMotion.presentation, "quaternion-temporal-v1");
   await page.waitForFunction(
     () => document.querySelector("#status").textContent === "本次播放完成。",
     undefined,

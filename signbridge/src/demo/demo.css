@@ -394,7 +394,15 @@ textarea {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
   border-bottom: 1px solid var(--line);
+}
+.motion-smoothing {
+  white-space: nowrap;
+}
+.motion-smoothing input {
+  accent-color: var(--accent);
 }
 .view-group {
   display: flex;
