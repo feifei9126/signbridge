@@ -185,6 +185,36 @@ try {
   report.checks.push(
     "reviewed candidate phrase routes as a candidate reconstruction without a training claim",
   );
+  await page.evaluate(() => {
+    window.__signbridgeMessages = [];
+    window.postMessage(
+      {
+        source: "signbridge-page",
+        type: "SUBTITLE_TEXT",
+        text: "认识你很高兴",
+        manual: true,
+      },
+      location.origin,
+    );
+  });
+  await page.waitForFunction(
+    () =>
+      window.__signbridgeMessages?.some(
+        (m) =>
+          m.type === "MOTION_SOURCE" &&
+          m.sourceType === "experimental" &&
+          m.label.includes("实验"),
+      ),
+    undefined,
+    { timeout: 30000 },
+  );
+  await page.waitForTimeout(500);
+  await page
+    .locator("canvas")
+    .screenshot({ path: join(output, "live-experimental-frame.png") });
+  report.checks.push(
+    "experimental source-4 fit plays in the production iframe without a training claim",
+  );
   report.status = "passed";
 } catch (error) {
   report.status = "failed";

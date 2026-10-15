@@ -11,6 +11,10 @@ import { deflateSync } from "zlib";
 import { createHash } from "crypto";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
+import {
+  validateExperimentalIndex,
+  validateExperimentalClip,
+} from "../src/demo/experimental-motion.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, "..");
@@ -368,6 +372,34 @@ async function buildDemo() {
     );
   }
   writeFileSync(dp("avatar/t08-index.json"), JSON.stringify(runtimeIndex));
+  const experimentalRoot =
+    process.env.SIGNBRIDGE_DEMO_EXPERIMENTAL_DIR ||
+    join(ROOT, "../local-data/demo-experimental-20261015");
+  const experimentalIndex = join(experimentalRoot, "experimental-index.json");
+  if (existsSync(experimentalIndex)) {
+    const index = validateExperimentalIndex(
+      JSON.parse(readFileSync(experimentalIndex, "utf8")),
+    );
+    for (const entry of index.clips) {
+      const bytes = readFileSync(join(experimentalRoot, entry.asset));
+      if (createHash("sha256").update(bytes).digest("hex") !== entry.sha256)
+        throw new Error("Experimental motion digest differs: " + entry.id);
+      validateExperimentalClip(JSON.parse(bytes.toString("utf8")), entry);
+      copyFileSync(
+        join(experimentalRoot, entry.asset),
+        dp("demo", entry.asset),
+      );
+    }
+    copyFileSync(experimentalIndex, dp("demo/experimental-index.json"));
+    console.log(
+      `  ✓ ${index.clips.length} experimental fitted motions (lazy loaded, not training)`,
+    );
+  } else {
+    writeFileSync(
+      dp("demo/experimental-index.json"),
+      JSON.stringify({ unavailable: true }),
+    );
+  }
   const researchFile = join(assets, "research.json");
   const research = existsSync(researchFile)
     ? JSON.parse(readFileSync(researchFile, "utf8"))

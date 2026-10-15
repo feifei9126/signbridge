@@ -4,8 +4,10 @@ import {
   planDemoText,
   validateT08Bundle,
   validateT08CandidateBundle,
+  motionSource,
 } from "./demo-motion.js";
 import { buildDemoPhraseCatalog } from "./phrase-catalog.js";
+import { validateExperimentalIndex } from "./experimental-motion.js";
 const locale = new URL(location.href).searchParams.get("lang") || "zh-CN";
 setLocale(locale);
 document.documentElement.lang = locale;
@@ -24,6 +26,8 @@ const status = document.querySelector("#status"),
   stopButton = document.querySelector("#stop");
 let clips = [],
   candidates = [],
+  experimental = [],
+  availableSources = new Set(),
   model = null,
   candidateModel = null,
   mode = "auto",
@@ -50,7 +54,7 @@ function element(tag, text) {
   return n;
 }
 function refreshPlan() {
-  currentPlan = planDemoText(input.value, mode, modelAvailable ? clips : []);
+  currentPlan = planDemoText(input.value, mode, playableClips());
   document.querySelector("#chars").textContent =
     `${[...input.value].length} / 500`;
   document.querySelector("#match-count").textContent = t("demoCount", {
@@ -62,12 +66,7 @@ function refreshPlan() {
     const span = element("span", item.matchedText);
     span.className = item.source;
     const candidate = clips.find((clip) => clip.id === item.id);
-    span.title =
-      item.source === "candidate"
-        ? t("demoCandidateDetail", {
-            mse: candidate?.normalized_reconstruction_mse?.toFixed(3) || "?",
-          })
-        : t(item.source === "t08" ? "demoSourceT08" : "demoSourceDictionary");
+    span.title = sourceLabel(item.source, candidate);
     matches.append(span);
   }
   document
@@ -82,12 +81,34 @@ function refreshPlan() {
   else if (currentPlan.items.length === 40) setStatus("demoLimit");
   playButton.disabled = !ready || !currentPlan.items.length;
 }
+function playableClips() {
+  return clips.filter((clip) => availableSources.has(motionSource(clip)));
+}
+function sourceLabel(source, clip) {
+  if (source === "candidate")
+    return t("demoCandidateDetail", {
+      mse: clip?.normalized_reconstruction_mse?.toFixed(3) || "?",
+    });
+  if (source === "experimental")
+    return t(
+      clip?.quality_warning
+        ? "demoExperimentalWarningBadge"
+        : "demoExperimentalBadge",
+    );
+  return t(
+    source === "t08"
+      ? "demoSourceT08"
+      : source === "composition"
+        ? "demoSourceComposition"
+        : "demoSourceDictionary",
+  );
+}
 function renderCatalog() {
   const query = document
     .querySelector("#search")
     .value.trim()
     .toLocaleLowerCase();
-  const phrases = buildDemoPhraseCatalog(modelAvailable ? clips : []);
+  const phrases = buildDemoPhraseCatalog(playableClips());
   const catalog =
     catalogView === "phrases"
       ? phrases.filter(
@@ -115,6 +136,9 @@ function renderCatalog() {
           reference: catalog.filter((entry) => entry.source === "t08").length,
           candidate: catalog.filter((entry) => entry.source === "candidate")
             .length,
+          experimental: catalog.filter(
+            (entry) => entry.source === "experimental",
+          ).length,
           composed: catalog.filter((entry) => entry.source === "composition")
             .length,
         })
@@ -131,16 +155,10 @@ function renderCatalog() {
     const b = element("button", entry.text);
     b.type = "button";
     b.dataset.source = entry.source;
-    b.title =
-      entry.source === "candidate"
-        ? t("demoCandidateDetail", {
-            mse:
-              clips
-                .find((clip) => clip.id === entry.id)
-                ?.normalized_reconstruction_mse?.toFixed(3) || "?",
-          })
-        : t(entry.source === "t08" ? "demoSourceT08" : "demoSourceDictionary");
-    if (entry.source === "composition") b.title = t("demoSourceComposition");
+    b.title = sourceLabel(
+      entry.source,
+      clips.find((clip) => clip.id === entry.id),
+    );
     b.addEventListener("click", () => {
       send("STOP");
       resetUi();
@@ -170,6 +188,7 @@ function play() {
   }
   resetUi();
   running = true;
+  setStatus("demoLoading");
   pauseButton.disabled = false;
   stopButton.disabled = false;
   send("PLAY", { items: currentPlan.items });
@@ -243,12 +262,16 @@ window.addEventListener("message", (e) => {
   if (message.type === "READY") {
     ready = true;
     modelAvailable = message.modelAvailable;
+    availableSources = new Set(message.sources || []);
     document.querySelector("#loading").hidden = true;
     document.querySelector("#model-count").textContent = String(
       message.clipCount,
     );
     document.querySelector("#candidate-count").textContent = String(
-      message.candidateCount || candidates.length,
+      message.candidateCount || 0,
+    );
+    document.querySelector("#experimental-count").textContent = String(
+      message.experimentalCount || 0,
     );
     refreshPlan();
     renderCatalog();
@@ -269,19 +292,17 @@ window.addEventListener("message", (e) => {
     stopButton.disabled = false;
     current = message;
     document.querySelector("#current").textContent = message.item.label;
-    document.querySelector("#source-badge").textContent =
-      message.item.source === "candidate"
-        ? t("demoCandidateDetail", {
-            mse: message.normalizedReconstructionMse.toFixed(3),
-          })
-        : t(
-            message.item.source === "t08"
-              ? "demoSourceT08"
-              : "demoSourceDictionary",
-          );
+    document.querySelector("#source-badge").textContent = sourceLabel(
+      message.item.source,
+      clips.find((clip) => clip.id === message.item.id),
+    );
     document.querySelector("#tokens").textContent = message.tokens
       ? JSON.stringify(message.tokens, null, 2)
-      : t("demoDictionaryToken");
+      : t(
+          message.item.source === "experimental"
+            ? "demoExperimentalToken"
+            : "demoDictionaryToken",
+        );
     setStatus("demoPlaying", {
       index: message.itemIndex + 1,
       count: message.count,
@@ -323,7 +344,7 @@ document.querySelector("#download").addEventListener("click", () => {
     unmatched: currentPlan.unmatched,
     checkpointSha256: model?.checkpoint_sha256 || null,
     checkpointStep: model?.checkpoint_step || null,
-    runtime: "offline_cpu_token_decode_assets",
+    runtime: "offline_token_decode_and_fitted_motion_assets",
     textToSignGenerated: false,
     researchOnly: true,
     lastPlayedMotion: current
@@ -332,6 +353,11 @@ document.querySelector("#download").addEventListener("click", () => {
           source: current.item.source,
           tokens: current.tokens,
           candidate: current.item.source === "candidate",
+          experimental: current.item.source === "experimental",
+          humanApproved: current.item.source === "experimental" ? false : null,
+          trainingReady: false,
+          motionAssetSha256:
+            clips.find((clip) => clip.id === current.item.id)?.sha256 || null,
           normalizedReconstructionMse: current.normalizedReconstructionMse,
           trainingDataMember: current.item.source === "t08",
         }
@@ -409,14 +435,24 @@ try {
   });
   renderCatalog();
   refreshPlan();
-  document.querySelector("#candidate-count").textContent = String(
-    candidates.length,
-  );
   document.querySelector("#candidate-warning").textContent = candidates.length
     ? t("demoCandidateWarning")
     : "";
 } catch {
   setStatus("demoPartialAsset");
 }
+try {
+  const response = await fetch("experimental-index.json");
+  if (!response.ok) throw new Error("demoInvalidExperimentalAsset");
+  const data = await response.json();
+  if (!data.unavailable) experimental = validateExperimentalIndex(data).clips;
+  clips = [...clips, ...experimental];
+  document.querySelector("#experimental-warning").textContent =
+    experimental.length ? t("demoExperimentalWarning") : "";
+} catch {
+  experimental = [];
+}
+renderCatalog();
+refreshPlan();
 send("HELLO");
 window.addEventListener("pagehide", () => send("STOP"), { once: true });

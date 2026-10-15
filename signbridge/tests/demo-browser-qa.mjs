@@ -4,6 +4,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createHash } from "node:crypto";
+import { buildDemoPhraseCatalog } from "../src/demo/phrase-catalog.js";
 const { chromium } = await import(
   process.env.SIGNBRIDGE_PLAYWRIGHT_MODULE || "playwright"
 );
@@ -21,9 +22,19 @@ const candidateData = JSON.parse(
   await readFile(join(root, "dist/demo/t08-candidates.json"), "utf8"),
 );
 const candidateClips = candidateData.clips || [];
-const phraseCount = data.clips.length + candidateClips.length;
-const composedPhraseCount = 53;
-const catalogCount = phraseCount + composedPhraseCount;
+const experimentalData = JSON.parse(
+  await readFile(join(root, "dist/demo/experimental-index.json"), "utf8"),
+);
+const catalog = buildDemoPhraseCatalog([
+  ...data.clips,
+  ...candidateClips,
+  ...(experimentalData.clips || []),
+]);
+const phraseCount = catalog.filter((c) => c.source !== "composition").length;
+const composedPhraseCount = catalog.filter(
+  (c) => c.source === "composition",
+).length;
+const catalogCount = catalog.length;
 const browser = await chromium.launch({
   headless: true,
   ...(process.env.SIGNBRIDGE_CHROME
@@ -323,6 +334,13 @@ try {
       status: 200,
       contentType: "application/json",
       body: '{"clips":[]}',
+    }),
+  );
+  await fallback.route("**/experimental-index.json", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: '{"unavailable":true}',
     }),
   );
   await fallback.goto(url);

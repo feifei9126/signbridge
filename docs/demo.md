@@ -1,5 +1,32 @@
 # SignBridge 本地展示 Demo
 
+## 2026-10-15 可用 Demo 更新
+
+本地最新版新增第四批视频拟合动作，目录为 **153 个去重入口**：14 个 T08 参考、3 个旧候选、83 个 SMPL-X 实验重建、53 个词库组合。其中包含词语，不代表 153 句已经训练。放宽的是 Demo 的动作观感要求，不是伪造审核或训练状态；T08/T09/T10 权重未修改。
+
+仍使用下文的启动方式。打开后选择“参考与实验动作”，搜索“认识你很高兴”“你的公司地址在哪里”或“我家附近有一家咖啡店”，再点击播放。实验动作显示独立来源徽标，不会显示假的 T08 token；有明显旋转跳变的片段单独提示。自动模式可将这些动作与旧参考、词库接续播放，未知文字仍会列出。
+
+83 个动作来自 91 个完整序列，重复的 8 个展示项只从新目录排除，原始文件全部保留。2 个缺帧序列“基本”“人民”不导出。合计 24,900 帧，无缺失检测插值。实验动作未完成镜像、人物、运动质量核验，继续保留所有训练就绪标记为 false。先前 76 段与 source-5 的二维观测并未因此冒充可播放训练资产。
+
+默认构建额外读取 `local-data/demo-experimental-20261015/experimental-index.json`；可通过 `SIGNBRIDGE_DEMO_EXPERIMENTAL_DIR` 切换实验资产目录。索引在启动时加载，姿态文件按需读取并验证 SHA-256，加载失败可重新加载或切换词库继续展示。插件实时字幕也能精确匹配实验文字并播放，失败时回退词库；无需新增权限或 GPU。
+
+可从仓库根复现到一个**不存在的新目录**，再用环境变量指定该目录构建：
+
+```bash
+.venv-sign-data/bin/python signbridge/src/tools/sign-demo-experimental-export.py \
+  --source local-data/data-expansion-20261014/source-4/reconstruction-delivery-20261015-69rzrm_g/import-audit-v1 \
+  --smplx-model local-data/deps/SMPLer-X/common/utils/human_model_files/smplx/SMPLX_NEUTRAL.npz \
+  --exclude-bundle local-data/demo-20261012/t08-motion.json \
+  --exclude-bundle local-data/demo-20261012/t08-candidates.json \
+  --output local-data/demo-experimental-20261015-reexport
+cd signbridge
+SIGNBRIDGE_DEMO_EXPERIMENTAL_DIR=../local-data/demo-experimental-20261015-reexport npm run build
+```
+
+本轮新增验收为 `tests/experimental-browser-qa.mjs`：逐条检查 83 个角色画面非空且运动、暂停/继续/停止、速度和视角、手机布局、延迟请求取消、损坏资源拒绝与词库可用性。旧 Demo 与真实扩展路由测试继续保留。浏览器证据保存在新的本地 QA 目录；这些是工程检查，不是手语语言准确率。
+
+以下为 2026-10-12 原始 T08 基线说明，表格只列原 14 条，新增目录及去重策略见 [目录说明](../signbridge/docs/demo-phrase-catalog.md)。
+
 日期：2026-10-12。目标是用现有资源展示“文字匹配 → 动作编码/重建 → 当前虚拟人播放”的可运行过程。本轮复用固定 T08 checkpoint，通过 CPU 导出浏览器动作资产，无需新 GPU 训练。
 
 ## 打开方式

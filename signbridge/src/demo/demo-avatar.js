@@ -9,6 +9,10 @@ import {
 } from "./demo-motion.js";
 import { createT08Retarget } from "./demo-retarget.js";
 import { frameDelta } from "./demo-playback.js";
+import {
+  validateExperimentalIndex,
+  createExperimentalLoader,
+} from "./experimental-motion.js";
 const container = document.querySelector("#stage");
 let renderer,
   rig,
@@ -17,6 +21,9 @@ let renderer,
   scene,
   bundle,
   candidateBundle,
+  experimentalIndex,
+  experimentalLoader,
+  experimentalRetarget,
   retarget,
   raf = null,
   ready = false,
@@ -70,7 +77,8 @@ function builtInTrack(sign) {
   }
   return { kind: "dictionary", samples, times, from, duration: time };
 }
-function nextItem() {
+async function nextItem() {
+  const generation = requestId;
   if (itemIndex >= plan.length) {
     running = false;
     track = null;
@@ -79,13 +87,28 @@ function nextItem() {
     return;
   }
   const item = plan[itemIndex];
+  track = null;
   itemTime = 0;
-  if (item.source === "t08" || item.source === "candidate") {
-    const clip = (
-      item.source === "candidate" ? candidateBundle?.clips : bundle?.clips
-    )?.find((c) => c.id === item.id);
+  if (["t08", "candidate", "experimental"].includes(item.source)) {
+    const clip =
+      item.source === "experimental"
+        ? await experimentalLoader?.load(item.id)
+        : (item.source === "candidate"
+            ? candidateBundle?.clips
+            : bundle?.clips
+          )?.find((c) => c.id === item.id);
+    if (disposed || generation !== requestId || !running) return;
     if (!clip) throw new Error("demoInvalidAsset");
-    if (!cache.has(clip.id)) cache.set(clip.id, retarget.compile(clip));
+    if (!cache.has(clip.id)) {
+      cache.set(
+        clip.id,
+        (item.source === "experimental"
+          ? experimentalRetarget
+          : retarget
+        ).compile(clip),
+      );
+      if (cache.size > 8) cache.delete(cache.keys().next().value);
+    }
     track = {
       kind: item.source,
       samples: cache.get(clip.id),
@@ -100,12 +123,14 @@ function nextItem() {
     track = builtInTrack(sign);
     duration = track.duration;
   }
+  lastTime = performance.now();
   notify("CURRENT", {
     item,
     itemIndex,
     count: plan.length,
     duration,
     tokens: track.clip?.tokens || null,
+    qualityWarning: track.clip?.quality_warning || false,
     normalizedReconstructionMse:
       track.kind === "candidate"
         ? track.clip.normalized_reconstruction_mse
@@ -113,7 +138,7 @@ function nextItem() {
   });
 }
 function applyAt(time) {
-  if (track.kind === "t08" || track.kind === "candidate") {
+  if (track.kind !== "dictionary") {
     const frame = Math.min(time * track.fps, track.samples.length - 1),
       i = Math.floor(frame),
       j = Math.min(i + 1, track.samples.length - 1);
@@ -141,12 +166,7 @@ function tick(time) {
     itemTime += delta * speed;
     if (itemTime >= duration) {
       itemIndex++;
-      try {
-        nextItem();
-      } catch (e) {
-        stop();
-        notify("ERROR", { error: e.message });
-      }
+      advance();
     }
     if (track) {
       applyAt(itemTime);
@@ -155,6 +175,14 @@ function tick(time) {
   }
   renderer?.render(scene, camera);
   raf = requestAnimationFrame(tick);
+}
+function advance() {
+  const generation = requestId;
+  nextItem().catch((e) => {
+    if (disposed || generation !== requestId) return;
+    stop();
+    notify("ERROR", { error: e.message });
+  });
 }
 function resize() {
   if (!renderer) return;
@@ -211,19 +239,45 @@ async function init() {
       candidateBundle = null;
       notify("ASSET_WARNING", { error: e.message });
     }
+    try {
+      const response = await fetch("experimental-index.json");
+      if (!response.ok) throw new Error("demoInvalidExperimentalAsset");
+      const data = await response.json();
+      if (!data.unavailable) {
+        experimentalIndex = validateExperimentalIndex(data);
+        experimentalLoader = createExperimentalLoader(experimentalIndex);
+        experimentalRetarget = createT08Retarget(
+          rig,
+          modelRoot,
+          experimentalIndex,
+        );
+      }
+    } catch (e) {
+      notify("ASSET_WARNING", { error: e.message });
+    }
     if (disposed) return;
     ready = true;
-    notify("READY", {
-      modelAvailable: Boolean(bundle || candidateBundle),
-      mappedBones: retarget?.mappedBones || 0,
-      clipCount: bundle?.clips.length || 0,
-      candidateCount: candidateBundle?.clips.length || 0,
-    });
+    notifyReady();
     lastTime = performance.now();
     raf = requestAnimationFrame(tick);
   } catch (e) {
     notify("ERROR", { error: e.message || String(e), fatal: true });
   }
+}
+function notifyReady() {
+  notify("READY", {
+    modelAvailable: Boolean(bundle || candidateBundle || experimentalIndex),
+    sources: [
+      bundle && "t08",
+      candidateBundle && "candidate",
+      experimentalIndex && "experimental",
+    ].filter(Boolean),
+    mappedBones:
+      retarget?.mappedBones || experimentalRetarget?.mappedBones || 0,
+    clipCount: bundle?.clips.length || 0,
+    candidateCount: candidateBundle?.clips.length || 0,
+    experimentalCount: experimentalIndex?.clips.length || 0,
+  });
 }
 window.addEventListener("message", (ev) => {
   if (
@@ -234,13 +288,7 @@ window.addEventListener("message", (ev) => {
     return;
   const { type } = ev.data;
   if (type === "HELLO") {
-    if (ready)
-      notify("READY", {
-        modelAvailable: Boolean(bundle || candidateBundle),
-        mappedBones: retarget?.mappedBones || 0,
-        clipCount: bundle?.clips.length || 0,
-        candidateCount: candidateBundle?.clips.length || 0,
-      });
+    if (ready) notifyReady();
     return;
   }
   if (!ready) return;
@@ -262,7 +310,7 @@ window.addEventListener("message", (ev) => {
       itemIndex = 0;
       running = true;
       paused = false;
-      nextItem();
+      advance();
       lastTime = performance.now();
     } else if (type === "STOP") stop();
     else if (type === "PAUSE") {
@@ -293,6 +341,7 @@ window.addEventListener(
     disposeModel(modelRoot);
     renderer?.dispose();
     cache.clear();
+    experimentalLoader?.clear();
   },
   { once: true },
 );

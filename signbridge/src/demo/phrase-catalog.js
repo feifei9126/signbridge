@@ -1,3 +1,5 @@
+import { demoTextKey, motionSource } from "./demo-motion.js";
+
 export const COMPOSED_PHRASES = [
   { id: "composed-hello-thanks", text: "你好，谢谢", category: "daily" },
   { id: "composed-welcome-you", text: "欢迎你", category: "daily" },
@@ -88,20 +90,21 @@ export const COMPOSED_PHRASES = [
 }));
 
 export function buildDemoPhraseCatalog(clips = []) {
-  const references = clips.filter((clip) => !clip.runtime_candidate);
-  const candidates = clips.filter((clip) => clip.runtime_candidate);
-  return [
-    ...references.map((clip) => ({
+  const priority = { t08: 0, candidate: 1, experimental: 2, composition: 3 };
+  const entries = [
+    ...clips.map((clip) => ({
       id: clip.id,
       text: clip.text,
-      source: "t08",
-    })),
-    ...candidates.map((clip) => ({
-      id: clip.id,
-      text: clip.text,
-      source: "candidate",
+      source: motionSource(clip),
       training_ready: false,
     })),
     ...COMPOSED_PHRASES,
-  ];
+  ].sort((a, b) => priority[a.source] - priority[b.source]);
+  const keys = new Set();
+  return entries.filter((entry) => {
+    const key = demoTextKey(entry.text);
+    if (!key || keys.has(key)) return false;
+    keys.add(key);
+    return true;
+  });
 }

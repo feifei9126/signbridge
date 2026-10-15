@@ -228,6 +228,7 @@ test("full-page Demo ships its iframe, local assets and popup entry under the ex
     "demo-avatar.js",
     "t08-motion.json",
     "t08-candidates.json",
+    "experimental-index.json",
     "research.json",
   ])
     assert.ok(existsSync(join(dist, "demo", file)), file);
@@ -276,5 +277,28 @@ test("full-page Demo ships its iframe, local assets and popup entry under the ex
     assert.equal(candidates.training_weights_updated, false);
   } else {
     assert.equal(index.clips.length, 0);
+  }
+});
+
+test("experimental motions ship per-clip with checked hashes and no training promotion", async () => {
+  const { createHash } = await import("node:crypto");
+  const { validateExperimentalIndex, validateExperimentalClip } =
+    await import("../src/demo/experimental-motion.js");
+  const index = JSON.parse(
+    readFileSync(join(dist, "demo/experimental-index.json"), "utf8"),
+  );
+  if (index.unavailable) return;
+  validateExperimentalIndex(index);
+  assert.equal(
+    new Set(index.clips.map((c) => c.text)).size,
+    index.clips.length,
+  );
+  for (const entry of index.clips) {
+    const bytes = readFileSync(join(dist, "demo", entry.asset));
+    assert.equal(
+      createHash("sha256").update(bytes).digest("hex"),
+      entry.sha256,
+    );
+    validateExperimentalClip(JSON.parse(bytes.toString("utf8")), entry);
   }
 });

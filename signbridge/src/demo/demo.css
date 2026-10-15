@@ -254,6 +254,12 @@ textarea {
   font-size: 11px;
   line-height: 1.55;
 }
+.match-list .experimental,
+.catalog-list button[data-source="experimental"] {
+  border-color: #d0c3d4;
+  background: #f4eef5;
+  color: #654c6b;
+}
 .unknown {
   font-size: 12px;
   color: var(--warn);
@@ -331,6 +337,8 @@ textarea {
   border-radius: 16px;
   padding: 4px 9px;
   background: #f5f6f1;
+  max-width: 60%;
+  overflow-wrap: anywhere;
 }
 .viewport {
   position: relative;
@@ -420,6 +428,7 @@ textarea {
   justify-content: space-between;
   gap: 15px;
   padding: 15px 22px;
+  flex-wrap: wrap;
 }
 .model-info div {
   display: flex;

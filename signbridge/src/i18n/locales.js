@@ -38,12 +38,11 @@ const DEMO_ZH = {
   demoExport: "导出本次结果",
   demoEyebrow: "让手语动起来 · 实验演示",
   demoHeading: "从文字，到看得见的表达",
-  demoLead:
-    "输入已覆盖的文字，调用真实 T08 动作重建或内置词库，在同一位虚拟人上播放。",
+  demoLead: "选择片段或输入文字，在虚拟人上播放参考动作、实验重建与词库动作。",
   demoInput: "输入文字",
   demoMode: "动作来源模式",
   demoAuto: "自动匹配",
-  demoT08: "T08参考句 + 候选句",
+  demoT08: "参考与实验动作",
   demoDictionary: "内置词库",
   demoPlaceholder: "试试：工作忙吗？谢谢",
   demoShortcut: "Ctrl / ⌘ + Enter 播放",
@@ -55,10 +54,10 @@ const DEMO_ZH = {
   demoMatches: "已识别内容",
   demoCatalog: "短句与词库",
   demoCatalogViews: "短句或词库动作",
-  demoPhraseTab: "常用短句入口",
+  demoPhraseTab: "短句与片段",
   demoWordTab: "单词动作",
   demoPhraseSourceNote:
-    "共 {total} 条：{reference} 条 T08 参考动作、{candidate} 条候选重建、{composed} 条词库组合。组合项逐词播放，未经句级训练或手语者核验。",
+    "共 {total} 条：{reference} 条 T08 参考、{candidate} 条候选、{experimental} 条实验重建、{composed} 条词库组合。",
   demoWordSourceNote:
     "共 {count} 个内置词条；词条动画不是本轮新增的句子训练结果。",
   demoSearch: "搜索短句或词条",
@@ -75,6 +74,14 @@ const DEMO_ZH = {
   demoLearned: "T08原参考句",
   demoWords: "内置词库动作",
   demoCandidates: "候选参考动作",
+  demoExperimental: "实验重建动作",
+  demoExperimentalBadge: "SMPL-X · 实验重建",
+  demoExperimentalWarningBadge: "SMPL-X · 实验重建 · 跳变较大",
+  demoExperimentalToken:
+    "当前为视频拟合的 SMPL-X 实验动作，未经过 T08 token 解码，未更新模型权重。",
+  demoExperimentalWarning:
+    "实验动作保留未经动作质量、镜像和人物核验的状态；仅用于 Demo，可能出现手型误差、跳变或穿模。",
+  demoInvalidExperimentalAsset: "实验动作文件不完整或来源校验失败",
   demoCandidateBadge: "T08 tokenizer · 候选重建",
   demoCandidateDetail: "T08候选 · 归一化误差 {mse}",
   demoInvalidCandidateAsset: "候选动作来源或审核状态不符",
@@ -91,7 +98,7 @@ const DEMO_ZH = {
     "实验性展示：T08 负责已有参考动作的编码/重建；文字用于检索，内置词库用于补充。未覆盖文字不会自动生成手语，拼接也不代表正确的手语语法。",
   demoHow: "这份 Demo 怎样工作？",
   demoHowBody:
-    "短句列表包含 14 条 T08 参考动作、最多 3 条候选重建和 53 条词库组合。组合项只会逐词播放现有词条，并非句级训练或经手语者核验的翻译；候选句也未更新模型权重。",
+    "目录合并了 T08 参考与候选、视频拟合的实验动作和词库组合；重复文字只保留一个入口。实验动作未更新模型权重；词库组合并非句级训练或经手语者核验的翻译。",
   demoRetargetNote:
     "SMPL-X 姿态通过源骨架与角色 REST 校准后转换为四元数。根部、下身保持角色待机，表情系数尚未完整映射。手型和穿模仍为实验效果。",
   demoReady: "已就绪，输入文字或选择片段。",
@@ -156,11 +163,11 @@ const DEMO_EN = {
   demoEyebrow: "Sign language in motion · Experimental demo",
   demoHeading: "Words you can see",
   demoLead:
-    "Enter supported text to play T08 reference reconstructions and dictionary motions on the same avatar.",
+    "Choose a clip or enter text to play reference motions, experimental fits and dictionary motions.",
   demoInput: "Text input",
   demoMode: "Motion source",
   demoAuto: "Automatic",
-  demoT08: "T08 / candidate phrases",
+  demoT08: "Reference / experimental",
   demoDictionary: "Dictionary",
   demoPlaceholder: "Try: 工作忙吗？谢谢",
   demoSample: "工作忙吗？谢谢",
@@ -174,10 +181,10 @@ const DEMO_EN = {
   demoMatches: "Matched text",
   demoCatalog: "Phrases and dictionary",
   demoCatalogViews: "Phrase or dictionary view",
-  demoPhraseTab: "Phrase examples",
+  demoPhraseTab: "Phrases / clips",
   demoWordTab: "Dictionary motions",
   demoPhraseSourceNote:
-    "{total} entries: {reference} T08 references, {candidate} candidate reconstructions, and {composed} dictionary compositions. Compositions play word by word; they are not sentence-trained or sign-expert reviewed.",
+    "{total} entries: {reference} T08 references, {candidate} candidates, {experimental} experimental fits, {composed} dictionary compositions.",
   demoWordSourceNote:
     "{count} built-in entries. These word motions are not new sentence-training results.",
   demoSearch: "Search phrases or dictionary entries",
@@ -194,6 +201,15 @@ const DEMO_EN = {
   demoLearned: "Original T08 phrases",
   demoWords: "Dictionary motions",
   demoCandidates: "Motion candidates",
+  demoExperimental: "Experimental fits",
+  demoExperimentalBadge: "SMPL-X · Experimental fit",
+  demoExperimentalWarningBadge: "SMPL-X · Experimental fit · High jitter",
+  demoExperimentalToken:
+    "Video-fitted SMPL-X motion, not T08 token decoding. No model weights were updated.",
+  demoExperimentalWarning:
+    "Experimental motions have unreviewed motion quality, mirroring and signer identity. Demo only; hand errors, jitter and mesh intersections may occur.",
+  demoInvalidExperimentalAsset:
+    "Incomplete experimental motion or provenance mismatch",
   demoCandidateBadge: "T08 tokenizer · Candidate reconstruction",
   demoCandidateDetail: "T08 candidate · normalized error {mse}",
   demoInvalidCandidateAsset:
@@ -211,7 +227,7 @@ const DEMO_EN = {
     "Experimental showcase: T08 encodes and reconstructs existing reference motions. Text retrieves clips; dictionary entries supplement coverage. Unsupported text is reported. Concatenation does not establish correct sign language grammar.",
   demoHow: "How does this demo work?",
   demoHowBody:
-    "The phrase list contains 14 T08 reference motions, up to 3 candidate reconstructions, and 53 dictionary compositions. Compositions play existing word motions in sequence; they are not sentence-trained or sign-expert reviewed. Candidate phrases did not update model weights.",
+    "The catalog merges T08 references and candidates, video-fitted experimental motions and dictionary compositions. Duplicate text has one entry. Experimental fits do not update model weights; dictionary compositions are not sentence-trained or sign-expert reviewed.",
   demoRetargetNote:
     "SMPL-X poses are calibrated to the avatar skeleton and played as quaternions. The root and lower body remain at rest; facial coefficients are not mapped. Hand shapes and mesh contact remain experimental.",
   demoReady: "Ready. Enter text or choose an example.",

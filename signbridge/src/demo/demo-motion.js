@@ -8,6 +8,13 @@ export function demoTextKey(text) {
     .replace(/[\s\p{P}]/gu, "")
     .toLocaleLowerCase();
 }
+export function motionSource(clip) {
+  return clip.experimental
+    ? "experimental"
+    : clip.runtime_candidate
+      ? "candidate"
+      : "t08";
+}
 export function matchT08Reference(input, clips = []) {
   const key = demoTextKey(input);
   if (!key) return null;
@@ -31,7 +38,7 @@ export function planDemoText(input, mode = "auto", clips = []) {
           id: c.id,
           text,
           key: demoTextKey(text),
-          source: c.runtime_candidate ? "candidate" : "t08",
+          source: motionSource(c),
           label: c.text,
         });
   if (mode !== "t08")
@@ -49,8 +56,8 @@ export function planDemoText(input, mode = "auto", clips = []) {
       [...b.key].length - [...a.key].length ||
       (a.source === b.source
         ? 0
-        : { t08: 0, candidate: 1, dictionary: 2 }[a.source] -
-          { t08: 0, candidate: 1, dictionary: 2 }[b.source]),
+        : { t08: 0, candidate: 1, experimental: 2, dictionary: 3 }[a.source] -
+          { t08: 0, candidate: 1, experimental: 2, dictionary: 3 }[b.source]),
   );
   const items = [],
     unknown = [];
