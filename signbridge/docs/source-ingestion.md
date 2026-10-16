@@ -121,6 +121,12 @@ node src/tools/sign-intake-review.mjs \
 
 最终 v5 中，身体与手部均无相邻旋转大于 90° 的帧过渡；24 组左右手序列的球面中点残差 P95 范围约为 7.27–12.13°，不能据此宣称手型准确或无抖动。Google Chrome 的自动浏览器检查确认 13 张图可解码、12 段视频均可加载／跳转／播放，桌面、平板、375 像素窄屏无横向溢出。视频 seek／加载产生的 `ERR_ABORTED` 请求保留在 QA 记录中，不作为媒体损坏；每段另有实际播放和逐帧解码证据。没有视觉回归基线，也没有人工动作审批。最终构建、Lint、Prettier、179 项 JavaScript 测试和 419 项 Python 测试全部通过。
 
+### 来源 6 的独立人物预览
+
+用户要求直接进入下一步后，12 段完整拟合已导出至 `source-6/avatar-preview-20261016-hjzppz64/motions-v1/`，不创建 tokenizer 特征或人工审批。`src/tools/sign-demo-source6-export.py` 对冻结包、v5 审计报告和两份结果清单做摘要／精确帧核验；每段另外保存原生 NPZ 文件列表及摘要。55 关节显示资产复用既有上肢／手部映射，双手 mean 仅加一次，时间轴保留。
+
+`preview-build-v2/` 提供单独的 Godette 预览，并默认填入本批候选文字；原始与平滑显示可切换。源文字、边界和动作质量仍标为待确认；新校验合约不允许升级或剥离这些来源状态。旧模型、原始拟合及默认 83 段 Demo 实验资产保留。人物骨骼时序量化和完整播放检查记录在该目录的 `stability-audit-v1/` 与 `browser-qa-v4/`，原片／人物抽帧对照为 `source-avatar-comparison-v1/`，时间仅近似对应。详见仓库 `docs/demo.md`。
+
 复现时需另选从未存在的输出目录：
 
 ```bash

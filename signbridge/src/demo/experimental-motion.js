@@ -2,6 +2,46 @@
 const digestPattern = /^[a-f0-9]{64}$/;
 export const EXPERIMENTAL_MODEL_SHA256 =
   "376021446ddc86e99acacd795182bbef903e61d33b76b9d8b359c2b0865bd992";
+export function experimentalPreviewSample(clips, currentText, defaultText) {
+  return currentText === defaultText &&
+    clips.length &&
+    clips.every((c) => c.preview_only)
+    ? clips[0].text
+    : currentText;
+}
+const previewFields = [
+  "source_batch",
+  "preview_only",
+  "text_verified",
+  "semantics_approved",
+  "boundaries_approved",
+  "temporal_interpolation",
+  "source_annotation_id",
+  "source_clip_sha256",
+  "source_frames_sha256",
+  "source_fit_manifest_sha256",
+  "boundary_review_flags",
+];
+function validPreview(c) {
+  if (c.source_batch === undefined) return c.preview_only === undefined;
+  return (
+    c.source_batch === "source-6" &&
+    c.preview_only === true &&
+    c.text_verified === "" &&
+    c.semantics_approved === false &&
+    c.boundaries_approved === false &&
+    c.temporal_interpolation === false &&
+    typeof c.source_annotation_id === "string" &&
+    /^[a-zA-Z0-9_-]+$/.test(c.source_annotation_id) &&
+    [
+      c.source_clip_sha256,
+      c.source_frames_sha256,
+      c.source_fit_manifest_sha256,
+    ].every((v) => digestPattern.test(v)) &&
+    Array.isArray(c.boundary_review_flags) &&
+    c.boundary_review_flags.every((v) => typeof v === "string")
+  );
+}
 function validMetadata(c) {
   return (
     typeof c?.id === "string" &&
@@ -26,6 +66,7 @@ function validMetadata(c) {
     c.motion_review_status === "needs_review" &&
     c.mirror_status === "unknown" &&
     c.signer_id === "unconfirmed" &&
+    validPreview(c) &&
     typeof c.quality_warning === "boolean" &&
     [c.source_sha256, c.feature_sha256, c.fitted_sha256].every((v) =>
       digestPattern.test(v),
@@ -82,6 +123,9 @@ export function validateExperimentalClip(data, entry) {
       "quality_warning",
     ].every((key) => data[key] === entry[key]) ||
     JSON.stringify(data.aliases) !== JSON.stringify(entry.aliases) ||
+    !previewFields.every(
+      (key) => JSON.stringify(data[key]) === JSON.stringify(entry[key]),
+    ) ||
     data.poses?.length !== data.frames ||
     !data.poses.every(
       (p) =>

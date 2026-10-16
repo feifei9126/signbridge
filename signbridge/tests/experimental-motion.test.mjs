@@ -126,6 +126,73 @@ test("experimental contracts reject invented approvals, malformed frames and uns
   assert.throws(() => experimental.validateExperimentalClip(broken, entry));
 });
 
+test("source-6 preview labels and provenance cannot be promoted or stripped", () => {
+  const preview = {
+    ...entry,
+    source_batch: "source-6",
+    preview_only: true,
+    text_verified: "",
+    semantics_approved: false,
+    boundaries_approved: false,
+    temporal_interpolation: false,
+    source_annotation_id: "source6-example",
+    source_clip_sha256: "d".repeat(64),
+    source_frames_sha256: "e".repeat(64),
+    source_fit_manifest_sha256: "f".repeat(64),
+    boundary_review_flags: ["near_source_end"],
+  };
+  const clip = { ...asset, ...preview };
+  assert.equal(
+    experimental.validateExperimentalIndex({ ...index, clips: [preview] })
+      .clips[0],
+    preview,
+  );
+  assert.equal(experimental.validateExperimentalClip(clip, preview), clip);
+  for (const change of [
+    { text_verified: metadata.text },
+    { semantics_approved: true },
+    { boundaries_approved: true },
+    { preview_only: false },
+    { temporal_interpolation: true },
+    { source_frames_sha256: "bad" },
+  ]) {
+    assert.throws(() =>
+      experimental.validateExperimentalIndex({
+        ...index,
+        clips: [{ ...preview, ...change }],
+      }),
+    );
+    assert.throws(() =>
+      experimental.validateExperimentalClip({ ...clip, ...change }, preview),
+    );
+  }
+  const stripped = { ...clip };
+  delete stripped.source_batch;
+  delete stripped.preview_only;
+  assert.throws(() => experimental.validateExperimentalClip(stripped, preview));
+});
+
+test("a separate source-6 preview starts with its real clip and preserves typed input", () => {
+  assert.equal(typeof experimental.experimentalPreviewSample, "function");
+  const clips = [{ text: "新视频动作", preview_only: true }];
+  assert.equal(
+    experimental.experimentalPreviewSample(clips, "旧示例", "旧示例"),
+    "新视频动作",
+  );
+  assert.equal(
+    experimental.experimentalPreviewSample(clips, "正在输入的内容", "旧示例"),
+    "正在输入的内容",
+  );
+  assert.equal(
+    experimental.experimentalPreviewSample([metadata], "旧示例", "旧示例"),
+    "旧示例",
+  );
+  assert.equal(
+    experimental.experimentalPreviewSample([], "旧示例", "旧示例"),
+    "旧示例",
+  );
+});
+
 test("lazy loader checks digest, retries failures and bounds its cache", async () => {
   let calls = 0;
   const loader = experimental.createExperimentalLoader(index, async () => {
@@ -178,6 +245,7 @@ test("experimental source labels exist in every supported locale", () => {
       "demoExperimentalWarningBadge",
       "demoExperimentalToken",
       "demoExperimentalWarning",
+      "demoExperimentalPreviewWarning",
       "demoInvalidExperimentalAsset",
       "demoSmoothing",
       "demoExperimentalSmoothedBadge",

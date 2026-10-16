@@ -7,7 +7,10 @@ import {
   motionSource,
 } from "./demo-motion.js";
 import { buildDemoPhraseCatalog } from "./phrase-catalog.js";
-import { validateExperimentalIndex } from "./experimental-motion.js";
+import {
+  validateExperimentalIndex,
+  experimentalPreviewSample,
+} from "./experimental-motion.js";
 const locale = new URL(location.href).searchParams.get("lang") || "zh-CN";
 setLocale(locale);
 document.documentElement.lang = locale;
@@ -478,9 +481,20 @@ try {
   if (!response.ok) throw new Error("demoInvalidExperimentalAsset");
   const data = await response.json();
   if (!data.unavailable) experimental = validateExperimentalIndex(data).clips;
+  input.value = experimentalPreviewSample(
+    experimental,
+    input.value,
+    t("demoSample"),
+  );
   clips = [...clips, ...experimental];
   document.querySelector("#experimental-warning").textContent =
-    experimental.length ? t("demoExperimentalWarning") : "";
+    experimental.length
+      ? t(
+          experimental.some((c) => c.preview_only)
+            ? "demoExperimentalPreviewWarning"
+            : "demoExperimentalWarning",
+        )
+      : "";
 } catch {
   experimental = [];
 }

@@ -1,5 +1,33 @@
 # SignBridge 本地展示 Demo
 
+## 2026-10-16：来源 6 独立人物预览
+
+12 段／2,779 帧来源 6 原生连续重建已转换为当前 Godette 人物可播放的候选资产，位于 `local-data/data-expansion-20261015/source-6/avatar-preview-20261016-hjzppz64/`。独立构建为 `preview-build-v2/`，本地服务地址是 `http://127.0.0.1:8767/demo/index.html`；服务关闭后可双击该目录的 `start-demo.command`，或用 `start-demo.py --no-open --port 8767` 启动。它含本批 12 个实验候选，以及原有 14 条参考、3 条旧候选和 53 条词库组合，共 82 个去重条目。打开后默认文字选本批真实候选，并显示文字和首尾未核验的说明。
+
+这批资产通过现有的人物骨骼映射和按需加载实际播放，包含完整 25 FPS 轨迹及原始／显示平滑切换。根部、下身、躯干保持现有 Demo 的待机规则；相机平移和面部系数未映射。手部 mean 仅加一次，帧数和时长保留，原始重建参数、模型权重及 T08 checkpoint 均保持原样。
+
+实际人物骨骼量化结果（12 段均值）：四元数中点残差 P95 从约 8.75° 降到 3.25°；手腕中点残差 P95 从约 2.03 cm 降到 0.82 cm；平滑后最小手腕动作范围保留率约为 96.2%。这是显示层处理，不是手型准确率或训练效果。仍可见手部接触／位置误差，一些窗口混入教学指令或相邻动作；原片／人物截图比较采用 UI 的 0.1 秒显示值，有舍入及截图延迟，不能声称精确帧一致。
+
+导出工具为 `signbridge/src/tools/sign-demo-source6-export.py`，生成独立校验清单和每段原生参数文件摘要。元数据增加 `source_batch=source-6`、`preview_only=true`、空 `text_verified` 和未通过的语义／边界标志；浏览器校验拒绝把这些状态或来源摘要剥离／升级。逐句浏览器检查为 `signbridge/tests/source6-preview-browser-qa.mjs`。前两次本地 QA 因测试误用会话字段、以及在已经结束时点击禁用的停止按钮失败，原记录保留；修正测试后实际播放、暂停／恢复、原始切换、完整结束和会话来源导出均已验证。
+
+独立人物预览未覆盖默认的 83 段实验动作集，也未装入插件的正式句子库。`human_approved`、`training_ready`、`model_training_ready` 仍为 false。后续数据接受须针对实际动作和句子边界逐条确认。
+
+复现使用新的输出目录（`$PREVIEW` 是新本地目录）：
+
+```bash
+.venv-sign-data/bin/python signbridge/src/tools/sign-demo-source6-export.py \
+  --package local-data/data-expansion-20261015/source-6/refinement-20261016-v1/audit-v2/package \
+  --review local-data/data-expansion-20261015/source-6/gpu-reconstruction-20261016-b2v1hmy0/candidate-review-v5 \
+  --pilot-results local-data/data-expansion-20261015/source-6/gpu-reconstruction-20261016-b2v1hmy0/pilot-verified-results-83ud9eeq/evidence/pilot-v1 \
+  --remaining-results local-data/data-expansion-20261015/source-6/gpu-reconstruction-20261016-b2v1hmy0/remaining-verified-results-nvbpi1k2/evidence/remaining-v1 \
+  --smplx-model local-data/sign-language-gpu-stage-v2/SMPLer-X/common/utils/human_model_files/smplx/SMPLX_NEUTRAL.npz \
+  --output "$PREVIEW/motions"
+cd signbridge
+SIGNBRIDGE_DEMO_EXPERIMENTAL_DIR="$PREVIEW/motions" npm run build
+```
+
+复制该次构建到独立位置后运行常规 `npm run build` 恢复默认本地资产集。无需上传、修改或训练 checkpoint。
+
 ## 1.0.2 实验动作平滑
 
 2026-10-15：后期 source-4 的 83 个实验片段来自逐帧 SMPL-X 拟合，原先直接播放，没有时序降噪。原始关节的高频跳变经映射保留下来，手腕位置也随之颤动。此前“画面非空且运动”的验收未覆盖此类稳定性问题。

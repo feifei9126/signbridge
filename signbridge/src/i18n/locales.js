@@ -103,6 +103,8 @@ const DEMO_ZH = {
     "当前为视频拟合的 SMPL-X 实验动作，未经过 T08 token 解码，未更新模型权重。",
   demoExperimentalWarning:
     "实验动作保留未经动作质量、镜像和人物核验的状态；仅用于 Demo，可能出现手型误差、跳变或穿模。",
+  demoExperimentalPreviewWarning:
+    "第 6 批人物预览：文字和动作首尾是未核验候选，可能夹带相邻教学动作。请对照原片检查手型、方向和抖动；镜像、人物及动作质量仍待确认。显示平滑只改变播放效果，未训练模型。",
   demoInvalidExperimentalAsset: "实验动作文件不完整或来源校验失败",
   demoCandidateBadge: "T08 tokenizer · 候选重建",
   demoCandidateDetail: "T08候选 · 归一化误差 {mse}",
@@ -255,6 +257,8 @@ const DEMO_EN = {
     "Video-fitted SMPL-X motion, not T08 token decoding. No model weights were updated.",
   demoExperimentalWarning:
     "Experimental motions have unreviewed motion quality, mirroring and signer identity. Demo only; hand errors, jitter and mesh intersections may occur.",
+  demoExperimentalPreviewWarning:
+    "Source-6 avatar preview: text and motion boundaries are unverified proposals and may include adjacent teaching demonstrations. Compare with the source for hand shapes, direction and jitter. Mirror, signer and motion quality remain unreviewed. Display smoothing changes playback only; no model was trained.",
   demoInvalidExperimentalAsset:
     "Incomplete experimental motion or provenance mismatch",
   demoCandidateBadge: "T08 tokenizer · Candidate reconstruction",
