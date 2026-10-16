@@ -6,6 +6,7 @@ import tempfile
 import unittest
 
 import numpy as np
+import cv2
 
 SCRIPT = Path(__file__).resolve().parents[1] / 'src/tools/sign-candidate-fit-review.py'
 spec = importlib.util.spec_from_file_location('candidate_fit_review', SCRIPT)
@@ -74,12 +75,43 @@ class CandidateReviewTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'frame map'):
             review.validate_frame_map(rows, case)
 
+    def test_metadata_requires_original_remote_root_frame_and_person(self):
+        root = Path('/remote/source6/remaining-v1')
+        row = {'img_path': str(root / 'input-frames/candidate/000003.jpg'), 'bbox_id': 0}
+        review.validate_metadata(row, root, 'candidate', 3, 0)
+        for wrong in [
+            {**row, 'img_path': '/another/input-frames/candidate/000003.jpg'},
+            {**row, 'img_path': str(root / 'input-frames/candidate/000004.jpg')},
+            {**row, 'bbox_id': 1},
+        ]:
+            with self.subTest(wrong=wrong), self.assertRaisesRegex(ValueError, 'metadata'):
+                review.validate_metadata(wrong, root, 'candidate', 3, 0)
+
     def test_rotations_use_so3_and_measure_midpoint_residual(self):
         values = np.zeros((3, 1, 3), np.float32)
         values[:, 0, 2] = np.deg2rad([179, 181, 183])
         result = review.rotation_metrics(values)
         self.assertAlmostEqual(result['adjacent_degrees']['p95'], 2., places=4)
         self.assertLess(result['geodesic_midpoint_residual_degrees']['maximum'], .001)
+
+    def test_noncommuting_constant_speed_rotations_have_zero_residual(self):
+        initial = cv2.Rodrigues(np.array([.6, .2, -.4]))[0]
+        poses = np.array([cv2.Rodrigues(initial @ cv2.Rodrigues(np.array([0., .15 * i, 0.]))[0])[0].reshape(3)
+                          for i in range(3)])[:, None]
+        metrics = review.rotation_metrics(poses)
+        self.assertLess(metrics['geodesic_midpoint_residual_degrees']['maximum'], .001)
+
+    def test_large_rotation_counts_frames_not_joints(self):
+        poses = np.zeros((3, 2, 3))
+        poses[1:, :, 0] = np.deg2rad(100.)
+        self.assertEqual(review.rotation_metrics(poses)['frame_transitions_over_90_degrees'], 1)
+
+    def test_rotation_gaps_are_not_bridged(self):
+        poses = np.zeros((2, 1, 3))
+        poses[1, 0, 0] = 2.
+        metrics = review.rotation_metrics(poses, [1, 3])
+        self.assertIsNone(metrics['adjacent_degrees']['p95'])
+        self.assertIsNone(metrics['geodesic_midpoint_residual_degrees']['p95'])
 
     def test_checksum_paths_cannot_escape_root(self):
         with tempfile.TemporaryDirectory() as tmp:

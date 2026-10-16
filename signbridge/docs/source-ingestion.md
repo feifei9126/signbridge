@@ -115,7 +115,11 @@ node src/tools/sign-intake-review.mjs \
 
 新增只读审计器 `src/tools/sign-candidate-fit-review.py` 及回归测试 `tests/sign-candidate-fit-review.test.py`。它把两次分开的候选重建与冻结的 12 段输入清单精确合并，核对归档内清单覆盖、压缩片帧数、逐帧源映射、参数字段形状／浮点有限值、单人轨迹、元数据和参数帧号、输入与渲染 JPEG 解码、日志摘要及对照视频帧数。缺失检测和多人帧会被单独列出，不插值、不补零、不平滑；时序旋转指标只作人工复核线索。
 
-最终复核包位于 `local-data/data-expansion-20261015/source-6/gpu-reconstruction-20261016-b2v1hmy0/candidate-review-v4/`，入口为 `index.html`，详细报告为 `REVIEW.md`，结构化指标与来源摘要为 `report.json`。12 段各有关键帧对照图及完整原片／网格视频；整个包有自己的 `SHA256SUMS`。审计确认 2,779/2,779 帧均有恰好一个人物轨迹、完整原生参数／元数据／渲染，无漏帧、漏检和多人帧。10 段保留原片尾部动作完成复核标记，另 2 段保留名义与实际片长差异标记。动作语义、边界、手势准确性、人物／镜像／侧别和 Demo 适用性未获人工通过；报告中 `human_approved`、`training_ready`、`model_training_ready` 仍为 false。
+最终复核包位于 `local-data/data-expansion-20261015/source-6/gpu-reconstruction-20261016-b2v1hmy0/candidate-review-v5/`，入口为 `index.html`，详细报告为 `REVIEW.md`，结构化指标与来源摘要为 `report.json`。12 段各有关键帧对照图及完整原片／网格视频；整个包有自己的 `SHA256SUMS`，报告同时绑定生成工具摘要。审计确认 2,779/2,779 帧均有恰好一个人物轨迹、完整原生参数／元数据／渲染，无漏帧、漏检和多人帧。10 段保留原片尾部动作完成复核标记，其中 2 段还有名义与实际片长差异标记。动作语义、边界、手势准确性、人物／镜像／侧别和 Demo 适用性未获人工通过；报告中 `human_approved`、`training_ready`、`model_training_ready` 仍为 false。
+
+新增旋转回归测试发现早期 v2／v4 本地报告的球面中点残差用了错误的矩阵乘法次序，且大于 90° 过渡计数按关节而非帧计算。已在 v5 使用 `Rprev * exp(0.5 * log(Rprev.T * Rnext))`，并通过非共轴恒速转动、缺帧不跨越、按帧计数和精确远端元数据路径／人物 ID 测试。旧报告和失败尝试完整保留，仅 v5 为最终指标；登记见 `local-review-attempts-v1.json`。原始推理参数、视频及归档不受该本地报告修正影响。
+
+最终 v5 中，身体与手部均无相邻旋转大于 90° 的帧过渡；24 组左右手序列的球面中点残差 P95 范围约为 7.27–12.13°，不能据此宣称手型准确或无抖动。Google Chrome 的自动浏览器检查确认 13 张图可解码、12 段视频均可加载／跳转／播放，桌面、平板、375 像素窄屏无横向溢出。视频 seek／加载产生的 `ERR_ABORTED` 请求保留在 QA 记录中，不作为媒体损坏；每段另有实际播放和逐帧解码证据。没有视觉回归基线，也没有人工动作审批。最终构建、Lint、Prettier、179 项 JavaScript 测试和 419 项 Python 测试全部通过。
 
 复现时需另选从未存在的输出目录：
 

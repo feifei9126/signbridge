@@ -2,6 +2,7 @@
 import argparse
 from datetime import datetime, timezone
 import hashlib
+import html
 import importlib.util
 import json
 from pathlib import Path
@@ -136,10 +137,16 @@ def validate_frame_map(rows, case):
         if (
             row.get("frame_1based") != number
             or row.get("interpolated") is not False
-            or not np.isclose(row.get("clip_seconds", float("nan")), expected_clip, atol=1e-7)
-            or not np.isclose(row.get("source_seconds_nominal", float("nan")), expected_source, atol=1e-7)
+            or not np.isclose(row.get("clip_seconds", float("nan")), expected_clip, rtol=0, atol=1e-7)
+            or not np.isclose(row.get("source_seconds_nominal", float("nan")), expected_source, rtol=0, atol=1e-7)
         ):
             raise ValueError("Candidate frame map differs at frame " + str(number))
+
+
+def validate_metadata(info, remote_output_root, sid, frame, person):
+    expected = Path(remote_output_root) / "input-frames" / sid / f"{frame:06d}.jpg"
+    if Path(info.get("img_path", "")) != expected or info.get("bbox_id") != person:
+        raise ValueError("Parameter metadata input path/frame/person differs")
 
 
 def _percentiles(values):
@@ -171,17 +178,19 @@ def rotation_metrics(poses, frame_numbers=None):
     numbers = np.arange(len(rotations)) if frame_numbers is None else np.asarray(frame_numbers)
     if numbers.shape != (len(rotations),):
         raise ValueError("Rotation frame numbers do not match poses")
-    adjacent, residual = [], []
+    adjacent, residual, large_frame_transitions = [], [], 0
     for index in range(len(rotations) - 1):
         if numbers[index + 1] != numbers[index] + 1:
             continue
         relative = rotations[index + 1] @ rotations[index].swapaxes(-1, -2)
         cosine = np.clip((np.trace(relative, axis1=-2, axis2=-1) - 1) / 2, -1, 1)
-        adjacent.extend(np.degrees(np.arccos(cosine)).tolist())
+        angles = np.degrees(np.arccos(cosine))
+        adjacent.extend(angles.tolist())
+        large_frame_transitions += int(np.any(angles > 90))
     for index in range(1, len(rotations) - 1):
         if numbers[index] != numbers[index - 1] + 1 or numbers[index + 1] != numbers[index] + 1:
             continue
-        relative = rotations[index + 1] @ rotations[index - 1].swapaxes(-1, -2)
+        relative = rotations[index - 1].swapaxes(-1, -2) @ rotations[index + 1]
         vectors = np.asarray([cv2.Rodrigues(value)[0].reshape(3) for value in relative])
         midpoint = np.einsum(
             "jab,jbc->jac",
@@ -194,7 +203,7 @@ def rotation_metrics(poses, frame_numbers=None):
     adjacent = np.asarray(adjacent, dtype=np.float64)
     return {
         "adjacent_degrees": _percentiles(adjacent),
-        "frame_transitions_over_90_degrees": int(np.sum(adjacent > 90)),
+        "frame_transitions_over_90_degrees": large_frame_transitions,
         "geodesic_midpoint_residual_degrees": _percentiles(residual),
         "interpolated_or_smoothed": False,
     }
@@ -369,18 +378,15 @@ def audit_case(case, source_record, run, result_root, attempt, ffprobe, ffmpeg, 
         raise ValueError("Native parameter and metadata frame/person sets differ: " + sid)
     for parameter in parameters:
         info = json.loads((fit / "meta" / (parameter.stem + ".json")).read_text())
-        image_path = Path(info.get("img_path", ""))
         frame_match = re.fullmatch(r"(\d{5})_(\d+)", parameter.stem)
-        if (
-            frame_match is None
-            or image_path.name != f"{int(frame_match.group(1)):06d}.jpg"
-            or sid not in image_path.parts
-            or "input-frames" not in image_path.parts
-        ):
+        if frame_match is None:
             raise ValueError("Parameter metadata does not map to its input frame: " + parameter.name)
+        validate_metadata(info, attempt["remote_output_root"], sid, int(frame_match.group(1)), int(frame_match.group(2)))
     missing = inventory["missing_frames"]
     if record["smplx_missing_detection_frames"] != missing:
         raise ValueError("Reported missing detections differ from native parameter inventory: " + sid)
+    if record["smplx_parameter_files"] != len(parameters) or record["render_frames"] != frames:
+        raise ValueError("Run report parameter/render counts differ from output files: " + sid)
     metrics = case_metrics(fit, frames, inventory)
     contact = output / (sid + "-contact.jpg")
     video = output / (sid + "-comparison.mp4")
@@ -460,6 +466,22 @@ def build(args):
     ]
     archive_evidence = []
     for attempt in attempts:
+        subset_manifest, subset_cases, _, subset_sha = sequence.validate_package(attempt["package_root"])
+        if (
+            subset_sha != attempt["run"].get("input_manifest_sha256")
+            or subset_manifest.get("parent_manifest_sha256") != manifest_sha
+            or {row["annotation_id"] for row in subset_cases} != attempt["ids"]
+            or len(attempt["run"].get("candidate_records", [])) != len(subset_cases)
+            or attempt["run"].get("completed_sequences") != len(subset_cases)
+            or attempt["run"].get("completed_frames") != sum(row["frames"] for row in subset_cases)
+            or any(row not in cases for row in subset_cases)
+            or attempt["run"].get("human_approved") is not False
+            or attempt["run"].get("training_ready") is not False
+        ):
+            raise ValueError("Derived input package/output/approval binding differs")
+        launch_name = "launch.json" if attempt["root"] == pilot_root else "remaining-launch.json"
+        launch = json.loads((attempt["root"].parent / launch_name).read_text())
+        attempt["remote_output_root"] = Path(launch["output"])
         archive_record_path = attempt["root"].parent.parent / "remote-archive.json"
         download_record_path = attempt["root"].parent.parent / "download-verification.json"
         archive_record = json.loads(archive_record_path.read_text())
@@ -479,6 +501,8 @@ def build(args):
                 "download_and_all_hashes_verified": True,
             }
         )
+    if attempts[0]["ids"] & attempts[1]["ids"]:
+        raise ValueError("Inference attempts must contain disjoint candidate IDs")
     if set.union(*(attempt["ids"] for attempt in attempts)) != {case["annotation_id"] for case in cases}:
         raise ValueError("Completed inference IDs do not exactly cover the candidate package")
     if sum(attempt["run"].get("completed_frames", 0) for attempt in attempts) != manifest["frames"]:
@@ -497,6 +521,7 @@ def build(args):
         "created_at": datetime.now(timezone.utc).isoformat(),
         "input_manifest_sha256": manifest_sha,
         "source_refinement_report_sha256": sha(source_report_path),
+        "audit_tool_sha256": sha(Path(__file__)),
         "sequences": len(results),
         "frames": sum(row["frames_expected"] for row in results),
         "independent_mano_keyframes": 0,
@@ -566,22 +591,22 @@ def build(args):
             )
         markdown.extend(["", "动作含义、边界准确性、镜像、人物及 Demo 适用性仍需人工确认。", ""])
     (output / "REVIEW.md").write_text("\n".join(markdown) + "\n")
-    html = [
+    html_parts = [
         "<!doctype html><html lang=\"zh-CN\"><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>第 6 批 SMPL-X 候选审阅</title>",
         "<style>body{max-width:1100px;margin:24px auto;padding:0 16px;font:16px system-ui;color:#18202a}section{border-top:1px solid #aaa;padding:20px 0}img,video{max-width:100%;height:auto}video{width:min(100%,960px)}li{margin:6px 0}</style><h1>第 6 批 SMPL-X 候选审阅</h1>",
         "<p>12 段 / 2,779 帧。结构检查已执行；动作质量、文本和边界尚未人工审批。输出是未经平滑的重建。</p><img src=\"overview.png\" alt=\"12 个候选的重建检查矩阵\"><p><a href=\"REVIEW.md\">详细指标和限制</a></p>",
     ]
     for row in results:
-        html.extend(
+        html_parts.extend(
             [
-                "<section><h2>" + row["label_candidate"] + "</h2>",
+                "<section><h2>" + html.escape(row["label_candidate"]) + "</h2>",
                 "<p>" + str(row["frames_expected"]) + " 帧；缺失拟合 " + str(len(row["native_parameter_inventory"]["missing_frames"])) + "；多人轨迹 " + str(len(row["native_parameter_inventory"]["multiple_person_frames"])) + "</p>",
                 "<img src=\"" + row["contact_sheet"] + "\" alt=\"原视频与 SMPL-X 网格关键帧对照\">",
                 "<video controls preload=\"metadata\" src=\"" + row["comparison_video"] + "\"></video></section>",
             ]
         )
-    html.append("</html>")
-    (output / "index.html").write_text("\n".join(html) + "\n")
+    html_parts.append("</html>")
+    (output / "index.html").write_text("\n".join(html_parts) + "\n")
     overview = Image.new("RGB", (1200, ((len(results) + 2) // 3) * 300), "#101820")
     draw = ImageDraw.Draw(overview)
     font_path = Path("/System/Library/Fonts/Supplemental/Arial Unicode.ttf")
