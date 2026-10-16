@@ -115,7 +115,7 @@ node src/tools/sign-intake-review.mjs \
 
 新增只读审计器 `src/tools/sign-candidate-fit-review.py` 及回归测试 `tests/sign-candidate-fit-review.test.py`。它把两次分开的候选重建与冻结的 12 段输入清单精确合并，核对归档内清单覆盖、压缩片帧数、逐帧源映射、参数字段形状／浮点有限值、单人轨迹、元数据和参数帧号、输入与渲染 JPEG 解码、日志摘要及对照视频帧数。缺失检测和多人帧会被单独列出，不插值、不补零、不平滑；时序旋转指标只作人工复核线索。
 
-最终复核包位于 `local-data/data-expansion-20261015/source-6/gpu-reconstruction-20261016-b2v1hmy0/candidate-review-v4/`，入口为 `index.html`，详细报告为 `REVIEW.md`，结构化指标与来源摘要为 `report.json`。12 段各有关键帧对照图及完整原片／网格视频；整个包有自己的 `SHA256SUMS`。审计确认 2,779/2,779 帧均有恰好一个人物轨迹、完整原生参数／元数据／渲染，无漏帧、漏检和多人帧。三处靠近原片结尾／时长差异等候选边界标记仍保留。动作语义、边界、手势准确性、人物／镜像／侧别和 Demo 适用性未获人工通过；报告中 `human_approved`、`training_ready`、`model_training_ready` 仍为 false。
+最终复核包位于 `local-data/data-expansion-20261015/source-6/gpu-reconstruction-20261016-b2v1hmy0/candidate-review-v4/`，入口为 `index.html`，详细报告为 `REVIEW.md`，结构化指标与来源摘要为 `report.json`。12 段各有关键帧对照图及完整原片／网格视频；整个包有自己的 `SHA256SUMS`。审计确认 2,779/2,779 帧均有恰好一个人物轨迹、完整原生参数／元数据／渲染，无漏帧、漏检和多人帧。10 段保留原片尾部动作完成复核标记，另 2 段保留名义与实际片长差异标记。动作语义、边界、手势准确性、人物／镜像／侧别和 Demo 适用性未获人工通过；报告中 `human_approved`、`training_ready`、`model_training_ready` 仍为 false。
 
 复现时需另选从未存在的输出目录：
 
