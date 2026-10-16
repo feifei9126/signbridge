@@ -56,6 +56,43 @@ test("symmetric smoothing preserves constant-speed turns, slow gestures and unit
     for (const q of Object.values(frame))
       assert.ok(Math.abs(q.length() - 1) < 1e-10);
 });
+test("targeted demo recovery applies stronger arm filtering and preserves continuous ramps", () => {
+  const noisy = Array.from({ length: 100 }, (_, i) =>
+    pose(i * 0.004 + (i % 2 ? 0.12 : -0.12)),
+  );
+  const regular = stability.stabilizeQuaternionTrack(noisy, 25);
+  const recovery = stability.stabilizeQuaternionTrack(
+    noisy,
+    25,
+    "quaternion-temporal-recovery-v1",
+  );
+  assert.ok(
+    residual(recovery, "leftHand") < residual(regular, "leftHand") * 0.8,
+  );
+  assert.ok(
+    residual(recovery, "leftIndexDistal") <=
+      residual(regular, "leftIndexDistal") * 1.01,
+  );
+  const ramp = Array.from({ length: 100 }, (_, i) => pose(i * 0.01));
+  const filtered = stability.stabilizeQuaternionTrack(
+    ramp,
+    25,
+    "quaternion-temporal-recovery-v1",
+  );
+  for (let i = 0; i < ramp.length; i++)
+    assert.ok(filtered[i].leftHand.angleTo(ramp[i].leftHand) < 1e-6);
+  assert.ok(filtered[0].leftHand.angleTo(ramp[0].leftHand) < 1e-7);
+  assert.ok(filtered.at(-1).leftHand.angleTo(ramp.at(-1).leftHand) < 1e-7);
+});
+test("targeted smoothing rejects unsafe or incomplete profiles", () => {
+  assert.throws(() =>
+    stability.stabilizeQuaternionTrack(
+      [pose(0), pose(0), pose(0)],
+      25,
+      "quaternion-temporal-recovery-v9",
+    ),
+  );
+});
 test("quaternion sign flips never become rotation spikes", () => {
   const raw = Array.from({ length: 50 }, (_, i) => {
     const q = new Quaternion().setFromAxisAngle(axis, 0.4);

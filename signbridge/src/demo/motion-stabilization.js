@@ -1,13 +1,28 @@
 // Display-only temporal filtering. Source fits and checkpoint outputs stay intact.
 export const MOTION_SMOOTHING_PROFILE = "quaternion-temporal-v1";
+export const MOTION_STABILIZATION_PROFILES = Object.freeze({
+  "quaternion-temporal-v1": Object.freeze({
+    armWindowMs: 45,
+    fingerWindowMs: 30,
+  }),
+  "quaternion-temporal-recovery-v1": Object.freeze({
+    armWindowMs: 100,
+    fingerWindowMs: 30,
+  }),
+});
 
-export function stabilizeQuaternionTrack(frames, fps) {
+export function stabilizeQuaternionTrack(
+  frames,
+  fps,
+  profile = MOTION_SMOOTHING_PROFILE,
+) {
   if (
     !Array.isArray(frames) ||
     !frames.length ||
     !Number.isFinite(fps) ||
     fps <= 0 ||
-    fps > 120
+    fps > 120 ||
+    !Object.hasOwn(MOTION_STABILIZATION_PROFILES, profile)
   )
     throw new Error("demoInvalidRotation");
   const names = Object.keys(frames[0]);
@@ -34,8 +49,10 @@ export function stabilizeQuaternionTrack(frames, fps) {
   for (const name of names) {
     // Fingers use a shorter window to retain quick handshape changes. Pairwise
     // shortest-arc means keep the window centered and tolerate q / -q encoding.
-    const sigma =
-      fps * (/Thumb|Index|Middle|Ring|Little/.test(name) ? 0.03 : 0.045);
+    const windowMs = /Thumb|Index|Middle|Ring|Little/.test(name)
+      ? MOTION_STABILIZATION_PROFILES[profile].fingerWindowMs
+      : MOTION_STABILIZATION_PROFILES[profile].armWindowMs;
+    const sigma = (fps * windowMs) / 1000;
     const radius = Math.ceil(2.5 * sigma);
     for (let frame = 1; frame < source.length - 1; frame++) {
       const count = Math.min(radius, frame, source.length - frame - 1);

@@ -1,8 +1,24 @@
 # SignBridge 本地展示 Demo
 
+## 2026-10-16：来源 4 两句显示抖动修复
+
+修复版构建目录是 `local-data/six-batch-motion-audit-20261016-b3j952wo/display-fix-v2/build/`。原有 Demo 服务 `http://127.0.0.1:8766/demo/index.html` 现在提供修复版资产；隔离验证地址是 `http://127.0.0.1:8768/demo/index.html`。仅「手语要多练习才可以熟能生巧」和「从今天起就由我们来给大家讲手语课程」绑定 `quaternion-temporal-recovery-v1` 显示配置：手臂窗口 100 ms，手指仍为 30 ms。训练权重和源拟合姿态未更改。
+
+真实 Godette 骨架复测：两句腕部位置中点残差 P95 从 2.27/2.64 cm 降至 0.57/0.59 cm；显示动作范围保留约 89%/84%。逐项数值在 `display-fix-v2/avatar-audit-v2/avatar-review.json`，真实浏览器播放及原始/恢复滤波切换在 `display-fix-v2/browser-recovery-qa-8766.json`。原始模式仍可一键切换。此调整只影响显示；原生拟合姿态数组、T08 和其他训练权重均未修改。
+
+「基本」与「人民」仍分别缺 7 帧和 45 帧原生参数，且不在现有 Demo 资产中。输入帧齐全，但已有运行记录是参数集不完整。本修复没有补零、插值或猜测姿态；两条保留为失败并排除在 Demo 外。逐条证据与有效后续操作见 `display-fix-v2/recovery-report.json`。
+
+隔离构建复现时使用新 `SIGNBRIDGE_BUILD_DIR`，不要覆盖现有 `dist/`：
+
+```bash
+SIGNBRIDGE_BUILD_DIR="$PWD/../local-data/six-batch-motion-audit-20261016-b3j952wo/display-fix-v2/build" \
+SIGNBRIDGE_DEMO_EXPERIMENTAL_DIR="$PWD/../local-data/six-batch-motion-audit-20261016-b3j952wo/display-fix-v2" \
+npm run build
+```
+
 ## 2026-10-16：六批动作逐项检查
 
-[六批质量检查记录](six-batch-motion-audit-20261016.md) 覆盖原生重建、独立关键帧、历史训练解码及当前 112 条 Demo/预览动作。当前显示有 2 句来源 4 动作仍触发手腕抖动筛查；2 条连续重建和 1 个独立身体关键帧存在确定缺失。逐项来源、原视频/网格对照、人物确切帧截图与阈值见本地 `local-data/six-batch-motion-audit-20261016-b3j952wo/review-v5/`。本次只检查，保持所有源参数、权重和审批记录原样。
+[六批质量检查记录](six-batch-motion-audit-20261016.md) 覆盖原生重建、独立关键帧、历史训练解码及当前 112 条 Demo/预览动作。基线审计发现 2 句来源 4 动作抖动筛查超限，已在本节单独修复；第 4 批另有 2 条连续重建及第 2 批 1 个独立身体关键帧存在缺失，仍明确排除。修复后逐项页、原视频/网格对照、人物确切帧截图和阈值见本地 `local-data/six-batch-motion-audit-20261016-b3j952wo/review-v6/`。
 
 ## 2026-10-16：来源 6 独立人物预览
 

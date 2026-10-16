@@ -78,15 +78,29 @@ def run(args):
     root = args.root.resolve(); output = args.output.resolve()
     if output.exists(): raise ValueError('Choose new output; prior evidence is immutable')
     output.mkdir(parents=True); (output / 'sheets').mkdir()
-    evidence_file = root / 'evidence-review-v2/evidence-review.json'; avatar_file = root / 'avatar-audit-v3/avatar-review.json'
+    evidence_file = root / 'evidence-review-v2/evidence-review.json'
+    avatar_file = (args.avatar_report or root / 'avatar-audit-v3/avatar-review.json').resolve()
+    capture_root = (args.avatar_captures or root / 'avatar-captures-v1').resolve()
     evidence = json.loads(evidence_file.read_text()); avatar = json.loads(avatar_file.read_text())
     am = {r['uid']: r for r in avatar['records']}; records = evidence['records']; sheets = []
+    recovery_root = args.recovery_root.resolve() if args.recovery_root else None
+    recovery_index = {}
+    if recovery_root:
+        recovery_index = {c['id']: c for c in json.loads((recovery_root / 'experimental-index.json').read_text())['clips']}
     for row in records:
         if row['kind'] == 'reference2d':
             row['risk_flags'] += [side + ':2d_coverage_below_50_percent' for side, value in row['hand_coverage'].items() if value < .5]
+        if recovery_root and row['kind'] == 'runtime' and row['group'] == 'runtime-source4':
+            entry = recovery_index[row['id']]
+            row['asset'] = str(recovery_root / entry['asset'])
+            row['asset_sha256'] = entry['sha256']
+            row['display_stabilization_profile'] = entry.get('display_stabilization_profile')
     if args.sheets_from:
         previous = json.loads((args.sheets_from / 'report.json').read_text())
+        previous_kinds = {r['uid']: r['kind'] for r in previous['records']}
         for item in previous['contact_sheets']:
+            if previous_kinds.get(item['uid']) == 'runtime':
+                continue
             original = Path(item['path'])
             if native.audit.sha(original) != item['sha256']: raise ValueError('Contact sheet changed')
             target = output / 'sheets' / original.name; shutil.copyfile(original, target)
@@ -96,9 +110,8 @@ def run(args):
             if row['kind'] in ('native', 'reference2d'):
                 sheets.append(native_sheet(row, output))
                 if len(sheets) % 20 == 0: print(json.dumps({'sheets': len(sheets), 'total_native_reference': 224}), flush=True)
-    capture_root = root / 'avatar-captures-v1'; captures = json.loads((capture_root / 'capture-report.json').read_text())
-    if not args.sheets_from:
-        for row in captures['records']: sheets.append(avatar_sheet(row, capture_root, output))
+    captures = json.loads((capture_root / 'capture-report.json').read_text())
+    for row in captures['records']: sheets.append(avatar_sheet(row, capture_root, output))
     sm = {r['uid']: r for r in sheets}; manifest = []
     for row in records:
         if row['uid'] in am: row['avatar'] = am[row['uid']]
@@ -123,10 +136,13 @@ def run(args):
         matched = [r['uid'] for r in records if r.get('source_sha256') == source['sha256']]
         source_coverage.append({**source, 'matched_result_ids': matched,
             'status': 'existing_results_audited' if matched else 'no_matching_current_result_in_audited_stages'})
+    runtime_risks = [r for r in records if r['kind'] == 'runtime' and r['avatar']['risk_flags']]
     report = {'schema': 'signbridge-six-batch-motion-quality-report-v1', 'counts_by_source_batch': counts,
         'records': records, 'checkpoints': evidence['checkpoints'], 'preserved_manifests': evidence['preserved_manifests'],
         'contact_sheets': sheets, 'source_inventory': source_coverage, 'limitations': evidence['limitations'],
         'input_reports': [{'path': str(p), 'sha256': native.audit.sha(p)} for p in [evidence_file, avatar_file, capture_root / 'capture-report.json']],
+        'display_recovery_report': ({'path': str(recovery_root / 'recovery-report.json',),
+            'sha256': native.audit.sha(recovery_root / 'recovery-report.json')} if recovery_root else None),
         'gallery_tool_sha256': native.audit.sha(__file__),
         'human_approved': False, 'training_ready': False, 'model_training_ready': False, 'source_parameters_changed': False,
         'supersedes': ['evidence-review-v1: missing optional 2D observations incorrectly counted as nonfinite fits; superseded by v2',
@@ -160,7 +176,7 @@ def run(args):
     page = '''<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>SignBridge 六批动作逐项检查</title>
 <style>body{font:16px/1.65 system-ui,sans-serif;background:#eef2f5;color:#182a3a;margin:0}main{max-width:1200px;margin:auto;padding:28px}h1{font-size:30px}article,.note{background:white;border:1px solid #c9d6df;border-radius:10px;padding:20px;margin:18px 0}img{width:100%;height:auto;border-radius:6px}small,.id{color:#526477;overflow-wrap:anywhere}pre{font-size:12px;white-space:pre-wrap;overflow-wrap:anywhere;max-height:650px;overflow:auto;background:#edf1f5;padding:12px}table{border-collapse:collapse;width:100%;font-size:14px}th,td{padding:8px;border:1px solid #cad5dc;text-align:left}.bad{color:#a52d2c;font-weight:600}input,select{font:inherit;padding:9px;max-width:100%;margin:4px}nav{position:sticky;top:0;background:#eef2f5;padding:10px 0;z-index:2}a{color:#1a547b}article[hidden]{display:none}label{display:inline-block}button{font:inherit;padding:8px}#count{font-weight:600}</style><main>
 <h1>六批动作逐项检查</h1><p>2026-10-16 · 依据原视频 SHA-256 归属目录 1–6 · 保留失败与未完成项</p>
-<div class="note"><strong>当前最需要处理：</strong>第 4 批 2 条连续重建缺帧；第 2 批 1 个独立关键帧无人身重建；当前 Demo 第 4 批 2 句平滑后手腕残差仍超过筛查阈值。旧 T03–T07 部分解码有时序风险。所有 10 份权重哈希匹配；8 份历史清单共 171,685 个文件重新校验一致。</div>
+<div class="note"><strong>当前状态：</strong>__CURRENT_STATE__</div>
 <p>“待复看”是量化风险，快速手势也可能触发；不代表手语错误。“未触发阈值”也不表示语义、手型或接触关系正确。全帧执行结构/时序/骨架检查；对照图为采样，未宣称逐段人工观看全部视频。历史批准记录保持原样，本报告不新增批准。</p>
 <table><thead><tr><th>来源</th><th>连续完整/任务</th><th>确定错误</th><th>原始时序风险</th><th>当前显示风险/动作</th><th>二维参考</th><th>独立身体关键帧/手部案例</th></tr></thead><tbody>''' + table + '''</tbody></table>
 <p>独立身体关键帧与 MANO 案例互有对应，不能相加当作句子数；训练轮次与原视频批次亦不同。第 5 批只有 24 条二维参考，4 条左手检测覆盖低于 50%。第 6 批原生参数完整，10 条触发广义原始尖峰筛查，当前显示 12 条均未触发人物残差阈值，但文本/边界仍待人工确认。</p>
@@ -171,22 +187,40 @@ def run(args):
     coverage_summary = '；'.join(f'第{b}批 {sum(s["batch"] == b and bool(s["matched_result_ids"]) for s in source_coverage)}/{sum(s["batch"] == b for s in source_coverage)} 个当前视频文件有对应结果' for b in range(1,7))
     page = page.replace('<nav>', '<p>原视频覆盖：' + coverage_summary + '。其余文件未找到本轮已完成阶段的对应结果，不能视为已训练；完整文件清单见机器报告。</p><nav>')
     page = page.replace('</style>', '@media(max-width:600px){main{padding:14px}table{display:block;overflow-x:auto}article{padding:12px;overflow-wrap:anywhere}input[type=search]{width:190px}}</style>')
+    if recovery_root:
+        unresolved = json.loads((recovery_root / 'recovery-report.json').read_text())['unresolved_incomplete_fits']
+        incomplete_summary = '；'.join(f'{r["text"]}缺{len(r["missing_frames"])}帧，仍排除' for r in unresolved)
+        current_summary = (f'当前修复版 112 条 Demo/预览动作均未触发人物抖动筛查；{incomplete_summary}。'
+                           '人手动作语义仍待复核。')
+        recovery_link = html.escape((recovery_root / 'recovery-report.json').as_uri(), quote=True)
+        page = page.replace('__CURRENT_STATE__', current_summary + f' <a href="{recovery_link}">修复与未完成项证据</a>')
+    else:
+        current_summary = ('第 4 批 2 条连续重建缺帧；第 2 批 1 个独立关键帧无人身重建；当前 Demo 两句显示腕部残差超筛查阈值。'
+                           '所有 10 份权重哈希匹配；8 份历史清单 171,685 项一致。')
+        page = page.replace('__CURRENT_STATE__', current_summary)
     (output / 'index.html').write_text(page)
-    runtime_risks = [r for r in records if r['kind'] == 'runtime' and r['avatar']['risk_flags']]
+    if recovery_root:
+        source4_summary = ('- 第4批91条完整原生轨迹仍有广义原始尖峰；当前83条 Demo 动作的显示阈值风险为0。两句采用显示层恢复，原始轨迹可切换。'
+                           '2条参数不完整的拟合仍排除。')
+    else:
+        source4_summary = ('- 第4批原始91条完整轨迹均触发广义风险筛查；当前83条使用既有显示平滑，81条未触发当前骨架阈值，2条仍需处理。')
     text = ['# 六批动作质量检查', '', '检查日期：2026-10-16。所有既有参数、权重与审批状态保持原样。', '',
         '## 确定技术错误', '']
     for row in records:
         if row['errors']: text.append(f'- {row["uid"]}：{row["text"]}；{", ".join(row["errors"])}。缺失不得补零或插值。')
-    text += ['', '## 当前显示仍需修复', '']
-    for row in runtime_risks:
-        a = row['avatar']; text.append(f'- {row["text"]}（{row["id"]}）：手腕中点残差 P95 {a["used"]["wristResidualP95Cm"]:.2f} cm；重点帧 {[p["frame_1based"] for p in a["used"]["worstWristFrames"]]}。')
+    if runtime_risks:
+        text += ['', '## 当前显示仍需修复', '']
+        for row in runtime_risks:
+            a = row['avatar']; text.append(f'- {row["text"]}（{row["id"]}）：手腕中点残差 P95 {a["used"]["wristResidualP95Cm"]:.2f} cm；重点帧 {[p["frame_1based"] for p in a["used"]["worstWristFrames"]]}。')
+    else:
+        text += ['', '## 修复后运行时检查', '', '- 修复版 112 条人物动作均未触发显示残差筛查；来源4两句绑定独立显示滤波，原始轨迹仍可切换。', '- 两条不完整重建继续排除，见 display-fix-v2/recovery-report.json。']
     text += ['', '## 结论与处理顺序', '',
-        '- 第4批原始91条完整轨迹均触发广义风险筛查；当前83条使用既有显示平滑，81条未触发当前骨架阈值，2条仍需处理。不能靠更强平滑证明手型正确。',
+        source4_summary + ' 不能靠更强平滑证明手型正确。',
         '- 第6批12条原生参数完整，当前显示未触发骨架阈值；边界、教学相邻演示、手型及接触仍需人工复看。',
         '- T01–T10权重哈希一致。62条历史保存解码含6条冻结共同参考；T03–T05共6条、T06–T07各1条触发人物时序筛查。这些历史输出没有替换当前T08。较平滑的T09/T10不等于语义更准。',
         '- 第2批685个独立身体关键帧有1个未检出身体，256个关键帧含未通过历史局部门槛的选中手部候选，65个无选中手部候选。665个MANO案例有13个无手部检出；可选二维观测缺失是显式NaN，三维拟合均有限，不能误报为损坏。',
         '- 第5批24条仅二维参考，其中4条左手覆盖不足50%；不能判断三维人物抖动，不能称已经训练。',
-        '- 先在新副本定位当前2条残余抖动并与原视频对照；再处理2条连续缺帧、1个独立无人身帧；保留失败证据并在新尝试重建；最后人工确认边界和动作含义。此次仅完成检查，没有自动平滑或重训源参数。',
+        '- 两句来源4显示抖动已在新副本采用100 ms手臂窗口恢复；这仅是显示层处理，边界与手语正确性仍需人工确认。',
         '', '## 覆盖范围与限制', '',
         '- 200条连续原生任务、24条二维参考、685个独立身体关键帧、665个独立MANO案例、62条保存的训练解码、112条当前运行时动作。不同阶段互相对应，不可合计为独立句子数。',
         '- 按341个现有视频文件重新计算SHA-256归属批次。第3批实际有61条连续重建；旧目录名不代表原视频批次。',
@@ -204,5 +238,5 @@ def run(args):
 
 
 if __name__ == '__main__':
-    p = argparse.ArgumentParser(description=__doc__); p.add_argument('--root', type=Path, required=True); p.add_argument('--output', type=Path, required=True); p.add_argument('--sheets-from', type=Path)
+    p = argparse.ArgumentParser(description=__doc__); p.add_argument('--root', type=Path, required=True); p.add_argument('--output', type=Path, required=True); p.add_argument('--sheets-from', type=Path); p.add_argument('--avatar-report', type=Path); p.add_argument('--avatar-captures', type=Path); p.add_argument('--recovery-root', type=Path)
     run(p.parse_args())

@@ -178,11 +178,19 @@ export function createT08Retarget(rig, modelRoot, bundle) {
     modelRoot.updateMatrixWorld(true);
     return targets;
   }
-  function compile(clip, { stabilize = clip.experimental === true } = {}) {
+  function compile(
+    clip,
+    {
+      stabilize = clip.experimental === true,
+      stabilizationProfile = clip.display_stabilization_profile,
+    } = {},
+  ) {
     const snapshot = rig.capture();
     try {
       const frames = clip.poses.map((p) => poseTargets(p));
-      return stabilize ? stabilizeQuaternionTrack(frames, clip.fps) : frames;
+      return stabilize
+        ? stabilizeQuaternionTrack(frames, clip.fps, stabilizationProfile)
+        : frames;
     } finally {
       rig.interpolate(snapshot, snapshot, 1);
       modelRoot.updateMatrixWorld(true);

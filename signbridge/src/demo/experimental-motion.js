@@ -1,3 +1,5 @@
+import { MOTION_STABILIZATION_PROFILES } from "./motion-stabilization.js";
+
 // Independent contract for unreviewed, demo-only fitted motions.
 const digestPattern = /^[a-f0-9]{64}$/;
 export const EXPERIMENTAL_MODEL_SHA256 =
@@ -58,6 +60,11 @@ function validMetadata(c) {
     c.fps > 0 &&
     c.fps <= 120 &&
     c.experimental === true &&
+    (c.display_stabilization_profile === undefined ||
+      Object.hasOwn(
+        MOTION_STABILIZATION_PROFILES,
+        c.display_stabilization_profile,
+      )) &&
     c.model_output === "smplx_fit_demo" &&
     c.training_data_member === false &&
     c.training_ready === false &&
@@ -121,6 +128,7 @@ export function validateExperimentalClip(data, entry) {
       "feature_sha256",
       "fitted_sha256",
       "quality_warning",
+      "display_stabilization_profile",
     ].every((key) => data[key] === entry[key]) ||
     JSON.stringify(data.aliases) !== JSON.stringify(entry.aliases) ||
     !previewFields.every(

@@ -80,6 +80,88 @@ test(
 );
 
 test(
+  "recovery profile asset selects stronger display filtering without changing source poses",
+  { skip: !candidateBundle },
+  async () => {
+    const module = await import("../src/demo/motion-stabilization.js");
+    const experimental = await import("../src/demo/experimental-motion.js");
+    const recovery = {
+      id: "recovery-fixture",
+      text: "测试",
+      aliases: ["测试"],
+      fps: 25,
+      frames: 4,
+      experimental: true,
+      display_stabilization_profile: "quaternion-temporal-recovery-v1",
+      model_output: "smplx_fit_demo",
+      training_data_member: false,
+      training_ready: false,
+      model_training_ready: false,
+      human_approved: false,
+      motion_review_status: "needs_review",
+      mirror_status: "unknown",
+      signer_id: "unconfirmed",
+      source_sha256: "a".repeat(64),
+      feature_sha256: "b".repeat(64),
+      fitted_sha256: "c".repeat(64),
+      quality_warning: false,
+      asset: "experimental/recovery-fixture.json",
+      sha256: "d".repeat(64),
+    };
+    const index = {
+      schema: "signbridge-experimental-motion-index-v1",
+      representation: "effective-smplx-55-axis-angle",
+      smplx_rest_model_sha256:
+        "376021446ddc86e99acacd795182bbef903e61d33b76b9d8b359c2b0865bd992",
+      training_weights_updated: false,
+      text_to_sign_trained: false,
+      training_ready: false,
+      model_training_ready: false,
+      research_only: true,
+      restJoints: Array.from({ length: 55 }, () => [0, 0, 0]),
+      parents: [-1, ...Array.from({ length: 54 }, (_, i) => i)],
+      clips: [recovery],
+    };
+    assert.equal(
+      experimental.validateExperimentalIndex(index).clips[0],
+      recovery,
+    );
+    const source = Array.from({ length: 100 }, (_, i) => ({
+      arm: new THREE.Quaternion().setFromAxisAngle(
+        new THREE.Vector3(0, 1, 0),
+        i * 0.004 + (i % 2 ? 0.12 : -0.12),
+      ),
+    }));
+    const saved = source.map((frame) => frame.arm.toArray());
+    const raw = module.stabilizeQuaternionTrack(
+      source,
+      25,
+      module.MOTION_SMOOTHING_PROFILE,
+    );
+    const display = module.stabilizeQuaternionTrack(
+      source,
+      25,
+      recovery.display_stabilization_profile,
+    );
+    const amount = (track) =>
+      track.slice(1, -1).reduce(
+        (sum, frame, i) =>
+          sum +
+          track[i].arm
+            .clone()
+            .slerp(track[i + 2].arm, 0.5)
+            .angleTo(frame.arm),
+        0,
+      );
+    assert.ok(amount(display) < amount(raw) * 0.8);
+    assert.deepEqual(
+      source.map((frame) => frame.arm.toArray()),
+      saved,
+    );
+  },
+);
+
+test(
   "actual Godette hierarchy retargets SMPL-X REST without flipping its head or moving the root",
   { skip: !bundle },
   () => {

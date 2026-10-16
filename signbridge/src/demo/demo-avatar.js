@@ -43,13 +43,15 @@ let running = false,
 const cache = new Map();
 function compiledSamples(clip, source) {
   const stabilize = clip.experimental === true && stabilization;
-  const key = `${clip.id}:${stabilize ? MOTION_SMOOTHING_PROFILE : "raw"}`;
+  const profile =
+    clip.display_stabilization_profile || MOTION_SMOOTHING_PROFILE;
+  const key = `${clip.id}:${stabilize ? profile : "raw"}`;
   if (!cache.has(key)) {
     cache.set(
       key,
       (source === "experimental" ? experimentalRetarget : retarget).compile(
         clip,
-        { stabilize },
+        { stabilize, stabilizationProfile: profile },
       ),
     );
     if (cache.size > 8) cache.delete(cache.keys().next().value);
@@ -122,6 +124,8 @@ async function nextItem() {
       fps: clip.fps,
       clip,
       stabilized: clip.experimental === true && stabilization,
+      stabilizationProfile:
+        clip.display_stabilization_profile || MOTION_SMOOTHING_PROFILE,
     };
     duration = clip.frames / clip.fps;
   } else {
@@ -140,7 +144,7 @@ async function nextItem() {
     tokens: track.clip?.tokens || null,
     qualityWarning: track.clip?.quality_warning || false,
     stabilized: track.stabilized || false,
-    presentation: track.stabilized ? MOTION_SMOOTHING_PROFILE : "raw",
+    presentation: track.stabilized ? track.stabilizationProfile : "raw",
     normalizedReconstructionMse:
       track.kind === "candidate"
         ? track.clip.normalized_reconstruction_mse
@@ -344,7 +348,7 @@ window.addEventListener("message", (ev) => {
         notify("PRESENTATION", {
           clipId: track.clip.id,
           stabilized: stabilization,
-          presentation: stabilization ? MOTION_SMOOTHING_PROFILE : "raw",
+          presentation: stabilization ? track.stabilizationProfile : "raw",
         });
       }
     } else if (type === "VIEW") {

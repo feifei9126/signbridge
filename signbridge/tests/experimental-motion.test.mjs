@@ -96,6 +96,7 @@ test("experimental contracts reject invented approvals, malformed frames and uns
     { frames: 0 },
     { aliases: [123] },
     { source_sha256: "bad" },
+    { display_stabilization_profile: "unregistered-profile" },
   ])
     assert.throws(() =>
       experimental.validateExperimentalIndex({
@@ -124,6 +125,28 @@ test("experimental contracts reject invented approvals, malformed frames and uns
   const broken = structuredClone(asset);
   broken.poses[0][0][0] = NaN;
   assert.throws(() => experimental.validateExperimentalClip(broken, entry));
+});
+
+test("experimental clips bind an allowlisted display recovery profile", () => {
+  const recovery = {
+    ...entry,
+    display_stabilization_profile: "quaternion-temporal-recovery-v1",
+  };
+  const recovered = {
+    ...asset,
+    ...recovery,
+    poses: asset.poses,
+  };
+  assert.equal(
+    experimental.validateExperimentalIndex({ ...index, clips: [recovery] })
+      .clips[0],
+    recovery,
+  );
+  assert.equal(
+    experimental.validateExperimentalClip(recovered, recovery),
+    recovered,
+  );
+  assert.throws(() => experimental.validateExperimentalClip(recovered, entry));
 });
 
 test("source-6 preview labels and provenance cannot be promoted or stripped", () => {

@@ -9,7 +9,7 @@ import {
 } from "fs";
 import { deflateSync } from "zlib";
 import { createHash } from "crypto";
-import { join, dirname } from "path";
+import { join, dirname, resolve } from "path";
 import { fileURLToPath } from "url";
 import {
   validateExperimentalIndex,
@@ -18,7 +18,7 @@ import {
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, "..");
-const DIST = join(ROOT, "dist");
+const DIST = resolve(process.env.SIGNBRIDGE_BUILD_DIR || join(ROOT, "dist"));
 const TOOLS = join(ROOT, "tools");
 
 function dp(...parts) {
