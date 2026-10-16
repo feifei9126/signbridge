@@ -108,3 +108,23 @@ node src/tools/sign-intake-review.mjs \
 在核验试跑证据后，将剩余 10 段／2,399 帧派生为与试跑 ID 完全不重叠的 `remaining-package/`。再次核验全部模型资产、工具及既有代码摘要并确认无活动推理后，于北京时间 09:52:25 启动新的 `remaining-v1/` 输出，runner PID 为 3501，日志为 `driver-remaining-v1.log`。试跑输出保持原样。启动证据已核验下载至 `remote-remaining-launch-evidence/`，阶段记录为 `RECONSTRUCTION-STAGE.json`；09:54 的状态快照确认子推理进程及逐帧输出正在推进。
 
 后台监控 `signbridge-6-gpu` 每 10 分钟检查真实进程、进度、GPU 和空间，正常推进时不通知；结束后在新的本地目录归档、核验和制作覆盖全部 12 段的审阅材料，遇到有意义的异常或需人工动作质量判断时才通知。候选重建续跑不改变训练、语义、边界、手别或 Demo 集成门槛。
+
+### 全批结构审计完成
+
+10 段续跑于北京时间 10:18:02 完成。2 段试跑加 10 段续跑共 12 段／2,779 帧；两个归档的外层摘要和 1,579 + 9,813 个内部文件摘要均已下载并核验。续跑归档 SHA-256 为 `49933af621d2f41c332b20126bc6a74c36a5d1c0be14acb76d4bddee09e1a4c6`，内部清单摘要为 `61994d031aea9edf8434db324a8d73ac03d0b569e741e449c66cb611ddfcc0aa`。首批归档摘要为 `dc11bcc18537ce4ff9ac5b21002939d3bbca14c8d785997d687ea6eadd04e2ec`。
+
+新增只读审计器 `src/tools/sign-candidate-fit-review.py` 及回归测试 `tests/sign-candidate-fit-review.test.py`。它把两次分开的候选重建与冻结的 12 段输入清单精确合并，核对归档内清单覆盖、压缩片帧数、逐帧源映射、参数字段形状／浮点有限值、单人轨迹、元数据和参数帧号、输入与渲染 JPEG 解码、日志摘要及对照视频帧数。缺失检测和多人帧会被单独列出，不插值、不补零、不平滑；时序旋转指标只作人工复核线索。
+
+最终复核包位于 `local-data/data-expansion-20261015/source-6/gpu-reconstruction-20261016-b2v1hmy0/candidate-review-v4/`，入口为 `index.html`，详细报告为 `REVIEW.md`，结构化指标与来源摘要为 `report.json`。12 段各有关键帧对照图及完整原片／网格视频；整个包有自己的 `SHA256SUMS`。审计确认 2,779/2,779 帧均有恰好一个人物轨迹、完整原生参数／元数据／渲染，无漏帧、漏检和多人帧。三处靠近原片结尾／时长差异等候选边界标记仍保留。动作语义、边界、手势准确性、人物／镜像／侧别和 Demo 适用性未获人工通过；报告中 `human_approved`、`training_ready`、`model_training_ready` 仍为 false。
+
+复现时需另选从未存在的输出目录：
+
+```bash
+.venv-sign-data/bin/python signbridge/src/tools/sign-candidate-fit-review.py \
+  --package local-data/data-expansion-20261015/source-6/refinement-20261016-v1/audit-v2/package \
+  --pilot-results local-data/data-expansion-20261015/source-6/gpu-reconstruction-20261016-b2v1hmy0/pilot-verified-results-83ud9eeq/evidence/pilot-v1 \
+  --remaining-results local-data/data-expansion-20261015/source-6/gpu-reconstruction-20261016-b2v1hmy0/remaining-verified-results-nvbpi1k2/evidence/remaining-v1 \
+  --ffprobe /opt/homebrew/bin/ffprobe \
+  --ffmpeg /opt/homebrew/bin/ffmpeg \
+  --output local-data/data-expansion-20261015/source-6/gpu-reconstruction-20261016-b2v1hmy0/candidate-review-new
+```
