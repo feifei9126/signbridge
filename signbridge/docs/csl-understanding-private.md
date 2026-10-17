@@ -57,3 +57,10 @@
 - 项目 Python 运行 `tests/sign-csl-learned.test.py`、`tests/sign-csl-data-readiness.test.py`、`tests/sign-private-serve.test.py`。
 - 浏览器验收通过 stdin 接收短期测试口令，不保存 token／headers／trace；验证角色互换、时间改写、否定疑问、拒绝、错误授权、文本渲染和清空会话。
 - 普通本地构建优先使用既有 `display-fix-v2` 防抖资产，保留显式覆盖及无资产环境。普通完整 `npm run build` 仍包含动作，**不是可保密分发包**。
+
+
+## 2026-10-18 临时公开研究演示
+
+用户允许将当前有限语义 Demo 上传用于研究和演示。新增公开工具包仅包含合成中文角色训练代码、本机推理服务、轻量客户端、测试和许可说明，原始视频、完整动作、既有权重与口令继续留在本地。下载者自行生成合成样本并在本机训练；不将其描述为已学会中国手语翻译。
+
+使用 `src/tools/sign-research-package.py` 的严格文件清单生成下载；源客户端必须通过逐文件哈希和文件清单检查，拒绝额外文件和符号链接，输出必须是新目录。ZIP包含代码许可，内部清单绑定源码快照和字节哈希。发布站点的使用说明见 `docs/research-demo.md`，页面仍与原动作播放版分开说明。
