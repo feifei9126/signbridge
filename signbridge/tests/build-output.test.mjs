@@ -302,3 +302,23 @@ test("experimental motions ship per-clip with checked hashes and no training pro
     validateExperimentalClip(JSON.parse(bytes.toString("utf8")), entry);
   }
 });
+
+test("local default builds retain verified wrist recovery profiles", () => {
+  if (process.env.SIGNBRIDGE_DEMO_EXPERIMENTAL_DIR) return;
+  const recovered = new URL(
+    "../../local-data/six-batch-motion-audit-20261016-b3j952wo/display-fix-v2/experimental-index.json",
+    import.meta.url,
+  );
+  if (!existsSync(recovered)) return;
+  const expected = JSON.parse(readFileSync(recovered, "utf8"));
+  const actual = JSON.parse(
+    readFileSync(join(dist, "demo/experimental-index.json"), "utf8"),
+  );
+  assert.equal(actual.display_smoothing_recovery, true);
+  assert.deepEqual(actual.recovery_profiles, expected.recovery_profiles);
+  for (const id of Object.keys(expected.recovery_profiles))
+    assert.equal(
+      actual.clips.find((c) => c.id === id).sha256,
+      expected.clips.find((c) => c.id === id).sha256,
+    );
+});

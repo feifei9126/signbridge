@@ -372,9 +372,15 @@ async function buildDemo() {
     );
   }
   writeFileSync(dp("avatar/t08-index.json"), JSON.stringify(runtimeIndex));
+  const recoveredRoot = join(
+    ROOT,
+    "../local-data/six-batch-motion-audit-20261016-b3j952wo/display-fix-v2",
+  );
   const experimentalRoot =
     process.env.SIGNBRIDGE_DEMO_EXPERIMENTAL_DIR ||
-    join(ROOT, "../local-data/demo-experimental-20261015");
+    (existsSync(join(recoveredRoot, "experimental-index.json"))
+      ? recoveredRoot
+      : join(ROOT, "../local-data/demo-experimental-20261015"));
   const experimentalIndex = join(experimentalRoot, "experimental-index.json");
   if (existsSync(experimentalIndex)) {
     const index = validateExperimentalIndex(

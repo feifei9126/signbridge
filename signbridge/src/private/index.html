@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>SignBridge</title>
+    <link rel="stylesheet" href="client.css" />
+  </head>
+  <body>
+    <main>
+      <h1 data-i18n="privateTitle"></h1>
+      <p class="scope" data-i18n="privateScope"></p>
+      <form id="understand-form">
+        <label for="endpoint" data-i18n="privateEndpoint"></label>
+        <input
+          id="endpoint"
+          type="url"
+          value="http://127.0.0.1:8770"
+          required
+          autocomplete="off"
+        />
+        <label for="token" data-i18n="privateToken"></label>
+        <input
+          id="token"
+          type="password"
+          required
+          minlength="40"
+          maxlength="128"
+          autocomplete="off"
+          spellcheck="false"
+        />
+        <p data-i18n="privateTokenHelp"></p>
+        <label for="sentence" data-i18n="privateSentence"></label>
+        <textarea id="sentence" rows="3" maxlength="500" required></textarea>
+        <div class="actions">
+          <button
+            id="analyze"
+            type="submit"
+            data-i18n="privateAnalyze"
+          ></button>
+          <button
+            id="disconnect"
+            type="button"
+            data-i18n="privateDisconnect"
+          ></button>
+        </div>
+      </form>
+      <section aria-labelledby="result-title">
+        <h2 id="result-title" data-i18n="privateResult"></h2>
+        <p
+          id="status"
+          role="status"
+          aria-live="polite"
+          data-i18n="privateWaiting"
+        ></p>
+        <div id="output"></div>
+      </section>
+      <p class="scope" data-i18n="privateMotionGap"></p>
+      <p data-i18n="privateProtectionScope"></p>
+    </main>
+    <script type="module" src="client.js"></script>
+  </body>
+</html>

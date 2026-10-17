@@ -31,7 +31,8 @@
     "format": "prettier --write src/ scripts/build.mjs tools/editor-full-entry.js tools/pose-editor.html tools/record-mode.html tests/ eslint.config.mjs package.json",
     "test": "npm run build --silent && node --test tests/*.test.mjs",
     "verify": "npm run build && npm run lint && npm test && npx prettier --check src/ scripts/build.mjs tools/editor-full-entry.js tools/pose-editor.html tools/record-mode.html tests/ eslint.config.mjs package.json",
-    "verify:release": "node tests/release-acceptance.mjs"
+    "verify:release": "node tests/release-acceptance.mjs",
+    "build:private": "node scripts/build-private.mjs"
   },
   "dependencies": {
     "@huggingface/transformers": "^3.7.6",

@@ -1,3 +1,103 @@
+const PRIVATE_ZH = {
+  privateTitle: "SignBridge · 中国手语理解研究版",
+  privateScope:
+    "当前已训练：受限中文语义角色解析。训练标签为助手合成中文示例，尚未训练出中国手语翻译或视频识别能力。",
+  privateEndpoint: "本机推理服务地址",
+  privateToken: "本次服务的会话口令",
+  privateTokenHelp:
+    "口令由本机服务终端生成，仅在本页面内存中使用；重启服务后失效。",
+  privateSentence: "输入一句中文（最多500字）",
+  privateAnalyze: "解析意思",
+  privateDisconnect: "清空会话",
+  privateResult: "语义解析结果",
+  privateWaiting: "启动本机服务并填写会话口令后可解析。",
+  privateAnalyzing: "正在调用本机训练模型…",
+  privateParsed: "已解析角色；尚需中国手语动作对齐与表达核验。",
+  privateAbstained: "该句超出已训练范围或存在歧义；已停止解析，请保留原文。",
+  privateMotionGap:
+    "手语输出暂未启用：词级动作边界、空间指代和非手部表达仍需核对。这里不会用整句检索或手工词库播放代替理解。",
+  privateProtectionScope:
+    "此客户端不包含完整词库、动作数据或模型权重。页面展示的结果仍可被复制；已发出的旧版安装包无法撤回。",
+  privateModel: "本次模型：{model}",
+  privateDisconnected: "会话已清空。",
+  privateEndpointInvalid: "请使用明确端口的 http://127.0.0.1 本机服务地址。",
+  privateTokenInvalid: "请填写本次终端生成的完整会话口令。",
+  privateTextInvalid: "请输入1至500字的中文。",
+  privateUnauthorized: "口令无效或已失效，请使用当前服务终端的口令。",
+  privateForbidden: "服务拒绝了来源；插件需在启动服务时加入其准确的扩展来源。",
+  privateRateLimited: "请求过于频繁，请稍后重试。",
+  privateBusy: "服务忙，请稍后重试。",
+  privateRequestFailed: "推理请求失败，请检查本机服务。",
+  privateResponseInvalid: "服务返回内容不符合当前模型接口。",
+  privateConnectionFailed:
+    "无法连接本机服务或请求已超时，请检查服务地址和运行状态。",
+  privateRoles: {
+    actor: "谁／施事",
+    predicate: "动作／状态",
+    patient: "对谁／受事",
+    goal: "目标地点",
+    time: "时间",
+    negation: "否定",
+    modal: "意愿／能力／必要性",
+    question: "疑问",
+    aspect: "体貌",
+    politeness: "请求",
+    degree: "程度",
+  },
+};
+const PRIVATE_EN = {
+  privateTitle: "SignBridge · CSL understanding research",
+  privateScope:
+    "Trained capability: bounded Chinese semantic roles, using assistant synthetic Chinese labels. CSL translation and video recognition are not trained.",
+  privateEndpoint: "Local inference service",
+  privateToken: "Session token",
+  privateTokenHelp:
+    "The local service prints a new token in its terminal. This page holds it in memory only; restart invalidates it.",
+  privateSentence: "Chinese sentence (up to 500 characters)",
+  privateAnalyze: "Analyze meaning",
+  privateDisconnect: "Clear session",
+  privateResult: "Semantic result",
+  privateWaiting: "Start the local service and enter its session token.",
+  privateAnalyzing: "Running the local trained model…",
+  privateParsed:
+    "Roles parsed; CSL motion alignment and realization still require review.",
+  privateAbstained:
+    "Unsupported or ambiguous sentence. Parsing stopped; retain the original text.",
+  privateMotionGap:
+    "Signing output awaits word-level motion alignment, spatial reference and nonmanual review. No retrieval or dictionary playback substitutes for understanding here.",
+  privateProtectionScope:
+    "This client includes no complete lexicon, motion data or model weights. Displayed results can still be copied; previously distributed packages cannot be recalled.",
+  privateModel: "Model: {model}",
+  privateDisconnected: "Session cleared.",
+  privateEndpointInvalid:
+    "Use an http://127.0.0.1 address with an explicit local service port.",
+  privateTokenInvalid:
+    "Enter the complete token from the current service terminal.",
+  privateTextInvalid: "Enter 1–500 characters.",
+  privateUnauthorized:
+    "Invalid or expired token. Use the current service terminal token.",
+  privateForbidden:
+    "Origin rejected. Start the service with this exact extension origin allowed.",
+  privateRateLimited: "Too many requests. Try again later.",
+  privateBusy: "Service busy. Try again shortly.",
+  privateRequestFailed: "Inference request failed. Check the local service.",
+  privateResponseInvalid: "Unexpected model response.",
+  privateConnectionFailed:
+    "Local service unavailable or request timed out. Check the address and service.",
+  privateRoles: {
+    actor: "Actor",
+    predicate: "Action / state",
+    patient: "Patient / recipient",
+    goal: "Goal",
+    time: "Time",
+    negation: "Negation",
+    modal: "Modality",
+    question: "Question",
+    aspect: "Aspect",
+    politeness: "Request",
+    degree: "Degree",
+  },
+};
 const SEMANTIC_ZH = {
   cslMode: "中国手语语义原型",
   cslTitle: "意思分析与表达草案",
@@ -462,6 +562,7 @@ const LOCALES = {
   "zh-CN": {
     ...DEMO_ZH,
     ...SEMANTIC_ZH,
+    ...PRIVATE_ZH,
     batchTitle: "本批补词清单 · 最多 8 个",
     batchManual: "手动加入完整词组（可选，避免分词误拆）",
     batchInvalidWord:
@@ -870,6 +971,7 @@ const LOCALES = {
   en: {
     ...DEMO_EN,
     ...SEMANTIC_EN,
+    ...PRIVATE_EN,
     batchTitle: "Vocabulary batch · up to 8 items",
     batchManual:
       "Add a complete phrase manually (optional, avoids token-splitting mistakes)",
@@ -1309,6 +1411,7 @@ const LOCALES = {
   ja: {
     ...DEMO_EN,
     ...SEMANTIC_JA,
+    ...PRIVATE_EN,
     batchTitle: "今回の語彙追加リスト · 最大 8 件",
     batchManual: "語句を手動で追加（任意・分割の誤りを回避）",
     batchInvalidWord:

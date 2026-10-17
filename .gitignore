@@ -24,3 +24,6 @@ signbridge_backup_*/
 /local-data/
 .venv-sign-data/
 __pycache__/
+
+# Thin private client builds; model/corpus stay under ignored local-data
+/signbridge/dist-private/
