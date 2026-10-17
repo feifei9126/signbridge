@@ -53,6 +53,13 @@
               aria-pressed="false"
               data-i18n="demoDictionary"
             ></button>
+            <button
+              type="button"
+              class="mode"
+              data-mode="semantic"
+              aria-pressed="false"
+              data-i18n="cslMode"
+            ></button>
           </div>
           <label class="sr-only" for="input" data-i18n="demoInput"></label
           ><textarea
@@ -90,6 +97,27 @@
             <div id="matches" class="match-list"></div>
             <p id="unknown" class="unknown"></p>
           </div>
+          <section
+            id="semantic-panel"
+            class="semantic-panel"
+            aria-labelledby="semantic-title"
+            hidden
+          >
+            <h3 id="semantic-title" data-i18n="cslTitle"></h3>
+            <p data-i18n="cslScope"></p>
+            <p id="semantic-status" role="status"></p>
+            <dl id="semantic-roles"></dl>
+            <h4 data-i18n="cslDraft"></h4>
+            <p id="semantic-draft"></p>
+            <p id="semantic-gaps"></p>
+            <p id="semantic-unknown"></p>
+            <ul id="semantic-blockers"></ul>
+            <p data-i18n="cslSources"></p>
+            <details>
+              <summary data-i18n="cslMeaningKey"></summary>
+              <pre id="semantic-json"></pre>
+            </details>
+          </section>
           <div class="catalog">
             <div class="section-label">
               <h3 data-i18n="demoCatalog"></h3>

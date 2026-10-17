@@ -1,3 +1,139 @@
+const SEMANTIC_ZH = {
+  cslMode: "中国手语语义原型",
+  cslTitle: "意思分析与表达草案",
+  cslScope:
+    "有限规则原型：先分析意思，再检查动作。不是已训练的中国手语理解模型；词序、手型、空间关系和表情仍需核对。",
+  cslReady: "可预览词库组合草案 · 未验证中国手语翻译",
+  cslPending: "保留了句意，但缺少可靠动作或表达约束；暂不播放不完整组合。",
+  cslRetrieved: "已有整段参考 · 仍是检索，未生成新的手语表达",
+  cslActor: "施事 / 谁",
+  cslPredicate: "动作 / 状态",
+  cslPatient: "受事 / 对谁",
+  cslGoal: "地点 / 目标",
+  cslTime: "时间",
+  cslNegation: "否定及范围",
+  cslModality: "意愿 / 能力 / 必要性",
+  cslQuestion: "疑问",
+  cslDegree: "程度",
+  cslPoliteness: "请求",
+  cslUnset: "未明确",
+  cslDraft: "候选表达单元（非固定中国手语语序）",
+  cslNoDraft: "句法超出原型范围，请核对原文。",
+  cslGaps: "缺少动作证据：{words}",
+  cslUnknown: "保留的未解析内容：{words}",
+  cslMeaningKey: "机器语义表示（草案）",
+  cslNoMatch: "该语义计划仍有证据缺口，不能播放为完整表达。",
+  cslSources: "动作来自既有手工词库；视频候选不会自动启用。",
+  cslIssues: {
+    empty_input: "请输入一句中文。",
+    unknown_input: "仍有未解析的词或符号。",
+    unsupported_predicate_structure: "多个动作或缺少谓词，需进一步标注。",
+    ambiguous_scope: "否定、情态或时间的范围有歧义。",
+    actor_unresolved: "句中执行动作的人尚未明确。",
+    ambiguous_participants: "人物关系超出当前简单句范围。",
+    unsupported_operator_order: "否定或情态位置超出已支持结构。",
+    unsupported_predicate_arguments: "动作的参与关系需进一步核对。",
+    goal_unresolved: "目标地点或动作受事尚未解析清楚。",
+    question_role_unresolved: "疑问词的语义角色尚未确认。",
+    multiple_clauses: "包含多分句，原型不会擅自合并。",
+    unassigned_meaning: "仍有未归属的语义单元。",
+    unsupported_degree_scope: "程度修饰的范围尚未确认。",
+    motion_evidence_missing: "部分概念没有可靠的独立动作资产。",
+    nonmanual_question_unavailable: "疑问需要的面部或头部表达尚未实现。",
+    spatial_agreement_unavailable: "帮助的方向、人物空间指代尚未核验。",
+    modal_interpretation_unreviewed: "情态含义不能直接用一个词库动作替代。",
+    input_limit: "超过500字，尾部保留并停止组合。",
+  },
+};
+const SEMANTIC_EN = {
+  cslMode: "CSL meaning prototype",
+  cslTitle: "Meaning and expression draft",
+  cslScope:
+    "Bounded rule prototype: analyze meaning, then check motion evidence. This is not a trained CSL understanding model. Order, handshape, spatial agreement and nonmanuals remain unverified.",
+  cslReady:
+    "Dictionary composition draft available · CSL translation unverified",
+  cslPending:
+    "Meaning is retained, but motion evidence or expression constraints are missing. Incomplete compositions cannot play.",
+  cslRetrieved:
+    "Existing whole-clip reference · retrieval, not newly generated signing",
+  cslActor: "Actor",
+  cslPredicate: "Action / state",
+  cslPatient: "Patient / recipient",
+  cslGoal: "Location / goal",
+  cslTime: "Time",
+  cslNegation: "Negation and scope",
+  cslModality: "Desire / ability / obligation",
+  cslQuestion: "Question",
+  cslDegree: "Degree",
+  cslPoliteness: "Request",
+  cslUnset: "Unspecified",
+  cslDraft: "Candidate units (not a fixed CSL word order)",
+  cslNoDraft: "Outside the supported syntax. Review the original input.",
+  cslGaps: "Missing motion evidence: {words}",
+  cslUnknown: "Unparsed content preserved: {words}",
+  cslMeaningKey: "Machine meaning representation (draft)",
+  cslNoMatch:
+    "Evidence is missing; this plan cannot play as a complete expression.",
+  cslSources:
+    "Motions use the existing authored dictionary; video candidates are never automatically enabled.",
+  cslIssues: {
+    empty_input: "Enter one Chinese sentence.",
+    unknown_input: "Some words or symbols remain unparsed.",
+    unsupported_predicate_structure:
+      "Multiple actions or a missing predicate require annotation.",
+    ambiguous_scope: "Negation, modality or time scope is ambiguous.",
+    actor_unresolved: "The actor is unresolved.",
+    ambiguous_participants:
+      "Participant relations exceed this simple-clause prototype.",
+    unsupported_operator_order: "Negation or modality order is unsupported.",
+    unsupported_predicate_arguments: "Predicate arguments require review.",
+    goal_unresolved: "The goal or patient is unresolved.",
+    question_role_unresolved: "The question role is unresolved.",
+    multiple_clauses: "Multiple clauses cannot be silently merged.",
+    unassigned_meaning: "Some meaning units have no assigned role.",
+    unsupported_degree_scope: "Degree scope is unresolved.",
+    motion_evidence_missing:
+      "Some concepts have no reliable independent motion.",
+    nonmanual_question_unavailable:
+      "Question-related facial and head expressions are unavailable.",
+    spatial_agreement_unavailable:
+      "Direction and spatial reference for help remain unverified.",
+    modal_interpretation_unreviewed:
+      "Modal meaning cannot be replaced by one dictionary motion.",
+    input_limit:
+      "Input exceeds 500 characters; the tail is retained and composition stopped.",
+  },
+};
+const SEMANTIC_JA = {
+  ...SEMANTIC_EN,
+  cslMode: "中国手話の意味分析試作",
+  cslTitle: "意味分析と表現案",
+  cslScope:
+    "限定した規則による試作です。意味を分析して動作資料を確認します。学習済みの中国手話理解モデルではなく、語順・手形・空間表現・表情は未確認です。",
+  cslReady: "辞書動作の組み合わせ案を試せます・中国手話翻訳は未確認",
+  cslPending:
+    "意味は保持されていますが、動作資料や表現条件が不足しています。未完成の組み合わせは再生できません。",
+  cslRetrieved: "既存の全体参考動画・新しい手話生成ではなく検索です",
+  cslActor: "動作主",
+  cslPredicate: "動作・状態",
+  cslPatient: "対象・受け手",
+  cslGoal: "場所・目標",
+  cslTime: "時",
+  cslNegation: "否定と範囲",
+  cslModality: "希望・能力・必要性",
+  cslQuestion: "疑問",
+  cslDegree: "程度",
+  cslPoliteness: "依頼",
+  cslUnset: "未指定",
+  cslDraft: "表現単位案（固定した中国手話の語順ではありません）",
+  cslNoDraft: "構文が試作の範囲外です。原文を確認してください。",
+  cslGaps: "動作資料の不足：{words}",
+  cslUnknown: "未解析の内容を保持：{words}",
+  cslMeaningKey: "意味の機械表現（案）",
+  cslNoMatch: "資料が不足しているため、完全な表現として再生できません。",
+  cslSources:
+    "既存の手作成辞書を使います。動画の候補は自動的に有効化しません。",
+};
 const DEMO_ZH = {
   intakeRefinementTitle: "来源 {name} · 动作边界复核",
   intakeRefinementPending: "文字与边界建议 · 未人工确认",
@@ -325,6 +461,7 @@ const DEMO_EN = {
 const LOCALES = {
   "zh-CN": {
     ...DEMO_ZH,
+    ...SEMANTIC_ZH,
     batchTitle: "本批补词清单 · 最多 8 个",
     batchManual: "手动加入完整词组（可选，避免分词误拆）",
     batchInvalidWord:
@@ -732,6 +869,7 @@ const LOCALES = {
   },
   en: {
     ...DEMO_EN,
+    ...SEMANTIC_EN,
     batchTitle: "Vocabulary batch · up to 8 items",
     batchManual:
       "Add a complete phrase manually (optional, avoids token-splitting mistakes)",
@@ -1170,6 +1308,7 @@ const LOCALES = {
   },
   ja: {
     ...DEMO_EN,
+    ...SEMANTIC_JA,
     batchTitle: "今回の語彙追加リスト · 最大 8 件",
     batchManual: "語句を手動で追加（任意・分割の誤りを回避）",
     batchInvalidWord:

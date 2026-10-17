@@ -233,3 +233,11 @@ python3 signbridge/tests/sign-demo-serve.test.py
 真实浏览器验收脚本 `signbridge/tests/demo-browser-qa.mjs` 需要可用的 Playwright 和 Chrome，默认访问 `http://127.0.0.1:8766/demo/index.html`。可用环境变量 `SIGNBRIDGE_PLAYWRIGHT_MODULE`、`SIGNBRIDGE_CHROME`、`SIGNBRIDGE_DEMO_URL`、`SIGNBRIDGE_DEMO_QA_DIR` 指定模块、浏览器、网址和报告目录；`SIGNBRIDGE_EXTENSION_CHROME` 可额外验证 Chromium 的解压扩展和真实弹窗入口。该脚本完整播放 14 段 T08 与 52 个词库动作，并检查快速播放/切模式、重播、暂停继续停止、视角速度、搜索、键盘操作、token、JSON 下载、六张对照图、375/768/1440 像素布局、缺失 T08 与模型加载失败的恢复。
 
 这些自动检查不代替手语专家对语言含义和手型的审核。教学研究对照图仍保留候选与未训练就绪状态，不把展示授权或匹配覆盖率当作语言质量批准。
+
+## 2026-10-17：中国手语语义原型
+
+Demo 新增“中国手语语义原型”模式。它先把中文解析为有限的语义角色：施事、动作/状态、受事/目标、时间、否定、情态、疑问和请求，再检查现有动作是否足以组成一个候选表达。比如“我今天去”会展示候选单元“今天 → 我 → 去”；“我帮你”会明确提示人物空间方向尚未核验；“你去吗？”会阻止播放，因为疑问所需的面部/头部非手控表达还没有动作证据。
+
+这不是中国手语翻译模型，也不是把中文词序宣称为中国手语语法。没有可靠动作、空间指代、疑问表情或情态表达时，原型保留缺口并不播放不完整组合。完整的视频拟合片段仍按整段检索；教学视频的“来/去/今天/昨天/明天”词级候选索引位于 `local-data/six-batch-motion-audit-20261016-b3j952wo/csl-semantic-evidence-v2/`，状态为 `assistant_candidate_only`，没有新增人工批准或训练。
+
+语义原型的可复现代码是 `signbridge/src/demo/csl-semantic-plan.js`，回归测试是 `signbridge/tests/csl-semantic-plan.test.mjs`。浏览器验证记录为 `local-data/six-batch-motion-audit-20261016-b3j952wo/csl-semantic-browser-qa-v1.json`。所有现有自动、T08、词库和实验模式保持原行为。

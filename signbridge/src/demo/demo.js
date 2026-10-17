@@ -58,6 +58,7 @@ function element(tag, text) {
 }
 function refreshPlan() {
   currentPlan = planDemoText(input.value, mode, playableClips());
+  renderSemanticPlan();
   document.querySelector("#chars").textContent =
     `${[...input.value].length} / 500`;
   document.querySelector("#match-count").textContent = t("demoCount", {
@@ -75,14 +76,73 @@ function refreshPlan() {
   document
     .querySelector("#unknown")
     .classList.toggle("supported", !currentPlan.unmatched);
-  document.querySelector("#unknown").textContent = currentPlan.unmatched
-    ? t("demoUnknown", { text: currentPlan.unmatched })
-    : input.value.trim()
-      ? t("demoAllMatched")
-      : "";
+  document.querySelector("#unknown").textContent =
+    mode === "semantic" && currentPlan.route !== "reference_retrieval"
+      ? t(currentPlan.canPreview ? "cslReady" : "cslPending")
+      : currentPlan.unmatched
+        ? t("demoUnknown", { text: currentPlan.unmatched })
+        : input.value.trim()
+          ? t("demoAllMatched")
+          : "";
   if (currentPlan.truncated) setStatus("demoTooLong");
   else if (currentPlan.items.length === 40) setStatus("demoLimit");
   playButton.disabled = !ready || !currentPlan.items.length;
+}
+function renderSemanticPlan() {
+  const panel = document.querySelector("#semantic-panel");
+  panel.hidden = mode !== "semantic";
+  if (panel.hidden) return;
+  const plan = currentPlan;
+  document.querySelector("#semantic-status").textContent = t(
+    plan.route === "reference_retrieval"
+      ? "cslRetrieved"
+      : plan.canPreview
+        ? "cslReady"
+        : "cslPending",
+  );
+  const list = document.querySelector("#semantic-roles");
+  list.replaceChildren();
+  for (const [role, key] of Object.entries({
+    actor: "cslActor",
+    predicate: "cslPredicate",
+    patient: "cslPatient",
+    goal: "cslGoal",
+    time: "cslTime",
+    negation: "cslNegation",
+    modality: "cslModality",
+    question: "cslQuestion",
+    degree: "cslDegree",
+    politeness: "cslPoliteness",
+  })) {
+    list.append(
+      element("dt", t(key)),
+      element("dd", plan.analysis.meaning[role]?.surface || t("cslUnset")),
+    );
+  }
+  document.querySelector("#semantic-draft").textContent = plan.draft.length
+    ? plan.draft.map((unit) => unit.surface).join(" → ")
+    : t("cslNoDraft");
+  document.querySelector("#semantic-gaps").textContent = plan.gaps.length
+    ? t("cslGaps", { words: plan.gaps.map((unit) => unit.surface).join("、") })
+    : "";
+  document.querySelector("#semantic-unknown").textContent =
+    plan.analysis.unknown.length || plan.analysis.remainingText
+      ? t("cslUnknown", {
+          words:
+            plan.analysis.unknown.map((unit) => unit.surface).join("") +
+            plan.analysis.remainingText,
+        })
+      : "";
+  const blockers = document.querySelector("#semantic-blockers");
+  blockers.replaceChildren();
+  if (plan.route !== "reference_retrieval")
+    for (const blocker of plan.blockers)
+      blockers.append(element("li", t(`cslIssues.${blocker}`)));
+  document.querySelector("#semantic-json").textContent = JSON.stringify(
+    plan,
+    null,
+    2,
+  );
 }
 function playableClips() {
   return clips.filter((clip) => availableSources.has(motionSource(clip)));
@@ -123,6 +183,7 @@ function renderCatalog() {
       ? phrases.filter(
           (entry) =>
             mode === "auto" ||
+            mode === "semantic" ||
             (mode === "t08" && entry.source !== "composition") ||
             (mode === "dictionary" && entry.source === "composition"),
         )
@@ -192,7 +253,7 @@ function play() {
   if (!ready) return;
   refreshPlan();
   if (!currentPlan.items.length) {
-    setStatus("demoNoMatch");
+    setStatus(mode === "semantic" ? "cslNoMatch" : "demoNoMatch");
     return;
   }
   resetUi();
@@ -376,6 +437,7 @@ document.querySelector("#download").addEventListener("click", () => {
       matchedText,
     })),
     unmatched: currentPlan.unmatched,
+    semanticPlan: mode === "semantic" ? currentPlan : null,
     checkpointSha256: model?.checkpoint_sha256 || null,
     checkpointStep: model?.checkpoint_step || null,
     runtime: "offline_token_decode_and_fitted_motion_assets",

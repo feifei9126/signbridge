@@ -592,3 +592,38 @@ pre {
 .unknown.supported {
   color: var(--accent);
 }
+
+.semantic-panel {
+  margin-top: 20px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--soft);
+}
+.semantic-panel[hidden] {
+  display: none;
+}
+.semantic-panel dl {
+  display: grid;
+  grid-template-columns: minmax(100px, 1fr) 2fr;
+  gap: 4px 12px;
+}
+.semantic-panel dt {
+  color: var(--muted);
+}
+.semantic-panel dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.semantic-panel pre {
+  max-height: 300px;
+  overflow: auto;
+  white-space: pre-wrap;
+}
+.semantic-panel ul {
+  padding-left: 20px;
+  color: var(--warn);
+}
+.mode-group:has([data-mode="semantic"]) {
+  flex-wrap: wrap;
+}

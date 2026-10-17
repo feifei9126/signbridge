@@ -158,3 +158,13 @@ test("candidate references require provenance, remain separate from training, an
     }),
   );
 });
+
+test("semantic mode delegates to the CSL meaning planner instead of substring matching", () => {
+  const plan = planDemoText("我今天去", "semantic");
+  assert.equal(plan.route, "composition_draft");
+  assert.deepEqual(
+    plan.items.map((item) => item.id),
+    ["csl_today", "csl_me", "csl_go"],
+  );
+  assert.equal(planDemoText("我帮你", "semantic").canPreview, false);
+});

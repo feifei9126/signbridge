@@ -1,4 +1,5 @@
 import { SIGNS } from "../avatar/sign-language-data.js";
+import { planCslText } from "./csl-semantic-plan.js";
 export const T08_CHECKPOINT_SHA256 =
   "438cbe537ad1b5bf14c795375209eb00d87cea5c3e97ed06f880f9764e8f9a5b";
 const punctuation = /[\s\p{P}]/u;
@@ -27,7 +28,8 @@ export function matchT08Reference(input, clips = []) {
   );
 }
 export function planDemoText(input, mode = "auto", clips = []) {
-  if (!["auto", "t08", "dictionary"].includes(mode))
+  if (mode === "semantic") return planCslText(input, clips);
+  if (!["auto", "t08", "dictionary", "semantic"].includes(mode))
     throw new Error("demoInvalidMode");
   const chars = [...String(input).normalize("NFKC")].slice(0, 500);
   const entries = [];
