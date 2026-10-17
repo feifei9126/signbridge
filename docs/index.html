@@ -41,6 +41,7 @@
           <a href="#demo">看演示</a>
           <a href="#how">项目亮点</a>
           <a href="#try">亲自体验</a>
+          <a href="#research">语义研究版</a>
         </nav>
         <a
           class="nav-source"
@@ -361,6 +362,97 @@
               </div>
             </li>
           </ol>
+        </div>
+      </section>
+
+      <section
+        class="section-space research-section"
+        id="research"
+        aria-labelledby="research-title"
+      >
+        <div class="container">
+          <div class="section-intro">
+            <div>
+              <p class="eyebrow">
+                <span class="index-mark">04</span> RESEARCH DEMO · 2026-10-18
+              </p>
+              <h2 id="research-title">
+                先解析意思，<br /><span class="accent-text"
+                  >再学习手语表达。</span
+                >
+              </h2>
+            </div>
+            <p>
+              新增可在本机训练和测试的中文语义研究版。它能区分“我帮你”和“你帮我”的施受事，分析时间、否定与疑问；当前尚未学会中国手语翻译或视频识别。
+            </p>
+          </div>
+          <div class="research-grid">
+            <div>
+              <h3>下载、训练、复现</h3>
+              <p>
+                研究工具包包含训练代码、本机推理服务、客户端与回归测试。需要
+                Python 3.10–3.12 和 NumPy；不用
+                GPU。首次运行会生成合成中文样本并在自己的电脑训练。
+              </p>
+              <div class="research-actions">
+                <a
+                  class="button button-dark"
+                  href="assets/signbridge-csl-research-kit-20261018.zip"
+                  download
+                  >下载研究工具包 · 约 63 KB
+                  <span aria-hidden="true">↓</span></a
+                >
+                <a
+                  class="button research-secondary"
+                  href="assets/signbridge-research-client-0.1.0.zip"
+                  download
+                  >单独下载客户端 · 约 45 KB
+                  <span aria-hidden="true">↓</span></a
+                >
+              </div>
+              <p class="research-note">
+                建议首次下载完整工具包；单独客户端需要先启动本机推理服务。网页展示结果与下载文件，不提供公网在线推理。
+              </p>
+              <ul class="research-links">
+                <li>
+                  <a
+                    href="https://github.com/feifei9126/signbridge/blob/main/docs/research-demo.md"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    >查看运行步骤和能力范围 ↗</a
+                  >
+                </li>
+                <li>
+                  <a href="assets/research-release.json"
+                    >发布版本与文件校验信息</a
+                  >
+                </li>
+                <li>
+                  <a href="assets/research-downloads.SHA256SUMS" download
+                    >下载 SHA256 校验清单</a
+                  >
+                </li>
+              </ul>
+              <p class="prototype-note">
+                评测使用助手合成中文标签，高分不代表中国手语准确率。复杂或未知语句会拒绝解析；没有动作输出。原有动作播放版仍可从上方下载。
+              </p>
+            </div>
+            <figure class="research-figure">
+              <a
+                href="assets/csl-semantics-research-20261018.png"
+                aria-label="查看中文语义研究版的完整界面截图"
+                ><img
+                  src="assets/csl-semantics-research-20261018.png"
+                  width="1280"
+                  height="1394"
+                  loading="lazy"
+                  alt="中文语义模型将你今天帮助我吗分解为施事你、时间今天、动作帮助、受事我、疑问吗，并提示手语输出尚未启用"
+              /></a>
+              <figcaption>
+                实际本机模型结果截图 · 中文角色解析，不是中国手语翻译
+              </figcaption>
+            </figure>
+          </div>
         </div>
       </section>
 

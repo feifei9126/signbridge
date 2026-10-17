@@ -1,0 +1,19 @@
+{
+  "schema": "signbridge-public-research-release-v1",
+  "source_commit": "51c40d358497cea9e2790e32ddb32a85a0e9426c",
+  "created_at": "2026-10-17T22:39:58.199790+00:00",
+  "scope": "bounded Chinese semantic role research, not CSL translation",
+  "artifacts": {
+    "signbridge-csl-research-kit-20261018.zip": {
+      "bytes": 62827,
+      "sha256": "f0f13b183ffad6dc01ccb3252c9429fb1e1096694dca296e76e206dc086aecea"
+    },
+    "signbridge-research-client-0.1.0.zip": {
+      "bytes": 45149,
+      "sha256": "71b13536650d636cf14761cc044b1d9c79468ad8c4f4a8ab064fcf0818a30984"
+    }
+  },
+  "original_video_included": false,
+  "weights_included": false,
+  "full_motion_library_included": false
+}

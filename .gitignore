@@ -27,3 +27,7 @@ __pycache__/
 
 # Thin private client builds; model/corpus stay under ignored local-data
 /signbridge/dist-private/
+
+# Explicitly reviewed public research downloads (no private data or weights)
+!docs/assets/signbridge-csl-research-kit-20261018.zip
+!docs/assets/signbridge-research-client-0.1.0.zip
