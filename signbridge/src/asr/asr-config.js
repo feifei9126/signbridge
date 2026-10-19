@@ -17,13 +17,23 @@ const DEFAULT_ASR_CONFIG = Object.freeze({
   chunkSeconds: 6,
 });
 
-function normalizeEndpoint(value, fallback) {
-  const candidate = String(value || fallback).trim();
-  const url = new URL(candidate);
-  if (!["http:", "https:"].includes(url.protocol)) {
-    throw new Error("asr-endpoint-protocol");
+// Shared by settings and the network client: validation must precede any fetch.
+function validateAsrEndpoint(value) {
+  const url = new URL(String(value).trim());
+  const loopback = ["127.0.0.1", "localhost", "[::1]"].includes(url.hostname);
+  if (
+    (url.protocol !== "https:" && !(url.protocol === "http:" && loopback)) ||
+    url.username ||
+    url.password ||
+    url.hash
+  ) {
+    throw new Error("asr-endpoint-secure-required");
   }
   return url.href;
+}
+
+function normalizeEndpoint(value, fallback) {
+  return validateAsrEndpoint(value || fallback);
 }
 
 function normalizeAsrConfig(value = {}) {
@@ -104,6 +114,7 @@ export {
   endpointPermissionPattern,
   getAsrConfig,
   normalizeAsrConfig,
+  validateAsrEndpoint,
   providerRequestConfig,
   setAsrConfig,
 };

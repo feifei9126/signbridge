@@ -76,3 +76,27 @@ test("private interface translations cover every supported locale", async () => 
     assert.equal(Object.keys(values.privateRoles).length, 11);
   }
 });
+
+test("private client rejects malformed role collections before rendering", async () => {
+  for (const roles of [
+    [],
+    "text",
+    { actor: 4 },
+    Object.fromEntries(Array.from({ length: 12 }, (_, i) => [String(i), "我"])),
+  ])
+    await assert.rejects(
+      understand({
+        endpoint: "http://127.0.0.1:8770",
+        token: "a".repeat(43),
+        text: "我帮你",
+        fetchImpl: async () => ({
+          ok: true,
+          json: async () => ({
+            status: "parsed",
+            roles,
+            csl_translation_trained: false,
+          }),
+        }),
+      }),
+    );
+});

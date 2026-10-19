@@ -2,11 +2,11 @@ import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { createHumanoidRig } from "../avatar/humanoid-rig.js";
 import { disposeModel } from "../avatar/dispose-model.js";
-import { SIGNS } from "../avatar/sign-language-data.js";
+import { SIGNS, CHARS } from "../avatar/sign-language-data.js";
 import {
   validateT08Bundle,
   validateT08CandidateBundle,
-} from "./demo-motion.js";
+} from "../avatar/reference-motion-asset.js";
 import { createT08Retarget } from "./demo-retarget.js";
 import { frameDelta } from "./demo-playback.js";
 import { MOTION_SMOOTHING_PROFILE } from "./motion-stabilization.js";
@@ -129,7 +129,11 @@ async function nextItem() {
     };
     duration = clip.frames / clip.fps;
   } else {
-    const sign = SIGNS[item.id];
+    const sign =
+      SIGNS[item.id] ||
+      (item.id.startsWith("char_") && CHARS[item.id.slice(5)]
+        ? { frames: CHARS[item.id.slice(5)] }
+        : null);
     if (item.source !== "dictionary" || !sign)
       throw new Error("demoInvalidAsset");
     track = builtInTrack(sign);

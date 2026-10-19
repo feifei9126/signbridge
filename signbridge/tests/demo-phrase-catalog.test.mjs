@@ -7,10 +7,17 @@ import {
   COMPOSED_PHRASES,
 } from "../src/demo/phrase-catalog.js";
 
-test("53 composed phrases are unique and fully covered by dictionary motions", () => {
-  assert.equal(COMPOSED_PHRASES.length, 53);
-  assert.equal(new Set(COMPOSED_PHRASES.map((phrase) => phrase.text)).size, 53);
-  assert.equal(new Set(COMPOSED_PHRASES.map((phrase) => phrase.id)).size, 53);
+test("only completely matched dictionary compositions are advertised", () => {
+  assert.ok(COMPOSED_PHRASES.length > 0 && COMPOSED_PHRASES.length < 53);
+  assert.ok(!COMPOSED_PHRASES.some((p) => p.text === "我很好"));
+  assert.equal(
+    new Set(COMPOSED_PHRASES.map((phrase) => phrase.text)).size,
+    COMPOSED_PHRASES.length,
+  );
+  assert.equal(
+    new Set(COMPOSED_PHRASES.map((phrase) => phrase.id)).size,
+    COMPOSED_PHRASES.length,
+  );
 
   for (const phrase of COMPOSED_PHRASES) {
     const plan = planDemoText(phrase.text, "dictionary");
@@ -27,7 +34,7 @@ test("53 composed phrases are unique and fully covered by dictionary motions", (
   assert.ok(Object.keys(SIGNS).length >= 52);
 });
 
-test("catalog reaches 70 entries without mislabeling candidates or compositions as trained", () => {
+test("catalog counts only supported combinations without implying training", () => {
   const references = Array.from({ length: 14 }, (_, index) => ({
     id: `reference-${index}`,
     text: `参考短句${index}`,
@@ -40,8 +47,11 @@ test("catalog reaches 70 entries without mislabeling candidates or compositions 
   }));
 
   const catalog = buildDemoPhraseCatalog([...references, ...candidates]);
-  assert.equal(catalog.length, 70);
-  assert.equal(new Set(catalog.map((entry) => entry.id)).size, 70);
+  assert.equal(catalog.length, 17 + COMPOSED_PHRASES.length);
+  assert.equal(
+    new Set(catalog.map((entry) => entry.id)).size,
+    17 + COMPOSED_PHRASES.length,
+  );
   assert.equal(catalog.filter((entry) => entry.source === "t08").length, 14);
   assert.equal(
     catalog.filter((entry) => entry.source === "candidate").length,
@@ -49,7 +59,7 @@ test("catalog reaches 70 entries without mislabeling candidates or compositions 
   );
   assert.equal(
     catalog.filter((entry) => entry.source === "composition").length,
-    53,
+    COMPOSED_PHRASES.length,
   );
   assert.ok(
     catalog

@@ -19,10 +19,10 @@ test("equivalent time placement produces the same explicit meaning", () => {
     analyzeCslText("今天我去").meaningKey,
   );
   const result = planCslText("我今天去");
-  assert.equal(result.route, "composition_draft");
-  assert.equal(result.canPreview, true);
+  assert.equal(result.route, "analysis_only");
+  assert.equal(result.canPreview, false);
   assert.deepEqual(
-    result.items.map((x) => x.id),
+    result.draft.map((x) => x.motionId),
     ["csl_today", "csl_me", "csl_go"],
   );
   assert.equal(result.humanApproved, false);
@@ -89,7 +89,7 @@ test("unsupported clauses, negation scope and voice are not confidently parsed",
     assert.ok(analyzeCslText(text).issues.length > 0, text);
   }
 });
-test("whole-utterance evidence remains retrieval; no substring crop fabricates word motions", () => {
+test("whole-utterance evidence never authorizes semantic playback", () => {
   const clip = {
     id: "full",
     text: "我帮你",
@@ -97,12 +97,13 @@ test("whole-utterance evidence remains retrieval; no substring crop fabricates w
     experimental: true,
   };
   const reference = planCslText("我帮你", [clip]);
-  assert.equal(reference.route, "reference_retrieval");
-  assert.equal(reference.canPreview, true);
-  assert.equal(reference.items[0].source, "experimental");
+  assert.equal(reference.route, "analysis_only");
+  assert.equal(reference.canPreview, false);
+  assert.equal(reference.referenceEvidence[0].experimental, true);
+  assert.deepEqual(reference.items, []);
   assert.equal(reference.cslTranslationVerified, false);
   assert.equal(planCslText("你帮我", [clip]).canPreview, false);
-  assert.notEqual(planCslText("我帮你🚀", [clip]).route, "reference_retrieval");
+  assert.equal(planCslText("我帮你🚀", [clip]).referenceEvidence.length, 0);
 });
 test("bounds retain the complete unsupported tail without HTML evaluation", () => {
   const plan = planCslText("我去" + "宇".repeat(510));
@@ -119,9 +120,9 @@ test("semantic reference matching never erases internal sentence boundaries", ()
     aliases: ["我帮你"],
     experimental: true,
   };
-  assert.notEqual(planCslText("我帮。你", [clip]).route, "reference_retrieval");
-  assert.notEqual(planCslText("我，帮你", [clip]).route, "reference_retrieval");
-  assert.equal(planCslText("我帮你！", [clip]).route, "reference_retrieval");
+  assert.equal(planCslText("我帮。你", [clip]).referenceEvidence.length, 0);
+  assert.equal(planCslText("我，帮你", [clip]).referenceEvidence.length, 0);
+  assert.equal(planCslText("我帮你！", [clip]).referenceEvidence.length, 1);
 });
 test("time or negation outside supported scope cannot become a confident composition", () => {
   for (const text of [
@@ -136,12 +137,12 @@ test("time or negation outside supported scope cannot become a confident composi
 });
 test("question punctuation cannot retrieve a declarative motion as an equivalent", () => {
   const declarative = { id: "go", text: "我去", aliases: ["我去"] };
-  assert.notEqual(
-    planCslText("我去？", [declarative]).route,
-    "reference_retrieval",
+  assert.equal(
+    planCslText("我去？", [declarative]).referenceEvidence.length,
+    0,
   );
   assert.equal(
-    planCslText("我去！", [declarative]).route,
-    "reference_retrieval",
+    planCslText("我去！", [declarative]).referenceEvidence.length,
+    1,
   );
 });

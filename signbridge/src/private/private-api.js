@@ -52,6 +52,12 @@ export async function understand({
   if (
     !["parsed", "abstained"].includes(result.status) ||
     !result.roles ||
+    typeof result.roles !== "object" ||
+    Array.isArray(result.roles) ||
+    Object.keys(result.roles).length > 11 ||
+    !Object.values(result.roles).every(
+      (v) => typeof v === "string" && [...v].length <= 500,
+    ) ||
     result.csl_translation_trained !== false
   )
     throw new Error("privateResponseInvalid");

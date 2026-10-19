@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Local-only, authenticated semantic inference. Never serves corpora or weights."""
+"""Local-only, authenticated semantic inference with a shared process quota. Never serves corpora or weights."""
 import argparse
 from collections import deque
 import hmac
@@ -11,7 +11,6 @@ import re
 import secrets
 import threading
 import time
-from urllib.parse import urlsplit
 
 
 class LimitedServer(ThreadingHTTPServer):
@@ -66,6 +65,9 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header('Content-Type', content_type)
         self.send_header('Content-Length', str(len(body)))
         self.send_header('Cache-Control', 'no-store')
+        self.send_header('X-RateLimit-Scope', 'process')
+        if status == 429:
+            self.send_header('Retry-After', '60')
         self.send_header('X-Content-Type-Options', 'nosniff')
         self.send_header('Referrer-Policy', 'no-referrer')
         self.send_header('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self' http://127.0.0.1:*; object-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'")
@@ -133,9 +135,9 @@ class Handler(BaseHTTPRequestHandler):
                 self.server.requests.popleft()
             if len(self.server.requests) >= self.server.rate_limit:
                 return self.send(429, {'error': 'rate_limited'})
+            if not self.server.inference.acquire(blocking=False):
+                return self.send(503, {'error': 'busy'})
             self.server.requests.append(now)
-        if not self.server.inference.acquire(blocking=False):
-            return self.send(503, {'error': 'busy'})
         try:
             result = self.server.parser.predict(body['text'])
         except Exception:

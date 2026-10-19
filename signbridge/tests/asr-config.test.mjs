@@ -47,8 +47,8 @@ test("ASR endpoint permissions are limited to the configured origin", () => {
     "https://speech.example.test/*",
   );
   assert.equal(
-    endpointPermissionPattern("http://speech.example.test:8765/v1/audio"),
-    "http://speech.example.test/*",
+    endpointPermissionPattern("http://127.0.0.1:8765/v1/audio"),
+    "http://127.0.0.1/*",
   );
 });
 

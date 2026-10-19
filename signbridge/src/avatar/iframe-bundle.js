@@ -18,7 +18,7 @@ import {
   T08_CHECKPOINT_SHA256,
   validateT08CandidateBundle,
   validateT08Bundle,
-} from "../demo/demo-motion.js";
+} from "./reference-motion-asset.js";
 import { createT08Retarget } from "../demo/demo-retarget.js";
 import {
   validateExperimentalIndex,

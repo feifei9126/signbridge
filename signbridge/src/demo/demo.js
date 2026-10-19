@@ -77,8 +77,8 @@ function refreshPlan() {
     .querySelector("#unknown")
     .classList.toggle("supported", !currentPlan.unmatched);
   document.querySelector("#unknown").textContent =
-    mode === "semantic" && currentPlan.route !== "reference_retrieval"
-      ? t(currentPlan.canPreview ? "cslReady" : "cslPending")
+    mode === "semantic"
+      ? t("cslAnalysisOnly")
       : currentPlan.unmatched
         ? t("demoUnknown", { text: currentPlan.unmatched })
         : input.value.trim()
@@ -86,20 +86,15 @@ function refreshPlan() {
           : "";
   if (currentPlan.truncated) setStatus("demoTooLong");
   else if (currentPlan.items.length === 40) setStatus("demoLimit");
-  playButton.disabled = !ready || !currentPlan.items.length;
+  playButton.disabled =
+    mode === "semantic" || !ready || !currentPlan.items.length;
 }
 function renderSemanticPlan() {
   const panel = document.querySelector("#semantic-panel");
   panel.hidden = mode !== "semantic";
   if (panel.hidden) return;
   const plan = currentPlan;
-  document.querySelector("#semantic-status").textContent = t(
-    plan.route === "reference_retrieval"
-      ? "cslRetrieved"
-      : plan.canPreview
-        ? "cslReady"
-        : "cslPending",
-  );
+  document.querySelector("#semantic-status").textContent = t("cslAnalysisOnly");
   const list = document.querySelector("#semantic-roles");
   list.replaceChildren();
   for (const [role, key] of Object.entries({
@@ -135,9 +130,8 @@ function renderSemanticPlan() {
       : "";
   const blockers = document.querySelector("#semantic-blockers");
   blockers.replaceChildren();
-  if (plan.route !== "reference_retrieval")
-    for (const blocker of plan.blockers)
-      blockers.append(element("li", t(`cslIssues.${blocker}`)));
+  for (const blocker of plan.blockers)
+    blockers.append(element("li", t(`cslIssues.${blocker}`)));
   document.querySelector("#semantic-json").textContent = JSON.stringify(
     plan,
     null,
@@ -251,6 +245,10 @@ function resetUi() {
 }
 function play() {
   if (!ready) return;
+  if (mode === "semantic") {
+    setStatus("cslAnalysisOnly");
+    return;
+  }
   refreshPlan();
   if (!currentPlan.items.length) {
     setStatus(mode === "semantic" ? "cslNoMatch" : "demoNoMatch");

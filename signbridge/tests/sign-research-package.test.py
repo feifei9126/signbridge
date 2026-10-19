@@ -25,7 +25,7 @@ class ResearchPackageTests(unittest.TestCase):
         for name in module.CLIENT_FILES - {'BUILD.json'}:
             path = client / name
             path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text('<html>fixture</html>' if name.endswith('.html') else '// client\n')
+            path.write_text('{"version":"0.1.0"}' if name == 'manifest.json' else '<html>fixture</html>' if name.endswith('.html') else '// client\n')
         files = {name: hashlib.sha256((client / name).read_bytes()).hexdigest() for name in module.CLIENT_FILES - {'BUILD.json'}}
         (client / 'BUILD.json').write_text(json.dumps({'schema': 'signbridge-private-client-build-v1', 'private_assets_included': False, 'csl_translation_trained': False, 'files': files}))
         return repo, client
@@ -51,6 +51,14 @@ class ResearchPackageTests(unittest.TestCase):
             self.assertEqual(result['source_commit'], 'a' * 40)
             with self.assertRaises(FileExistsError):
                 module.package(repo, client, out, 'a' * 40)
+
+    def test_frozen_packager_does_not_mislabel_a_new_client_as_the_old_release(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            repo, client = self.prepare(root)
+            (client / 'manifest.json').write_text('{"version":"0.1.1"}')
+            with self.assertRaisesRegex(ValueError, 'frozen'):
+                module.package(repo, client, root / 'release', 'a' * 40)
 
     def test_client_corruption_unknown_files_and_symlinks_are_rejected(self):
         for case in ['tamper', 'extra', 'symlink']:

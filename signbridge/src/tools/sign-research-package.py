@@ -62,7 +62,7 @@ Windows：第一步使用 `py -3.12 -m venv .venv`，后续将 `.venv/bin/python
 - 参考运行：训练6355、验证881、测试764；验证和测试角色完整匹配，34条同开发者构造挑战通过（17条拒绝）。模板简单、评估有偏差，这不是现实语言或中国手语准确率。
 - 无人类中国手语批准，无已确认词级动作边界、镜像、手语者、空间指代或非手部表达；不自动播放词库、整句动作或生成手语。
 - 该包不包含预训练权重、六批视频、原始动作、完整词库或原始评估语料。首次运行从代码生成合成样本并在自己的电脑训练。
-- 服务是本机研究用途，不是已部署的公网多用户推理服务。随机口令仅终端显示，重启失效，不写文件、URL或浏览器存储；默认60次／分钟，最多12连接／2并发推理。
+- 服务是本机研究用途，不是已部署的公网多用户推理服务。随机口令仅终端显示，重启失效，不写文件、URL或浏览器存储；单进程共享60次／分钟，最多12连接／2并发推理。
 - 代码与客户端作为临时公开研究 Demo 分发，可被下载和复制；不保证防提取。原始授权素材和后续私有资产不由此包分发。
 
 ## 文件核验
@@ -109,6 +109,8 @@ def package(repo, client, output, commit):
     if actual != CLIENT_FILES:
         raise ValueError('Client must contain only the six allowlisted files')
     client_files = {name: read_safe(client, name) for name in CLIENT_FILES}
+    if json.loads(client_files['manifest.json']).get('version') != '0.1.0':
+        raise ValueError('This frozen 20261018 packager requires client 0.1.0; use a new release version for later clients')
     build = json.loads(client_files['BUILD.json'])
     if (build.get('schema') != 'signbridge-private-client-build-v1' or build.get('private_assets_included') is not False
             or build.get('csl_translation_trained') is not False or set(build.get('files', {})) != CLIENT_FILES - {'BUILD.json'}):

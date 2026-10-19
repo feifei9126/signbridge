@@ -108,7 +108,7 @@ try {
   );
   assert.ok(
     (await page.locator("#catalog-note").textContent()).includes(
-      "53 条词库组合",
+      `${composedPhraseCount} 条词库组合`,
     ),
   );
   await screenshot("desktop.png");
@@ -350,7 +350,7 @@ try {
   assert.equal(await fallback.locator("#model-count").textContent(), "0");
   assert.equal(
     await fallback.locator("#catalog-count").textContent(),
-    "53 / 53",
+    `${composedPhraseCount} / ${composedPhraseCount}`,
   );
   await fallback.locator("[data-catalog-view=words]").click();
   assert.equal(

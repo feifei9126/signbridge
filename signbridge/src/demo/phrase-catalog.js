@@ -1,6 +1,6 @@
-import { demoTextKey, motionSource } from "./demo-motion.js";
+import { demoTextKey, motionSource, planDemoText } from "./demo-motion.js";
 
-export const COMPOSED_PHRASES = [
+const COMPOSITION_PROPOSALS = [
   { id: "composed-hello-thanks", text: "你好，谢谢", category: "daily" },
   { id: "composed-welcome-you", text: "欢迎你", category: "daily" },
   { id: "composed-thank-you", text: "谢谢你", category: "daily" },
@@ -88,6 +88,14 @@ export const COMPOSED_PHRASES = [
   training_data_member: false,
   training_ready: false,
 }));
+
+// Advertise only fully matched authored drafts under the shared word boundaries.
+// The historical proposals stay in source; unsupported combinations are not sold
+// as playable phrases and no dictionary entries are invented to make them pass.
+export const COMPOSED_PHRASES = COMPOSITION_PROPOSALS.filter((phrase) => {
+  const plan = planDemoText(phrase.text, "dictionary");
+  return !plan.unmatched && !plan.truncated && plan.items.length >= 2;
+});
 
 export function buildDemoPhraseCatalog(clips = []) {
   const priority = { t08: 0, candidate: 1, experimental: 2, composition: 3 };

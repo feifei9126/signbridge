@@ -5,21 +5,31 @@ import {
   writeFileSync,
   existsSync,
   readFileSync,
-  rmSync,
+  readdirSync,
+  statSync,
 } from "fs";
 import { deflateSync } from "zlib";
 import { createHash } from "crypto";
 import { join, dirname, resolve } from "path";
 import { fileURLToPath } from "url";
 import {
-  validateExperimentalIndex,
-  validateExperimentalClip,
-} from "../src/demo/experimental-motion.js";
+  prepareBuildDirectory,
+  resolveBuildProfile,
+} from "./build-contract.mjs";
+import { readResearchAssets } from "./research-assets.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, "..");
 const DIST = resolve(process.env.SIGNBRIDGE_BUILD_DIR || join(ROOT, "dist"));
 const TOOLS = join(ROOT, "tools");
+const requestedProfile = process.argv
+  .find((arg) => arg.startsWith("--profile="))
+  ?.split("=")[1];
+const profile = resolveBuildProfile({
+  ...process.env,
+  ...(requestedProfile ? { SIGNBRIDGE_BUILD_PROFILE: requestedProfile } : {}),
+});
+const researchInputs = readResearchAssets(profile);
 
 function dp(...parts) {
   const p = join(DIST, ...parts);
@@ -104,8 +114,11 @@ async function bundle(entry, outfile, opts = {}) {
 
 async function build() {
   console.log("\n🔵 SignBridge Build\n");
-  rmSync(DIST, { recursive: true, force: true });
-  mkdirSync(DIST, { recursive: true });
+  prepareBuildDirectory(
+    ROOT,
+    DIST,
+    [profile.assets, profile.experimental, profile.manifest].filter(Boolean),
+  );
 
   copyFileSync(join(ROOT, "manifest.json"), dp("manifest.json"));
   console.log("  ✓ manifest.json");
@@ -271,7 +284,58 @@ async function build() {
     console.log("  ✓ avatar/help.html");
   }
 
-  console.log("\n✅ Build complete!\n");
+  const files = {};
+  function collect(dir) {
+    for (const name of readdirSync(dir)) {
+      const path = join(dir, name);
+      if (statSync(path).isDirectory()) collect(path);
+      else if (name !== ".signbridge-build.json")
+        files[path.slice(DIST.length + 1).replaceAll("\\", "/")] = createHash(
+          "sha256",
+        )
+          .update(readFileSync(path))
+          .digest("hex");
+    }
+  }
+  collect(DIST);
+  const sourceHashes = {};
+  function sourceFiles(dir) {
+    for (const name of readdirSync(dir).sort()) {
+      const path = join(dir, name);
+      if (statSync(path).isDirectory()) sourceFiles(path);
+      else if (/\.(js|mjs|html|css|glb)$/.test(name))
+        sourceHashes[path.slice(ROOT.length + 1).replaceAll("\\", "/")] =
+          createHash("sha256").update(readFileSync(path)).digest("hex");
+    }
+  }
+  sourceFiles(join(ROOT, "src"));
+  sourceFiles(join(ROOT, "scripts"));
+  for (const name of ["manifest.json", "package.json", "package-lock.json"])
+    sourceHashes[name] = createHash("sha256")
+      .update(readFileSync(join(ROOT, name)))
+      .digest("hex");
+  const sourceDigest = createHash("sha256")
+    .update(JSON.stringify(sourceHashes))
+    .digest("hex");
+  writeFileSync(
+    dp("BUILD.json"),
+    JSON.stringify(
+      {
+        schema: "signbridge-build-v1",
+        profile: profile.name,
+        source_sha256: sourceDigest,
+        authored_dictionary_included: true,
+        research_assets_included: Boolean(researchInputs),
+        research_asset_manifest_sha256: researchInputs?.manifestSha256 || null,
+        training_ready: false,
+        csl_translation_trained: false,
+        files,
+      },
+      null,
+      2,
+    ) + "\n",
+  );
+  console.log("\n✅ Build complete: " + profile.name + "\n");
 }
 
 async function buildDemo() {
@@ -287,10 +351,7 @@ async function buildDemo() {
   }
   await bundle("demo/demo.js", "demo/demo.js");
   await bundle("demo/demo-avatar.js", "demo/demo-avatar.js");
-  const assets =
-    process.env.SIGNBRIDGE_DEMO_ASSET_DIR ||
-    join(ROOT, "../local-data/demo-20261012");
-  const motion = join(assets, "t08-motion.json");
+
   let runtimeIndex = {
     schema: "signbridge-t08-runtime-index-v1",
     checkpoint_sha256: "",
@@ -305,17 +366,12 @@ async function buildDemo() {
     research_only: true,
     clips: [],
   };
-  if (existsSync(motion)) {
-    copyFileSync(motion, dp("demo/t08-motion.json"));
-    const source = JSON.parse(readFileSync(motion, "utf8"));
-    if (
-      source.schema !== "signbridge-t08-demo-v1" ||
-      source.research_only !== true ||
-      source.text_to_sign_trained !== false ||
-      !/^[a-f0-9]{64}$/.test(source.checkpoint_sha256) ||
-      source.clips?.length !== 14
-    )
-      throw new Error("Local T08 asset does not match the demo contract");
+  if (researchInputs) {
+    writeFileSync(
+      dp("demo/t08-motion.json"),
+      researchInputs.fileBytes.demo.get("t08-motion.json"),
+    );
+    const source = researchInputs.motion;
     runtimeIndex = {
       schema: "signbridge-t08-runtime-index-v1",
       checkpoint_sha256: source.checkpoint_sha256,
@@ -338,21 +394,12 @@ async function buildDemo() {
       "  ℹ T08 assets absent; Demo dictionary mode remains available (see docs/demo.md)",
     );
   }
-  const candidates = join(assets, "t08-candidates.json");
-  if (existsSync(candidates)) {
-    copyFileSync(candidates, dp("demo/t08-candidates.json"));
-    candidateAsset = JSON.parse(readFileSync(candidates, "utf8"));
-    if (
-      candidateAsset.schema !== "signbridge-t08-motion-candidates-v1" ||
-      candidateAsset.training_checkpoint_sha256 !==
-        runtimeIndex.checkpoint_sha256 ||
-      candidateAsset.training_weights_updated !== false ||
-      candidateAsset.training_ready !== false ||
-      candidateAsset.clips?.length !== 3
-    )
-      throw new Error(
-        "Local T08 candidate asset does not match the review contract",
-      );
+  if (researchInputs) {
+    writeFileSync(
+      dp("demo/t08-candidates.json"),
+      researchInputs.fileBytes.demo.get("t08-candidates.json"),
+    );
+    candidateAsset = researchInputs.candidates;
     runtimeIndex.clips.push(
       ...candidateAsset.clips.map(
         ({ id, text, aliases, fps, frames, runtime_candidate }) => ({
@@ -372,33 +419,11 @@ async function buildDemo() {
     );
   }
   writeFileSync(dp("avatar/t08-index.json"), JSON.stringify(runtimeIndex));
-  const recoveredRoot = join(
-    ROOT,
-    "../local-data/six-batch-motion-audit-20261016-b3j952wo/display-fix-v2",
-  );
-  const experimentalRoot =
-    process.env.SIGNBRIDGE_DEMO_EXPERIMENTAL_DIR ||
-    (existsSync(join(recoveredRoot, "experimental-index.json"))
-      ? recoveredRoot
-      : join(ROOT, "../local-data/demo-experimental-20261015"));
-  const experimentalIndex = join(experimentalRoot, "experimental-index.json");
-  if (existsSync(experimentalIndex)) {
-    const index = validateExperimentalIndex(
-      JSON.parse(readFileSync(experimentalIndex, "utf8")),
-    );
-    for (const entry of index.clips) {
-      const bytes = readFileSync(join(experimentalRoot, entry.asset));
-      if (createHash("sha256").update(bytes).digest("hex") !== entry.sha256)
-        throw new Error("Experimental motion digest differs: " + entry.id);
-      validateExperimentalClip(JSON.parse(bytes.toString("utf8")), entry);
-      copyFileSync(
-        join(experimentalRoot, entry.asset),
-        dp("demo", entry.asset),
-      );
-    }
-    copyFileSync(experimentalIndex, dp("demo/experimental-index.json"));
+  if (researchInputs) {
+    for (const [name, bytes] of researchInputs.fileBytes.experimental)
+      writeFileSync(dp("demo", name), bytes);
     console.log(
-      `  ✓ ${index.clips.length} experimental fitted motions (lazy loaded, not training)`,
+      `  ✓ ${researchInputs.experimental.clips.length} experimental fitted motions (explicit local assets)`,
     );
   } else {
     writeFileSync(
@@ -406,23 +431,12 @@ async function buildDemo() {
       JSON.stringify({ unavailable: true }),
     );
   }
-  const researchFile = join(assets, "research.json");
-  const research = existsSync(researchFile)
-    ? JSON.parse(readFileSync(researchFile, "utf8"))
-    : [];
-  if (!Array.isArray(research))
-    throw new Error("Invalid local Demo research manifest");
-  for (const item of research) {
-    if (!/^research\/[a-zA-Z0-9_-]+\.jpg$/.test(item.image))
-      throw new Error("Invalid Demo research image path");
-    const source = join(assets, item.image);
-    if (
-      createHash("sha256").update(readFileSync(source)).digest("hex") !==
-      item.sha256
-    )
-      throw new Error("Demo research image digest differs");
-    copyFileSync(source, dp("demo", item.image));
-  }
+  const research = researchInputs?.research || [];
+  for (const item of research)
+    writeFileSync(
+      dp("demo", item.image),
+      researchInputs.fileBytes.demo.get(item.image),
+    );
   writeFileSync(dp("demo/research.json"), JSON.stringify(research));
 }
 

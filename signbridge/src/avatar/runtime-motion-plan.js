@@ -1,11 +1,11 @@
 // Preserve complete reference spans inside a subtitle before dictionary fallback.
-import { planDemoText } from "../demo/demo-motion.js";
+import { planReferenceText } from "./reference-motion-plan.js";
 import { translateText } from "./sign-language-data.js";
 
 export function planRealtimeText(input, clips = [], matchers) {
   const chars = [...String(input).normalize("NFKC")];
   const end = Math.min(chars.length, 500);
-  const references = planDemoText(chars.slice(0, end).join(""), "t08", clips);
+  const references = planReferenceText(chars.slice(0, end).join(""), clips);
   const items = [],
     unmatched = [];
   let cursor = 0,

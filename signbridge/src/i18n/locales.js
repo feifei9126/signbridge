@@ -99,13 +99,12 @@ const PRIVATE_EN = {
   },
 };
 const SEMANTIC_ZH = {
-  cslMode: "中国手语语义原型",
+  cslMode: "中文意思分析（规则研究）",
+  cslAnalysisOnly:
+    "仅分析中文意思：未完成中国手语词级对齐与语言复核，不播放动作。",
   cslTitle: "意思分析与表达草案",
   cslScope:
     "有限规则原型：先分析意思，再检查动作。不是已训练的中国手语理解模型；词序、手型、空间关系和表情仍需核对。",
-  cslReady: "可预览词库组合草案 · 未验证中国手语翻译",
-  cslPending: "保留了句意，但缺少可靠动作或表达约束；暂不播放不完整组合。",
-  cslRetrieved: "已有整段参考 · 仍是检索，未生成新的手语表达",
   cslActor: "施事 / 谁",
   cslPredicate: "动作 / 状态",
   cslPatient: "受事 / 对谁",
@@ -123,8 +122,10 @@ const SEMANTIC_ZH = {
   cslUnknown: "保留的未解析内容：{words}",
   cslMeaningKey: "机器语义表示（草案）",
   cslNoMatch: "该语义计划仍有证据缺口，不能播放为完整表达。",
-  cslSources: "动作来自既有手工词库；视频候选不会自动启用。",
+  cslSources: "词级ID仅作为草案引用；分析结果不会触发词库或视频动作播放。",
   cslIssues: {
+    csl_alignment_unreviewed:
+      "中国手语词级对齐、空间指代和非手部语法尚未复核。",
     empty_input: "请输入一句中文。",
     unknown_input: "仍有未解析的词或符号。",
     unsupported_predicate_structure: "多个动作或缺少谓词，需进一步标注。",
@@ -146,16 +147,12 @@ const SEMANTIC_ZH = {
   },
 };
 const SEMANTIC_EN = {
-  cslMode: "CSL meaning prototype",
+  cslMode: "Chinese meaning analysis (rules)",
+  cslAnalysisOnly:
+    "Chinese analysis only: CSL alignment and language review are incomplete. Motion playback is disabled.",
   cslTitle: "Meaning and expression draft",
   cslScope:
     "Bounded rule prototype: analyze meaning, then check motion evidence. This is not a trained CSL understanding model. Order, handshape, spatial agreement and nonmanuals remain unverified.",
-  cslReady:
-    "Dictionary composition draft available · CSL translation unverified",
-  cslPending:
-    "Meaning is retained, but motion evidence or expression constraints are missing. Incomplete compositions cannot play.",
-  cslRetrieved:
-    "Existing whole-clip reference · retrieval, not newly generated signing",
   cslActor: "Actor",
   cslPredicate: "Action / state",
   cslPatient: "Patient / recipient",
@@ -175,8 +172,10 @@ const SEMANTIC_EN = {
   cslNoMatch:
     "Evidence is missing; this plan cannot play as a complete expression.",
   cslSources:
-    "Motions use the existing authored dictionary; video candidates are never automatically enabled.",
+    "Word IDs are draft references only. Analysis never triggers dictionary or video motion playback.",
   cslIssues: {
+    csl_alignment_unreviewed:
+      "CSL word alignment, spatial reference and nonmanual grammar remain unreviewed.",
     empty_input: "Enter one Chinese sentence.",
     unknown_input: "Some words or symbols remain unparsed.",
     unsupported_predicate_structure:
@@ -206,14 +205,12 @@ const SEMANTIC_EN = {
 };
 const SEMANTIC_JA = {
   ...SEMANTIC_EN,
-  cslMode: "中国手話の意味分析試作",
+  cslMode: "中国語の意味分析（規則研究）",
+  cslAnalysisOnly:
+    "中国語の意味分析のみです。中国手話の語単位対応と確認は未完了のため、動作は再生しません。",
   cslTitle: "意味分析と表現案",
   cslScope:
     "限定した規則による試作です。意味を分析して動作資料を確認します。学習済みの中国手話理解モデルではなく、語順・手形・空間表現・表情は未確認です。",
-  cslReady: "辞書動作の組み合わせ案を試せます・中国手話翻訳は未確認",
-  cslPending:
-    "意味は保持されていますが、動作資料や表現条件が不足しています。未完成の組み合わせは再生できません。",
-  cslRetrieved: "既存の全体参考動画・新しい手話生成ではなく検索です",
   cslActor: "動作主",
   cslPredicate: "動作・状態",
   cslPatient: "対象・受け手",
@@ -937,7 +934,8 @@ const LOCALES = {
     asrSave: "保存设置",
     asrPermissionDenied: "未授予该服务地址的网络权限。",
     asrSaved: "设置已保存。",
-    asrInvalidConfig: "设置无效，请检查服务地址和模型。",
+    asrInvalidConfig:
+      "设置无效：远程服务需HTTPS；HTTP仅允许127.0.0.1、localhost或[::1]本机地址，URL不可含账号密码。",
     asrTesting: "正在测试识别服务...",
     asrTestPassed: "连接测试通过。",
     asrTestFailed: "连接测试失败",
@@ -1377,7 +1375,8 @@ const LOCALES = {
     asrSave: "Save settings",
     asrPermissionDenied: "Network access to this service was not granted.",
     asrSaved: "Settings saved.",
-    asrInvalidConfig: "Invalid settings. Check the endpoint and model.",
+    asrInvalidConfig:
+      "Invalid settings: use HTTPS remotely or HTTP on loopback only. URL credentials are not allowed.",
     asrTesting: "Testing the recognition service...",
     asrTestPassed: "Connection test passed.",
     asrTestFailed: "Connection test failed",
@@ -1814,7 +1813,8 @@ const LOCALES = {
     asrSave: "設定を保存",
     asrPermissionDenied: "このサービスへのネットワーク権限がありません。",
     asrSaved: "設定を保存しました。",
-    asrInvalidConfig: "設定が無効です。URL とモデルを確認してください。",
+    asrInvalidConfig:
+      "リモートURLにはHTTPSが必要です。HTTPはループバックのみ許可し、URLの認証情報は禁止します。",
     asrTesting: "認識サービスをテストしています...",
     asrTestPassed: "接続テストに成功しました。",
     asrTestFailed: "接続テストに失敗しました",

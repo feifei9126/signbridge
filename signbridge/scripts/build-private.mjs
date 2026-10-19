@@ -42,7 +42,7 @@ writeFileSync(
     {
       manifest_version: 3,
       name: "SignBridge Private Research",
-      version: "0.1.0",
+      version: "0.1.1",
       minimum_chrome_version: "116",
       action: { default_title: "SignBridge Private Research" },
       background: { service_worker: "worker.js", type: "module" },
@@ -69,6 +69,8 @@ writeFileSync(
     {
       schema: "signbridge-private-client-build-v1",
       created_at: new Date().toISOString(),
+      profile: "private-client",
+      authored_dictionary_included: false,
       private_assets_included: false,
       csl_translation_trained: false,
       files,

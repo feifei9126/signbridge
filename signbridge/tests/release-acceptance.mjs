@@ -1,11 +1,23 @@
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import {
+  mkdir,
+  readFile,
+  readdir,
+  copyFile,
+  writeFile,
+} from "node:fs/promises";
 import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
+import { existsSync } from "node:fs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
-const reportPath = join(root, "test-results/release-acceptance.json");
+const reportDir = join(
+  root,
+  "test-results/releases",
+  new Date().toISOString().replaceAll(":", "-"),
+);
+const reportPath = join(reportDir, "release-acceptance.json");
 const report = {
   format: "signbridge-release-acceptance",
   version: 1,
@@ -90,6 +102,14 @@ const distPaths = { directories: ["dist"], files: [] };
 await mkdir(dirname(reportPath), { recursive: true });
 await save();
 try {
+  const { chromium } = await import(
+    process.env.SIGNBRIDGE_PLAYWRIGHT_MODULE || "playwright"
+  );
+  process.env.SIGNBRIDGE_CHROMIUM_PATH ||= chromium.executablePath();
+  if (!existsSync(process.env.SIGNBRIDGE_CHROMIUM_PATH))
+    throw new Error(
+      "Chromium missing. Run: npx playwright install chromium (Linux CI: npx playwright install --with-deps chromium)",
+    );
   const source = await fingerprint(sourcePaths);
   await run(process.platform === "win32" ? "npm.cmd" : "npm", [
     "run",
@@ -111,8 +131,7 @@ try {
       root,
       `test-results/phase${phase}-browser/report.json`,
     );
-    await rm(evidence, { force: true });
-    await rm(join(dirname(evidence), "failure.json"), { force: true });
+
     await run(process.execPath, [`tests/browser-phase${phase}.mjs`]);
     const result = JSON.parse(await readFile(evidence, "utf8"));
     if (
@@ -122,6 +141,7 @@ try {
       result.errors.length
     )
       throw new Error(`Invalid or failed phase ${phase} evidence`);
+    await copyFile(evidence, join(reportDir, `phase${phase}.json`));
     report.stages.push({
       id: `browser-phase${phase}`,
       status: "passed",
@@ -130,6 +150,15 @@ try {
     });
     await save();
   }
+  await run(process.execPath, ["tests/audit-browser-qa.mjs"]);
+  await copyFile(
+    join(root, "test-results/audit-browser/report.json"),
+    join(reportDir, "audit-browser.json"),
+  );
+  report.stages.push({
+    id: "audit-browser-analysis-and-boundaries",
+    status: "passed",
+  });
   if (
     (await fingerprint(sourcePaths)).sha256 !== report.source.sha256 ||
     (await fingerprint(distPaths)).sha256 !== report.build.sha256
@@ -138,13 +167,23 @@ try {
       "Source or built files changed during browser verification; results must not be reused.",
     );
   report.automatedStatus = "passed";
+  report.buildProfile = JSON.parse(
+    await readFile(join(root, "dist/BUILD.json"), "utf8"),
+  ).profile;
 } catch (error) {
   report.automatedStatus = "failed";
-  report.failure = error.message;
+  report.failure =
+    error.code === "ERR_MODULE_NOT_FOUND"
+      ? "Playwright missing. Run npm ci before verify:release."
+      : error.message;
   process.exitCode = 1;
 } finally {
   report.finishedAt = new Date().toISOString();
   await save();
+  await copyFile(
+    reportPath,
+    join(root, "test-results/release-acceptance.json"),
+  );
   console.log(
     `\nAutomated acceptance: ${report.automatedStatus}. Human acceptance remains pending.\n${reportPath}`,
   );

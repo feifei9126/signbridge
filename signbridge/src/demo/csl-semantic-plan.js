@@ -230,14 +230,21 @@ export function planCslText(input, clips = []) {
     m = analysis.meaning;
   const key = referenceKey(analysis.text);
   const questionMarked = /[?？]/u.test(analysis.text);
-  const reference =
+  const referenceEvidence =
     !analysis.truncated && !questionMarked && key
-      ? clips.find((c) =>
-          [c.text, ...(c.aliases || [])].some(
-            (alias) => referenceKey(alias) === key,
-          ),
-        )
-      : null;
+      ? clips
+          .filter((c) =>
+            [c.text, ...(c.aliases || [])].some(
+              (alias) => referenceKey(alias) === key,
+            ),
+          )
+          .map((c) => ({
+            id: c.id,
+            text: c.text,
+            experimental: c.experimental === true,
+            humanApproved: c.human_approved === true,
+          }))
+      : [];
   const draft = [
     m.time,
     m.politeness,
@@ -273,53 +280,22 @@ export function planCslText(input, clips = []) {
   if (m.modality && m.modality.kind !== "desire")
     blockers.push("modal_interpretation_unreviewed");
   if (analysis.truncated) blockers.push("input_limit");
-  const canCompose = !blockers.length && draft.length > 0;
-  const source = reference?.experimental
-    ? "experimental"
-    : reference?.runtime_candidate
-      ? "candidate"
-      : "t08";
-  const items = reference
-    ? [
-        {
-          id: reference.id,
-          source,
-          label: reference.text,
-          matchedText: analysis.text,
-          start: 0,
-          end: [...analysis.text].length,
-        },
-      ]
-    : canCompose
-      ? draft.map((s) => ({
-          id: s.motionId,
-          source: "dictionary",
-          label: s.surface,
-          matchedText: s.surface,
-          start: s.start,
-          end: s.end,
-          semanticConcept: s.concept,
-        }))
-      : [];
+  // Semantic analysis is never a playback authorization. Whole-clip evidence
+  // and authored word drafts do not establish CSL alignment or language review.
+  blockers.push("csl_alignment_unreviewed");
   return {
     schema: "signbridge-csl-semantic-plan-v1",
     analysis,
     draft,
     gaps,
     blockers: unique(blockers),
-    route: reference
-      ? "reference_retrieval"
-      : canCompose
-        ? "composition_draft"
-        : "needs_evidence",
-    canPreview: Boolean(reference || canCompose),
-    items,
-    unmatched:
-      reference || canCompose
-        ? ""
-        : [analysis.text, analysis.remainingText].join(""),
+    route: "analysis_only",
+    canPreview: false,
+    items: [],
+    referenceEvidence,
+    unmatched: [analysis.text, analysis.remainingText].join(""),
     truncated: analysis.truncated,
-    matchedCount: items.length,
+    matchedCount: 0,
     representation: "semantic_roles_then_candidate_units",
     wordOrderStatus: "assistant_proposal_not_csl_grammar_validation",
     humanApproved: false,

@@ -1,3 +1,5 @@
+import { validateAsrEndpoint } from "./asr-config.js";
+
 function audioFileName(type = "") {
   if (type.includes("wav")) return "signbridge-audio.wav";
   if (type.includes("ogg")) return "signbridge-audio.ogg";
@@ -22,6 +24,7 @@ async function transcribeAudio(
   }
   if (!fetchImpl) throw transcriptionError("asr-fetch-unavailable");
 
+  const endpoint = validateAsrEndpoint(requestConfig.endpoint);
   const form = new globalThis.FormData();
   form.append("file", audioBlob, audioFileName(audioBlob.type));
   form.append("model", requestConfig.model);
@@ -37,11 +40,13 @@ async function transcribeAudio(
 
   let response;
   try {
-    response = await fetchImpl(requestConfig.endpoint, {
+    response = await fetchImpl(endpoint, {
       method: "POST",
       headers,
       body: form,
       signal,
+      credentials: "omit",
+      redirect: "error",
     });
   } catch (error) {
     if (signal?.aborted) throw error;

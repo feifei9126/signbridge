@@ -138,7 +138,7 @@ test("tab audio capture and ASR run in extension contexts", () => {
   assert.match(offscreen, /automatic-speech-recognition/);
   assert.match(offscreen, /useBrowserCache/);
   assert.match(offscreen, /decodeAudioData/);
-  assert.doesNotMatch(offscreen, /127\.0\.0\.1/);
+  assert.match(offscreen, /asr-endpoint-secure-required/);
   assert.doesNotMatch(offscreen, /local-asr/);
   assert.doesNotMatch(offscreen, /chrome\.storage/);
   assert.doesNotMatch(avatar, /SpeechRecognition/);
@@ -303,22 +303,47 @@ test("experimental motions ship per-clip with checked hashes and no training pro
   }
 });
 
-test("local default builds retain verified wrist recovery profiles", () => {
-  if (process.env.SIGNBRIDGE_DEMO_EXPERIMENTAL_DIR) return;
-  const recovered = new URL(
-    "../../local-data/six-batch-motion-audit-20261016-b3j952wo/display-fix-v2/experimental-index.json",
-    import.meta.url,
-  );
-  if (!existsSync(recovered)) return;
-  const expected = JSON.parse(readFileSync(recovered, "utf8"));
-  const actual = JSON.parse(
+test("build profile explicitly controls research assets and records all packaged hashes", async () => {
+  const { createHash } = await import("node:crypto");
+  const report = JSON.parse(readFileSync(join(dist, "BUILD.json"), "utf8"));
+  assert.equal(report.schema, "signbridge-build-v1");
+  assert.match(report.source_sha256, /^[a-f0-9]{64}$/);
+  for (const [file, hash] of Object.entries(report.files))
+    assert.equal(
+      createHash("sha256")
+        .update(readFileSync(join(dist, file)))
+        .digest("hex"),
+      hash,
+    );
+  const index = JSON.parse(
     readFileSync(join(dist, "demo/experimental-index.json"), "utf8"),
   );
-  assert.equal(actual.display_smoothing_recovery, true);
-  assert.deepEqual(actual.recovery_profiles, expected.recovery_profiles);
-  for (const id of Object.keys(expected.recovery_profiles))
-    assert.equal(
-      actual.clips.find((c) => c.id === id).sha256,
-      expected.clips.find((c) => c.id === id).sha256,
+  if (report.profile === "public-demo") {
+    assert.equal(report.research_assets_included, false);
+    assert.equal(index.unavailable, true);
+    assert.equal(report.research_asset_manifest_sha256, null);
+  } else {
+    assert.equal(report.profile, "local-research");
+    assert.equal(report.research_assets_included, true);
+    assert.match(report.research_asset_manifest_sha256, /^[a-f0-9]{64}$/);
+    // If recovery profiles are supplied, they must survive copying exactly.
+    const expected = JSON.parse(
+      readFileSync(
+        join(
+          process.env.SIGNBRIDGE_DEMO_EXPERIMENTAL_DIR,
+          "experimental-index.json",
+        ),
+        "utf8",
+      ),
     );
+    assert.deepEqual(index.recovery_profiles, expected.recovery_profiles);
+  }
+});
+
+test("real-time avatar does not bundle the unused semantic rule parser", () => {
+  const bundle = readFileSync(join(dist, "avatar/iframe-bundle.js"), "utf8");
+  assert.doesNotMatch(
+    bundle,
+    /src\/demo\/csl-semantic-plan\.js|bounded_chinese_rules_v1/,
+  );
 });

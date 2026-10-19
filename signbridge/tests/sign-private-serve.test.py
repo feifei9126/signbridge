@@ -91,6 +91,36 @@ class PrivateServeTests(unittest.TestCase):
         self.assertEqual(self.request(body='{"text":"' + '我' * 501 + '"}')[0], 400)
         self.assertEqual([self.request()[0] for _ in range(4)], [200, 200, 200, 429])
 
+    def test_rate_limit_is_explicitly_shared_across_connections(self):
+        for _ in range(3):
+            self.assertEqual(self.request()[0], 200)
+        status, headers, _ = self.request()
+        self.assertEqual(status, 429)
+        self.assertEqual(headers['X-RateLimit-Scope'], 'process')
+        self.assertEqual(headers['Retry-After'], '60')
+
+    def test_busy_requests_do_not_spend_the_shared_request_budget(self):
+        import concurrent.futures
+        started = threading.Barrier(3)
+        release = threading.Event()
+        class BlockingParser:
+            def predict(self, text):
+                started.wait(timeout=3)
+                release.wait(timeout=3)
+                return {'status': 'parsed', 'roles': {}, 'csl_translation_trained': False}
+        self.server.parser = BlockingParser()
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
+            futures = [pool.submit(self.request) for _ in range(2)]
+            try:
+                started.wait(timeout=3)
+                self.assertEqual(self.request()[0], 503)
+            finally:
+                release.set()
+            self.assertEqual([f.result()[0] for f in futures], [200, 200])
+        self.server.parser = StubParser()
+        self.assertEqual(self.request()[0], 200)
+        self.assertEqual(self.request()[0], 429)
+
     def test_cli_rejects_external_bind_or_weak_tokens(self):
         with self.assertRaises(ValueError):
             server_tool.make_server(StubParser(), Path(self.tmp.name), 'short', port=0)
