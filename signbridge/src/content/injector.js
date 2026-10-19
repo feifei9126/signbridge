@@ -294,6 +294,7 @@
           modelOutput: message.modelOutput,
           presentation: message.presentation,
           fallbackReason: message.fallbackReason,
+          performance: message.performance,
         });
       }
       return;

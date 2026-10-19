@@ -166,22 +166,26 @@ function renderSemanticPlan() {
 function playableClips() {
   return clips.filter((clip) => availableSources.has(motionSource(clip)));
 }
-function sourceLabel(source, clip, stabilized) {
+function sourceLabel(source, clip, stabilized, presentation) {
   if (source === "candidate")
     return t("demoCandidateDetail", {
       mse: clip?.normalized_reconstruction_mse?.toFixed(3) || "?",
     });
   if (source === "experimental")
     return t(
-      stabilized === true
+      presentation === "quaternion-temporal-adaptive-v1"
         ? clip?.quality_warning
-          ? "demoExperimentalSmoothedWarningBadge"
-          : "demoExperimentalSmoothedBadge"
-        : stabilized === false
-          ? "demoExperimentalRawBadge"
-          : clip?.quality_warning
-            ? "demoExperimentalWarningBadge"
-            : "demoExperimentalBadge",
+          ? "demoAdaptiveFilteredWarningBadge"
+          : "demoAdaptiveFilteredBadge"
+        : stabilized === true
+          ? clip?.quality_warning
+            ? "demoExperimentalSmoothedWarningBadge"
+            : "demoExperimentalSmoothedBadge"
+          : stabilized === false
+            ? "demoExperimentalRawBadge"
+            : clip?.quality_warning
+              ? "demoExperimentalWarningBadge"
+              : "demoExperimentalBadge",
     );
   return t(
     source === "t08"
@@ -351,6 +355,11 @@ document
     send("SPEED", { speed: Number(e.target.value) }),
   );
 document
+  .querySelector("#stabilization-profile")
+  .addEventListener("change", (event) =>
+    send("STABILIZATION_PROFILE", { profile: event.target.value }),
+  );
+document
   .querySelector("#motion-smoothing")
   .addEventListener("change", (event) =>
     send("SMOOTHING", { enabled: event.target.checked }),
@@ -414,11 +423,16 @@ window.addEventListener("message", (e) => {
     stopButton.disabled = false;
     current = message;
     document.querySelector("#current").textContent = message.item.label;
-    document.querySelector("#source-badge").textContent = sourceLabel(
+    const sourceBadge = document.querySelector("#source-badge");
+    sourceBadge.textContent = sourceLabel(
       message.item.source,
       clips.find((clip) => clip.id === message.item.id),
       message.item.source === "experimental" ? message.stabilized : undefined,
+      message.presentation,
     );
+    sourceBadge.title = message.performance
+      ? `${message.performance.cacheHit ? "cache" : "compile"}: ${Number(message.performance.compileMs).toFixed(2)}ms; ${message.performance.numericBytes ?? message.performance.numericCacheBytes} numeric cache bytes`
+      : sourceBadge.textContent;
     document.querySelector("#tokens").textContent = message.tokens
       ? JSON.stringify(message.tokens, null, 2)
       : t(
@@ -435,12 +449,30 @@ window.addEventListener("message", (e) => {
     if (current?.item.id === message.clipId) {
       current.stabilized = message.stabilized;
       current.presentation = message.presentation;
+      if (message.stabilizationEnabled !== undefined)
+        current.stabilizationEnabled = message.stabilizationEnabled;
+      if (message.profile)
+        document.querySelector("#stabilization-profile").value =
+          message.profile;
+      if (message.performance) {
+        current.performance = message.performance;
+        document.querySelector("#source-badge").title =
+          `${message.performance.cacheHit ? "cache" : "compile"}: ${Number(message.performance.compileMs).toFixed(2)}ms; ${message.performance.numericBytes ?? message.performance.numericCacheBytes} numeric cache bytes`;
+      }
       document.querySelector("#source-badge").textContent = sourceLabel(
         current.item.source,
         clips.find((clip) => clip.id === current.item.id),
         message.stabilized,
+        message.presentation,
       );
     }
+  } else if (message.type === "PROFILE_STATE") {
+    document.querySelector("#stabilization-profile").dataset.activeProfile =
+      message.profile;
+    document.querySelector("#stabilization-profile").dataset.activeClip =
+      message.clipId || "";
+    document.querySelector("#stabilization-profile").dataset.experimentalClip =
+      String(message.experimentalClip);
   } else if (message.type === "PROGRESS") {
     document.querySelector("#progress-bar").style.width =
       `${Math.min(100, (message.elapsed / message.duration) * 100)}%`;
@@ -493,6 +525,8 @@ document.querySelector("#download").addEventListener("click", () => {
           presentation: current.presentation || "raw",
           motionAssetSha256:
             clips.find((clip) => clip.id === current.item.id)?.sha256 || null,
+          performance: current.performance || null,
+          stabilizationEnabled: current.stabilizationEnabled ?? null,
           normalizedReconstructionMse: current.normalizedReconstructionMse,
           trainingDataMember: current.item.source === "t08",
         }

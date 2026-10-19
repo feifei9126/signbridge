@@ -8,14 +8,18 @@ import {
 setLocale("zh-CN");
 for (const node of document.querySelectorAll("[data-i18n]"))
   node.textContent = t(node.dataset.i18n);
+const scopeExperiment =
+  new URL(location.href).searchParams.get("scope") === "1";
 document.title = t("privateTitle");
+if (scopeExperiment) {
+  const notice = document.createElement("p");
+  notice.className = "scope";
+  notice.textContent = t("privateScopeExperiment");
+  document.querySelector("main").prepend(notice);
+}
 const form = document.querySelector("#understand-form");
 const endpoint = document.querySelector("#endpoint");
-if (
-  location.protocol === "http:" &&
-  location.hostname === "127.0.0.1" &&
-  document.querySelector("[data-workbench]").hidden
-)
+if (document.documentElement.dataset.signbridgeService === "true")
   endpoint.value = location.origin;
 const token = document.querySelector("#token");
 const text = document.querySelector("#sentence");
@@ -48,7 +52,7 @@ endpoint.addEventListener("input", updateHandoff);
 updateHandoff();
 document.querySelector("#open-local-service").addEventListener("click", () => {
   try {
-    location.assign(localServicePage(endpoint.value));
+    location.assign(localServicePage(endpoint.value, scopeExperiment));
   } catch {
     status.textContent = t("privateEndpointInvalid");
   }
@@ -76,7 +80,11 @@ form.addEventListener("submit", async (event) => {
     });
     if (pending !== controller) return;
     status.textContent = t(
-      result.status === "parsed" ? "privateParsed" : "privateAbstained",
+      result.status === "abstained"
+        ? "privateAbstained"
+        : result.scope_experiment
+          ? "privateScopeAnalyzed"
+          : "privateParsed",
     );
     const dl = document.createElement("dl");
     for (const [role, value] of Object.entries(result.roles)) {
@@ -89,6 +97,24 @@ form.addEventListener("submit", async (event) => {
     const meta = document.createElement("p");
     meta.textContent = t("privateModel", { model: result.model_id });
     output.append(dl, meta);
+    if (result.event_graph) {
+      const details = document.createElement("details");
+      const summary = document.createElement("summary");
+      summary.textContent = t("privateEventStructure");
+      const pre = document.createElement("pre");
+      pre.textContent = JSON.stringify(result.event_graph, null, 2);
+      details.append(summary, pre);
+      output.append(details);
+    }
+    if (result.expression_plan) {
+      const plan = result.expression_plan;
+      const paragraph = document.createElement("p");
+      paragraph.textContent = t("privatePlanEvidence", {
+        components: plan.components.map((c) => c.text).join("、"),
+        gaps: plan.uncovered.join("、") || t("privatePlanReview"),
+      });
+      output.append(paragraph);
+    }
   } catch (error) {
     if (pending !== controller) return;
     const key = error.message?.startsWith("private")

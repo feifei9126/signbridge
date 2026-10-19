@@ -11,6 +11,7 @@ import re
 import secrets
 import threading
 import time
+from urllib.parse import urlsplit
 
 
 class LimitedServer(ThreadingHTTPServer):
@@ -35,6 +36,23 @@ class LimitedServer(ThreadingHTTPServer):
     def handle_error(self, request, client_address):
         # Avoid traceback/request text or token leakage into server logs.
         pass
+
+
+def static_client_resource(target):
+    """Serve exact allowlisted files, with one non-sensitive scope selector on the page."""
+    parsed = urlsplit(target)
+    resources = {
+        '/private/index.html': ('index.html', 'text/html; charset=utf-8'),
+        '/private/client.js': ('client.js', 'text/javascript; charset=utf-8'),
+        '/private/client.css': ('client.css', 'text/css; charset=utf-8'),
+    }
+    if parsed.path not in resources:
+        return None
+    if parsed.path == '/private/index.html' and parsed.query in ('', 'scope=1'):
+        return resources[parsed.path]
+    if not parsed.query:
+        return resources[parsed.path]
+    return None
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -83,16 +101,18 @@ class Handler(BaseHTTPRequestHandler):
             return self.send(403, {'error': 'forbidden_origin_or_host'})
         # Exact allowlist only. No URL decoding, filesystem joins from user paths,
         # directory listings, source maps, model or dataset downloads.
-        resources = {'/private/index.html': ('index.html', 'text/html; charset=utf-8'),
-                     '/private/client.js': ('client.js', 'text/javascript; charset=utf-8'),
-                     '/private/client.css': ('client.css', 'text/css; charset=utf-8')}
-        entry = resources.get(self.path)
+        entry = static_client_resource(self.path)
         if not entry:
             return self.send(404, {'error': 'not_found'})
         path = self.server.client_root / 'private' / entry[0]
         if not path.is_file() or path.is_symlink():
             return self.send(404, {'error': 'not_found'})
-        return self.send(200, path.read_bytes(), entry[1])
+        body = path.read_bytes()
+        if entry[0] == 'index.html':
+            body, count = re.subn(rb'<html(?=[\s>])', b'<html data-signbridge-service="true"', body, count=1)
+            if count != 1:
+                return self.send(404, {'error': 'invalid_client_page'})
+        return self.send(200, body, entry[1])
 
     def do_OPTIONS(self):
         if not self.trusted_request() or self.path != '/v1/understand':
@@ -160,18 +180,39 @@ def make_server(parser, client_root, token, port=8770, origins=(), rate_limit=60
     return server
 
 
+def load_parser(model, scope_experiment=False, unit_candidates=None):
+    tool = 'sign-csl-scope.py' if scope_experiment else 'sign-csl-learned.py'
+    spec = importlib.util.spec_from_file_location('csl_service_model', Path(__file__).with_name(tool))
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    if not scope_experiment:
+        if unit_candidates is not None:
+            raise ValueError('Unit evidence requires explicit scope experiment')
+        return module.load_model(model)
+    evidence = []
+    if unit_candidates is not None:
+        if unit_candidates.stat().st_size > 5000000:
+            raise ValueError('Candidate evidence too large')
+        evidence = json.loads(unit_candidates.read_text())
+        if not isinstance(evidence, list) or len(evidence) > 1000 or any(
+                not isinstance(r, dict) or not isinstance(r.get('id'), str)
+                or not isinstance(r.get('proposed_text'), str) for r in evidence):
+            raise ValueError('Invalid candidate evidence')
+    return module.ScopeParser(module.base.load_model(model), evidence)
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument('--model', type=Path, required=True)
     ap.add_argument('--client', type=Path, required=True)
     ap.add_argument('--port', type=int, default=8770)
     ap.add_argument('--allow-extension', action='append', default=[])
+    ap.add_argument('--scope-experiment', action='store_true')
+    ap.add_argument('--unit-candidates', type=Path)
     args = ap.parse_args()
-    spec = importlib.util.spec_from_file_location('csl_model', Path(__file__).with_name('sign-csl-learned.py'))
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
+    parser = load_parser(args.model, args.scope_experiment, args.unit_candidates)
     token = secrets.token_urlsafe(32)
-    with make_server(module.load_model(args.model), args.client, token, args.port, args.allow_extension) as server:
+    with make_server(parser, args.client, token, args.port, args.allow_extension) as server:
         print(f'SignBridge private client: http://127.0.0.1:{server.server_port}/private/index.html', flush=True)
         print('Session token (terminal only; expires on restart): ' + token, flush=True)
         try:

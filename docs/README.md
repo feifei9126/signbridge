@@ -51,3 +51,4 @@ zip -FS -qr ../../docs/assets/signbridge-chrome-extension.zip . -x '*.DS_Store'
 主页新增语义研究版下载区。完整工具包可在本机重新训练并运行受限中文角色解析，另提供轻量客户端和SHA256清单；详见 [研究版使用说明](research-demo.md)。这不是在线中国手语翻译服务，不含原始视频、完整动作或预训练权重。原有动作播放包保持原样。
 
 - [2026-10-19 功能精简（本地1.0.4）](feature-simplification-20261019.md)：普通弹窗、统一设置与研究工作台。
+- [2026-10-19 现有资源优化（本地1.0.5）](existing-resources-optimization-20261019.md)：作用域对照、旧视频候选单元和稳定性基准。

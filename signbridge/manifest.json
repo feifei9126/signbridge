@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "minimum_chrome_version": "116",
   "name": "SignBridge",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "将网页视频字幕和标签页声音实时转换为3D中国手语动画，支持浏览器内Whisper",
   "homepage_url": "https://github.com/feifei9126/signbridge",
   "author": "SignBridge Team",

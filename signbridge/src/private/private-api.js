@@ -61,18 +61,115 @@ export async function understand({
     result.csl_translation_trained !== false
   )
     throw new Error("privateResponseInvalid");
+  if (result.event_graph !== undefined) {
+    const graphRoles = eventGraphRoles(result.event_graph);
+    if (
+      !graphRoles ||
+      JSON.stringify(sortedRecord(graphRoles)) !==
+        JSON.stringify(sortedRecord(result.roles))
+    )
+      throw new Error("privateResponseInvalid");
+  }
+  if (result.expression_plan !== undefined) {
+    const plan = result.expression_plan;
+    if (
+      !plan ||
+      plan.can_play !== false ||
+      !Array.isArray(plan.motion_items) ||
+      plan.motion_items.length ||
+      !Array.isArray(plan.components) ||
+      plan.components.length > 11 ||
+      !plan.components.every(
+        (c) =>
+          c &&
+          typeof c.text === "string" &&
+          c.text.length <= 500 &&
+          typeof c.role === "string" &&
+          result.roles[c.role] === c.text &&
+          Array.isArray(c.evidence) &&
+          c.evidence.length <= 8 &&
+          c.evidence.every(
+            (item) =>
+              item &&
+              typeof item.id === "string" &&
+              item.human_approved === false &&
+              item.word_boundaries_verified === false &&
+              item.training_ready === false,
+          ),
+      ) ||
+      new Set(plan.components.map((c) => c.role)).size !==
+        plan.components.length ||
+      Object.keys(result.roles).length !== plan.components.length ||
+      !Array.isArray(plan.uncovered) ||
+      plan.uncovered.length > 11 ||
+      !plan.uncovered.every((v) => typeof v === "string" && v.length <= 500) ||
+      JSON.stringify([...plan.uncovered].sort()) !==
+        JSON.stringify(
+          plan.components
+            .filter((c) => c.evidence.length === 0)
+            .map((c) => c.text)
+            .sort(),
+        )
+    )
+      throw new Error("privateResponseInvalid");
+  }
   return result;
 }
 
-export function localServicePage(value) {
-  return privateEndpoint(value).replace(
+export function localServicePage(value, scopeExperiment = false) {
+  const target = privateEndpoint(value).replace(
     "/v1/understand",
     "/private/index.html",
   );
+  return scopeExperiment ? `${target}?scope=1` : target;
 }
 
-export function needsLocalServicePage(value, pageOrigin, workbench = false) {
+export function needsLocalServicePage(
+  value,
+  pageOrigin,
+  workbench = false,
+  scopeExperiment = false,
+) {
   const service = new URL(localServicePage(value));
-  if (pageOrigin.startsWith("chrome-extension://")) return workbench;
+  if (pageOrigin.startsWith("chrome-extension://"))
+    return workbench || scopeExperiment;
   return service.origin !== pageOrigin;
+}
+
+function validEventGraph(node, depth = 0) {
+  if (!node || typeof node !== "object" || Array.isArray(node) || depth > 3)
+    return false;
+  if (node.type === "event")
+    return (
+      Object.keys(node).length === 2 &&
+      node.roles &&
+      typeof node.roles === "object" &&
+      !Array.isArray(node.roles) &&
+      Object.keys(node.roles).length <= 11 &&
+      Object.values(node.roles).every(
+        (v) => typeof v === "string" && v.length <= 500,
+      )
+    );
+  return (
+    node.type === "operator" &&
+    Object.keys(node).length === 3 &&
+    /^(negation|modal):[^:]{1,10}$/u.test(node.operator) &&
+    validEventGraph(node.argument, depth + 1)
+  );
+}
+
+function eventGraphRoles(node, roles = {}) {
+  if (!validEventGraph(node)) return null;
+  if (node.type === "event") return { ...roles, ...node.roles };
+  const separator = node.operator.indexOf(":");
+  const role = node.operator.slice(0, separator);
+  const text = node.operator.slice(separator + 1);
+  if (roles[role] !== undefined) return null;
+  return eventGraphRoles(node.argument, { ...roles, [role]: text });
+}
+
+function sortedRecord(value) {
+  return Object.fromEntries(
+    Object.entries(value).sort(([a], [b]) => a.localeCompare(b)),
+  );
 }

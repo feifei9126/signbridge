@@ -42,7 +42,11 @@ try {
   if (config.handoff) {
     assert.equal(await page.locator("#open-local-service").isVisible(), true);
     await page.locator("#open-local-service").click();
-    await page.waitForURL(config.endpoint + "/private/index.html");
+    await page.waitForURL(
+      config.endpoint +
+        "/private/index.html" +
+        (new URL(config.url).search || ""),
+    );
     assert.equal(await page.locator("#token").inputValue(), "");
   }
   await page.locator("#token").fill(config.token);
@@ -59,10 +63,22 @@ try {
     await page.waitForFunction(
       () => !document.querySelector("#analyze").disabled,
     );
-    cases.push({ text, status: body.status, roles: body.roles });
+    cases.push({
+      text,
+      status: body.status,
+      roles: body.roles,
+      event_graph: body.event_graph || null,
+      expression_plan: body.expression_plan || null,
+    });
     return body;
   }
   const a = await analyze("我帮你", "parsed");
+  if (config.scope) {
+    assert.equal(a.event_graph.type, "event");
+    assert.equal(a.expression_plan.can_play, false);
+    assert.deepEqual(a.expression_plan.motion_items, []);
+    assert.equal(a.expression_plan.human_approved, false);
+  }
   const b = await analyze("你帮我", "parsed");
   assert.equal(a.roles.actor, "我");
   assert.equal(a.roles.patient, "你");
@@ -74,7 +90,27 @@ try {
   assert.equal(c.meaning_key, d.meaning_key);
   await analyze("你去吗", "parsed");
   await analyze("我没有去", "parsed");
-  for (const sentence of ["我不想去", "我去火星", "如果你来我就去", "我喝书"])
+  if (config.scope) {
+    const plan = await analyze("我今天去学校", "parsed");
+    assert.equal(plan.expression_plan.can_play, false);
+    assert.deepEqual(plan.expression_plan.motion_items, []);
+    assert.ok(
+      plan.expression_plan.components.find((item) => item.text === "今天")
+        .evidence.length > 0,
+    );
+    assert.ok(plan.expression_plan.uncovered.includes("学校"));
+    const first = await analyze("我不想去", "parsed");
+    const second = await analyze("我想不去", "parsed");
+    assert.notEqual(first.event_key, second.event_key);
+    assert.equal(first.event_graph.operator, "negation:不");
+    assert.equal(second.event_graph.operator, "modal:想");
+    assert.equal(second.event_graph.argument.operator, "negation:不");
+    assert.equal(first.expression_plan.can_play, false);
+    assert.ok(first.expression_plan.uncovered.length > 0);
+  } else {
+    await analyze("我不想去", "abstained");
+  }
+  for (const sentence of ["我去火星", "如果你来我就去", "我喝书", "我不想没去"])
     await analyze(sentence, "abstained");
   await page.locator("#token").fill("x".repeat(43));
   await page.locator("#sentence").fill("我帮你");
@@ -86,7 +122,7 @@ try {
   await page.locator("#token").fill(config.token);
   await analyze("你帮我", "parsed");
   assert.match(await page.locator("#output").textContent(), /施事/);
-  assert.match(await page.locator("#status").textContent(), /尚需/);
+  assert.match(await page.locator("#status").textContent(), /尚需|仍需/);
   // Ensure even malicious response strings render as text, never DOM markup.
   await page.route("**/v1/understand", (route) =>
     route.fulfill({
@@ -130,6 +166,7 @@ try {
       {
         status: "passed",
         browser: (browser || context.browser()).version(),
+        scope_experiment: config.scope === true,
         client_context: config.handoff
           ? "extension_to_local_service"
           : config.extension

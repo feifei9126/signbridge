@@ -30,7 +30,7 @@ test("ordinary popup exposes one settings and workbench entry, without productio
 
 test("workbench keeps research controls behind native details and exposes the real learned-model client", () => {
   const html = source("demo/index.html");
-  assert.match(html, /href="\.\.\/private\/index\.html"/);
+  assert.match(html, /href="\.\.\/private\/index\.html\?scope=1"/);
   assert.match(html, /id="research-tools"/);
   assert.match(html, /<details[^>]*id="research-details"/);
   assert.doesNotMatch(html, /<strong>T08 · VQ-VAE<\/strong>/);

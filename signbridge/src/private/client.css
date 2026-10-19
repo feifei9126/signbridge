@@ -117,3 +117,17 @@ section {
   color: white;
   border-color: #235044;
 }
+
+#output pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+  background: #eef3ef;
+  padding: 14px;
+}
+#output details {
+  margin-top: 18px;
+}
+#output summary {
+  cursor: pointer;
+}

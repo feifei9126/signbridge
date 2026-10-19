@@ -23,7 +23,7 @@ class PrivateServeTests(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         root = Path(self.tmp.name)
         (root / 'private').mkdir()
-        (root / 'private/index.html').write_text('<title>private-client</title>')
+        (root / 'private/index.html').write_text('<!doctype html><html lang="zh"><title>private-client</title></html>')
         (root / 'weights.npz').write_bytes(b'not-for-client')
         (root / 'secret.txt').write_text('never serve directory')
         self.token = secrets.token_urlsafe(32)
@@ -124,6 +124,21 @@ class PrivateServeTests(unittest.TestCase):
     def test_cli_rejects_external_bind_or_weak_tokens(self):
         with self.assertRaises(ValueError):
             server_tool.make_server(StubParser(), Path(self.tmp.name), 'short', port=0)
+
+
+    def test_scope_flag_routes_only_exact_client_index_variant(self):
+        self.assertEqual(server_tool.static_client_resource('/private/index.html?scope=1'), ('index.html', 'text/html; charset=utf-8'))
+        self.assertEqual(server_tool.static_client_resource('/private/index.html'), ('index.html', 'text/html; charset=utf-8'))
+        for path in ['/private/index.html?scope=1&token=x', '/private/index.html?scope=0', '/private/client.js?scope=1', '/private/../secret.txt?scope=1']:
+            with self.subTest(path=path): self.assertIsNone(server_tool.static_client_resource(path))
+
+    def test_scope_static_route_serves_page_without_broadening_filesystem_allowlist(self):
+        status, _, body = self.request('/private/index.html?scope=1', method='GET')
+        self.assertEqual(status, 200)
+        self.assertIn(b'private-client', body)
+        self.assertIn(b'data-signbridge-service="true"', body)
+        self.assertEqual(self.request('/secret.txt?scope=1', method='GET')[0], 404)
+
 
 
 if __name__ == '__main__':

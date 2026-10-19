@@ -9,11 +9,15 @@ import {
 } from "../avatar/reference-motion-asset.js";
 import { createT08Retarget } from "./demo-retarget.js";
 import { frameDelta } from "./demo-playback.js";
-import { MOTION_SMOOTHING_PROFILE } from "./motion-stabilization.js";
+import {
+  MOTION_SMOOTHING_PROFILE,
+  ADAPTIVE_SMOOTHING_PROFILE,
+} from "./motion-stabilization.js";
 import {
   validateExperimentalIndex,
   createExperimentalLoader,
 } from "./experimental-motion.js";
+import { createMotionCache } from "./motion-cache.js";
 const container = document.querySelector("#stage");
 let renderer,
   rig,
@@ -32,6 +36,7 @@ let renderer,
 let running = false,
   paused = false,
   stabilization = true,
+  profileOverride = "asset",
   speed = 1,
   plan = [],
   itemIndex = 0,
@@ -40,23 +45,23 @@ let running = false,
   track = null,
   duration = 0,
   requestId = 0;
-const cache = new Map();
+const cache = createMotionCache();
+function selectedProfile(clip) {
+  return profileOverride === "adaptive"
+    ? ADAPTIVE_SMOOTHING_PROFILE
+    : clip.display_stabilization_profile || MOTION_SMOOTHING_PROFILE;
+}
 function compiledSamples(clip, source) {
   const stabilize = clip.experimental === true && stabilization;
-  const profile =
-    clip.display_stabilization_profile || MOTION_SMOOTHING_PROFILE;
-  const key = `${clip.id}:${stabilize ? profile : "raw"}`;
-  if (!cache.has(key)) {
-    cache.set(
-      key,
-      (source === "experimental" ? experimentalRetarget : retarget).compile(
-        clip,
-        { stabilize, stabilizationProfile: profile },
-      ),
-    );
-    if (cache.size > 8) cache.delete(cache.keys().next().value);
-  }
-  return cache.get(key);
+  const profile = selectedProfile(clip);
+  // The cache lives inside one verified rig/bundle lifetime; source prevents ID collisions.
+  const key = `${source}:${clip.id}:${stabilize ? profile : "raw"}`;
+  return cache.get(key, () =>
+    (source === "experimental" ? experimentalRetarget : retarget).compile(
+      clip,
+      { stabilize, stabilizationProfile: profile },
+    ),
+  );
 }
 const notify = (type, data = {}) =>
   parent.postMessage(
@@ -118,14 +123,20 @@ async function nextItem() {
           )?.find((c) => c.id === item.id);
     if (disposed || generation !== requestId || !running) return;
     if (!clip) throw new Error("demoInvalidAsset");
+    const compiled = compiledSamples(clip, item.source);
     track = {
       kind: item.source,
-      samples: compiledSamples(clip, item.source),
+      samples: compiled.frames,
+      performance: {
+        cacheHit: compiled.cacheHit,
+        compileMs: compiled.compileMs,
+        ...cache.stats(),
+      },
       fps: clip.fps,
       clip,
       stabilized: clip.experimental === true && stabilization,
-      stabilizationProfile:
-        clip.display_stabilization_profile || MOTION_SMOOTHING_PROFILE,
+      stabilizationProfile: selectedProfile(clip),
+      stabilizationEnabled: stabilization,
     };
     duration = clip.frames / clip.fps;
   } else {
@@ -149,6 +160,8 @@ async function nextItem() {
     qualityWarning: track.clip?.quality_warning || false,
     stabilized: track.stabilized || false,
     presentation: track.stabilized ? track.stabilizationProfile : "raw",
+    stabilizationEnabled: track.stabilizationEnabled ?? false,
+    performance: track.performance || null,
     normalizedReconstructionMse:
       track.kind === "candidate"
         ? track.clip.normalized_reconstruction_mse
@@ -339,20 +352,59 @@ window.addEventListener("message", (ev) => {
       if (![0.5, 0.75, 1, 1.25, 1.5].includes(Number(ev.data.speed)))
         throw new Error("demoInvalidMode");
       speed = Number(ev.data.speed);
+    } else if (type === "STABILIZATION_PROFILE") {
+      if (!["asset", "adaptive"].includes(ev.data.profile))
+        throw new Error("demoInvalidMode");
+      profileOverride = ev.data.profile;
+      notify("PROFILE_STATE", {
+        profile: profileOverride,
+        clipId: track?.clip?.id || null,
+        experimentalClip: track?.clip?.experimental === true,
+      });
+      if (track?.clip?.experimental) {
+        const compiled = compiledSamples(track.clip, "experimental");
+        track.samples = compiled.frames;
+        track.performance = {
+          cacheHit: compiled.cacheHit,
+          compileMs: compiled.compileMs,
+          ...cache.stats(),
+        };
+        track.stabilizationProfile = selectedProfile(track.clip);
+        applyAt(itemTime);
+        lastTime = performance.now();
+        notify("PRESENTATION", {
+          clipId: track.clip.id,
+          stabilizationEnabled: stabilization,
+          stabilized: stabilization,
+          presentation: stabilization ? track.stabilizationProfile : "raw",
+          profile: profileOverride,
+          performance: track.performance,
+        });
+      }
     } else if (type === "SMOOTHING") {
       if (typeof ev.data.enabled !== "boolean")
         throw new Error("demoInvalidMode");
       if (stabilization === ev.data.enabled) return;
       stabilization = ev.data.enabled;
       if (track?.clip?.experimental) {
-        track.samples = compiledSamples(track.clip, track.kind);
+        const compiled = compiledSamples(track.clip, track.kind);
+        track.samples = compiled.frames;
+        track.performance = {
+          cacheHit: compiled.cacheHit,
+          compileMs: compiled.compileMs,
+          ...cache.stats(),
+        };
+        track.stabilizationProfile = selectedProfile(track.clip);
         track.stabilized = stabilization;
         applyAt(itemTime);
         lastTime = performance.now();
         notify("PRESENTATION", {
           clipId: track.clip.id,
+          stabilizationEnabled: stabilization,
           stabilized: stabilization,
           presentation: stabilization ? track.stabilizationProfile : "raw",
+          profile: profileOverride,
+          performance: track.performance,
         });
       }
     } else if (type === "VIEW") {

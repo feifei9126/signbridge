@@ -59,7 +59,23 @@ if (window.__SIGNBRIDGE_PAGE_AGENT__) {
     badge.dataset.referenceId = info.referenceId || "";
     badge.dataset.modelOutput = info.modelOutput || "";
     badge.dataset.presentation = info.presentation || "raw";
-    badge.title = [label, info.referenceId, info.fallbackReason]
+    if (info.performance) {
+      badge.dataset.compileMs = String(
+        Number(info.performance.compileMs || 0).toFixed(2),
+      );
+      badge.dataset.cacheHit = String(info.performance.cacheHit === true);
+      badge.dataset.cacheBytes = String(
+        Number(info.performance.numericCacheBytes || 0),
+      );
+    }
+    badge.title = [
+      label,
+      info.referenceId,
+      info.fallbackReason,
+      info.performance
+        ? `${Number(info.performance.compileMs || 0).toFixed(2)}ms · ${info.performance.cacheHit ? "cache" : "compile"}`
+        : "",
+    ]
       .filter(Boolean)
       .join(" · ");
   }

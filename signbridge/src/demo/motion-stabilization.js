@@ -1,6 +1,14 @@
 // Display-only temporal filtering. Source fits and checkpoint outputs stay intact.
 export const MOTION_SMOOTHING_PROFILE = "quaternion-temporal-v1";
+export const ADAPTIVE_SMOOTHING_PROFILE = "quaternion-temporal-adaptive-v1";
 export const MOTION_STABILIZATION_PROFILES = Object.freeze({
+  [ADAPTIVE_SMOOTHING_PROFILE]: Object.freeze({
+    strategy: "isolated-spike",
+    minimumResidualDegrees: 2,
+    neighborSpreadDegrees: 12,
+    maximumCorrectionDegrees: 3,
+    correctionGain: 0.75,
+  }),
   "quaternion-temporal-v1": Object.freeze({
     armWindowMs: 45,
     fingerWindowMs: 30,
@@ -52,9 +60,42 @@ export function stabilizeQuaternionTrack(
     const windowMs = /Thumb|Index|Middle|Ring|Little/.test(name)
       ? MOTION_STABILIZATION_PROFILES[profile].fingerWindowMs
       : MOTION_STABILIZATION_PROFILES[profile].armWindowMs;
-    const sigma = (fps * windowMs) / 1000;
-    const radius = Math.ceil(2.5 * sigma);
     for (let frame = 1; frame < source.length - 1; frame++) {
+      const settings = MOTION_STABILIZATION_PROFILES[profile];
+      if (settings.strategy === "isolated-spike") {
+        const previous = source[frame - 1][name];
+        const current = source[frame][name];
+        const next = source[frame + 1][name];
+        const center = previous.clone().slerp(next, 0.5).normalize();
+        const residual = center.angleTo(current);
+        const spread = previous.angleTo(next);
+        if (
+          (residual * 180) / Math.PI >= settings.minimumResidualDegrees &&
+          (spread * 180) / Math.PI <= settings.neighborSpreadDegrees
+        ) {
+          const correction = Math.min(
+            (settings.maximumCorrectionDegrees * Math.PI) / 180,
+            residual * settings.correctionGain,
+          );
+          output[frame][name] = current
+            .clone()
+            .slerp(center, correction / residual)
+            .normalize();
+        }
+        continue;
+      }
+      // Centered neighbor speed preserves sustained fast movement while smoothing
+      // alternating noise. Sharp real reversals can still resemble jitter.
+      const speed =
+        (source[frame - 1][name].angleTo(source[frame + 1][name]) * fps) / 2;
+      const adaptiveWindow = settings.minimumWindowMs
+        ? Math.max(
+            settings.minimumWindowMs,
+            windowMs / (1 + speed / settings.speedScaleRadiansPerSecond),
+          )
+        : windowMs;
+      const sigma = (fps * adaptiveWindow) / 1000;
+      const radius = Math.ceil(2.5 * sigma);
       const count = Math.min(radius, frame, source.length - frame - 1);
       let total = 1;
       const result = source[frame][name].clone();

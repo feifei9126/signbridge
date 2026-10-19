@@ -1,3 +1,4 @@
+import { createMotionCache } from "../demo/motion-cache.js";
 // BUILD: 1784252939651
 /**
  * SignBridge v17 — Multi-site + structured gestures + eased blending
@@ -48,7 +49,7 @@ let t08Retarget = null;
 let t08CandidateRetarget = null;
 let experimentalLoader = null;
 let experimentalRetarget = null;
-const t08TrackCache = new Map();
+const t08TrackCache = createMotionCache({ maxEntries: 12, maxValues: 500000 });
 let translationQueue = Promise.resolve();
 let translationGeneration = 0;
 
@@ -238,29 +239,32 @@ function textToAnimation(text, manual = false) {
             : motionBundle.clips.find((candidate) => candidate.id === item.id);
         if (!modelReady || generation !== translationGeneration) return;
         if (!clip) throw new Error("T08 clip is missing from its motion asset");
-        if (!t08TrackCache.has(clip.id))
-          t08TrackCache.set(
-            clip.id,
-            (sourceType === "experimental"
-              ? experimentalRetarget
-              : sourceType === "candidate"
-                ? t08CandidateRetarget
-                : t08Retarget
-            ).compile(clip),
-          );
-        if (t08TrackCache.size > 12)
-          t08TrackCache.delete(t08TrackCache.keys().next().value);
+        const compiled = t08TrackCache.get(`${sourceType}:${clip.id}`, () =>
+          (sourceType === "experimental"
+            ? experimentalRetarget
+            : sourceType === "candidate"
+              ? t08CandidateRetarget
+              : t08Retarget
+          ).compile(clip),
+        );
         motions.push({
           type: "quaternion-track",
-          samples: t08TrackCache.get(clip.id),
+          samples: compiled.frames,
           fps: clip.fps,
           duration: clip.frames / clip.fps,
           sourceInfo: {
             sourceType,
             referenceId: clip.id,
             modelOutput: clip.model_output,
-            presentation: clip.experimental ? MOTION_SMOOTHING_PROFILE : "raw",
+            presentation: clip.experimental
+              ? clip.display_stabilization_profile || MOTION_SMOOTHING_PROFILE
+              : "raw",
             frames: clip.frames,
+            performance: {
+              cacheHit: compiled.cacheHit,
+              compileMs: compiled.compileMs,
+              numericCacheBytes: t08TrackCache.stats().numericBytes,
+            },
             matchedText: item.text,
             label: t(
               sourceType === "experimental"

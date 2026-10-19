@@ -31,7 +31,7 @@
         ></a>
         <a
           id="meaning-task"
-          href="../private/index.html"
+          href="../private/index.html?scope=1"
           data-i18n="workbenchMeaning"
         ></a>
         <a
@@ -258,6 +258,10 @@
           </div>
 
           <h3 data-i18n="workbenchPresentation"></h3>
+          <p
+            class="research-warning"
+            data-i18n="optimizationAdaptiveWarning"
+          ></p>
           <div class="research-presentation">
             <div class="view-group" role="group" data-i18n-aria="demoView">
               <button
@@ -276,6 +280,19 @@
                 data-i18n="demoRight"
               ></button>
             </div>
+            <label for="stabilization-profile"
+              ><span data-i18n="optimizationDisplayProfile"></span>
+              <select id="stabilization-profile">
+                <option
+                  value="asset"
+                  data-i18n="optimizationAssetProfile"
+                ></option>
+                <option
+                  value="adaptive"
+                  data-i18n="optimizationAdaptiveProfile"
+                ></option>
+              </select>
+            </label>
             <label for="motion-smoothing" class="motion-smoothing">
               <input type="checkbox" id="motion-smoothing" checked />
               <span data-i18n="demoSmoothing"></span>

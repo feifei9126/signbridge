@@ -12,6 +12,9 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const extension = resolve(
   process.env.SIGNBRIDGE_DEMO_BUILD_DIR || join(root, "dist"),
 );
+const metadata = JSON.parse(
+  await readFile(join(extension, "BUILD.json"), "utf8"),
+);
 const output = resolve(
   process.env.SIGNBRIDGE_FEATURE_QA_DIR ||
     join(root, "test-results/feature-browser"),
@@ -159,6 +162,88 @@ try {
   assert.equal(await page.locator("#download").isVisible(), false);
   assert.equal(await page.locator("#tokens").isVisible(), false);
   assert.equal(await page.locator("#speed").isVisible(), true);
+  assert.equal(await page.locator("#stabilization-profile").isVisible(), false);
+  if (metadata.profile === "local-research") {
+    await page.locator("#research-details > summary").click();
+    assert.equal(
+      await page.locator("#stabilization-profile").isVisible(),
+      true,
+    );
+    const fittedIndex = JSON.parse(
+      await readFile(join(extension, "demo/experimental-index.json"), "utf8"),
+    );
+    const sample = fittedIndex.clips[0];
+    await page.locator("#stabilization-profile").selectOption("asset");
+    await page.locator("#input").fill(sample.text);
+    await page.locator("#play").click();
+    await page.waitForFunction(() =>
+      document.querySelector("#status").textContent.startsWith("正在播放"),
+    );
+    await page.waitForFunction(
+      () =>
+        Number(
+          document.querySelector("#progress-text").textContent.split(" /")[0],
+        ) > 1,
+    );
+    await page.locator("#pause").click();
+    await page.waitForFunction(() =>
+      document.querySelector("#status").textContent.includes("暂停"),
+    );
+    await page.screenshot({
+      path: join(output, "sample-existing-profile.png"),
+    });
+    await page.locator("#stabilization-profile").selectOption("adaptive");
+    await page.waitForFunction(
+      () =>
+        document.querySelector("#stabilization-profile").dataset
+          .activeProfile === "adaptive",
+    );
+    await page.waitForTimeout(300);
+    assert.match(
+      await page.locator("#source-badge").textContent(),
+      /隔离尖峰/,
+      `profile=${await page.locator("#stabilization-profile").inputValue()} runtime=${await page.locator("#stabilization-profile").getAttribute("data-active-clip")} experimental=${await page.locator("#stabilization-profile").getAttribute("data-experimental-clip")} status=${await page.locator("#status").textContent()} badge=${await page.locator("#source-badge").textContent()}`,
+    );
+    await page.screenshot({
+      path: join(output, "sample-isolated-spike-experiment.png"),
+    });
+    const reportDownload = page.waitForEvent("download");
+    await page.locator("#download").click();
+    const downloaded = await reportDownload;
+    const session = JSON.parse(await readFile(await downloaded.path(), "utf8"));
+    assert.equal(
+      session.lastPlayedMotion.presentation,
+      "quaternion-temporal-adaptive-v1",
+    );
+    assert.equal(session.lastPlayedMotion.trainingReady, false);
+    assert.ok(session.lastPlayedMotion.performance.compileMs >= 0);
+    assert.ok(session.lastPlayedMotion.performance.numericBytes >= 0);
+    const beforeSwitch = Number(
+      await page
+        .locator("#progress-text")
+        .textContent()
+        .then((v) => v.split(" /")[0]),
+    );
+    await page.locator("#stabilization-profile").selectOption("asset");
+    await page.waitForTimeout(150);
+    const afterSwitch = Number(
+      (await page.locator("#progress-text").textContent()).split(" /")[0],
+    );
+    assert.ok(afterSwitch >= beforeSwitch);
+    const cachedDownload = page.waitForEvent("download");
+    await page.locator("#download").click();
+    const cachedFile = await cachedDownload;
+    const cachedSession = JSON.parse(
+      await readFile(await cachedFile.path(), "utf8"),
+    );
+    assert.equal(cachedSession.lastPlayedMotion.performance.cacheHit, true);
+    await page.locator("#stop").click();
+    await page.locator("#research-details > summary").click();
+    assert.equal(
+      await page.locator("#research-details").getAttribute("open"),
+      null,
+    );
+  }
   await page.locator("#play").click();
   await page.waitForFunction(() =>
     document.querySelector("#status").textContent.startsWith("正在播放"),
@@ -219,7 +304,7 @@ try {
     if (request.url().includes("/v1/understand")) inferenceRequests++;
   });
   await page.locator("#meaning-task").click();
-  await page.waitForURL(`${origin}/private/index.html`);
+  await page.waitForURL(`${origin}/private/index.html?scope=1`);
   assert.equal(await page.locator("#token").inputValue(), "");
   assert.equal(await page.locator("#analysis-fields").isVisible(), false);
   assert.equal(await page.locator("#output").textContent(), "");

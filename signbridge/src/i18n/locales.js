@@ -1,4 +1,10 @@
 const WORKBENCH_ZH = {
+  optimizationAdaptiveWarning:
+    "自适应过滤仅为研究对照：六批95条动作未有片段同时通过抖动、手腕与动作范围数值门槛；不会自动应用。逐条复核前请保留原方案或原始显示。",
+  optimizationDisplayProfile: "显示过滤对照",
+  optimizationAssetProfile: "原有配置（默认）",
+  optimizationAdaptiveProfile: "实验对照：孤立尖峰，非推荐配置",
+
   workbenchCatalogCount:
     "当前可选 {count} 条。匹配表示有动作数据，不代表手语含义已核准。",
   workbenchScope:
@@ -45,6 +51,12 @@ const WORKBENCH_ZH = {
   workbenchRunning: "字幕辅助中",
 };
 const WORKBENCH_EN = {
+  optimizationAdaptiveWarning:
+    "Adaptive filtering is comparison-only: 0 of 95 motions met the combined jitter, wrist and range gate. It is never applied automatically.",
+  optimizationDisplayProfile: "Display filter comparison",
+  optimizationAssetProfile: "Asset profile (default)",
+  optimizationAdaptiveProfile: "Experimental isolated-spike filter",
+
   workbenchCatalogCount:
     "{count} entries available. Matching indicates motion data, not linguistic approval.",
   workbenchScope:
@@ -92,6 +104,12 @@ const WORKBENCH_EN = {
   workbenchRunning: "Subtitle assistance active",
 };
 const WORKBENCH_JA = {
+  optimizationAdaptiveWarning:
+    "適応型フィルターは比較専用です。95件中、揺れ・手首・動作範囲の基準をすべて満たしたものはありません。自動適用されません。",
+  optimizationDisplayProfile: "表示フィルター比較",
+  optimizationAssetProfile: "既存設定（既定）",
+  optimizationAdaptiveProfile: "実験：孤立スパイク除去",
+
   workbenchCatalogCount:
     "選択可能：{count} 件。一致は動作データの存在を示し、手話の意味の承認ではありません。",
   workbenchScope:
@@ -140,6 +158,16 @@ const WORKBENCH_JA = {
 };
 
 const PRIVATE_ZH = {
+  privateScopeExperiment:
+    "作用域对照实验：复用冻结角色权重，仅加受限事件结构约束；这是合成中文工程评估，不是中国手语理解或准确率。",
+  privateScopeAnalyzed:
+    "作用域结构已解析；动作仍需中国手语词级、空间和非手部对齐审核。",
+
+  privateEventStructure: "事件与作用域（冻结模型＋结构约束实验）",
+  privatePlanEvidence:
+    "语义组成：{components}。缺少候选证据：{gaps}。候选均待手语对齐复核，不生成或播放动作。",
+  privatePlanReview: "全部仍需核准",
+
   privateTitle: "SignBridge · 中国手语理解研究版",
   privateScope:
     "当前已训练：受限中文语义角色解析。训练标签为助手合成中文示例，尚未训练出中国手语翻译或视频识别能力。",
@@ -187,6 +215,16 @@ const PRIVATE_ZH = {
   },
 };
 const PRIVATE_EN = {
+  privateScopeExperiment:
+    "Scope comparison: frozen role weights with bounded event-structure constraints. Synthetic Chinese engineering evaluation only; not CSL understanding or accuracy.",
+  privateScopeAnalyzed:
+    "Event scope parsed; CSL lexical, spatial and nonmanual alignment still requires review.",
+
+  privateEventStructure: "Event scope (frozen model + explicit constraints)",
+  privatePlanEvidence:
+    "Meaning components: {components}. Candidate evidence gaps: {gaps}. All candidates await CSL alignment; no motion generation or playback.",
+  privatePlanReview: "all still require review",
+
   privateTitle: "SignBridge · CSL understanding research",
   privateScope:
     "Trained capability: bounded Chinese semantic roles, using assistant synthetic Chinese labels. CSL translation and video recognition are not trained.",
@@ -464,6 +502,8 @@ const DEMO_ZH = {
   demoSpeed: "速度",
   demoSmoothing: "动作平滑",
   demoExperimentalSmoothedBadge: "SMPL-X · 实验重建 · 平滑",
+  demoAdaptiveFilteredBadge: "SMPL-X · 实验重建 · 隔离尖峰对照",
+  demoAdaptiveFilteredWarningBadge: "SMPL-X · 尖峰对照 · 原始风险仍在",
   demoExperimentalSmoothedWarningBadge: "SMPL-X · 实验平滑 · 原始跳变较大",
   demoExperimentalRawBadge: "SMPL-X · 实验重建 · 原始",
   demoModel: "研究模型",
@@ -617,6 +657,10 @@ const DEMO_EN = {
   demoSpeed: "Speed",
   demoSmoothing: "Motion smoothing",
   demoExperimentalSmoothedBadge: "SMPL-X · Experimental fit · Smoothed",
+  demoAdaptiveFilteredBadge:
+    "SMPL-X · Experimental fit · isolated-spike comparison",
+  demoAdaptiveFilteredWarningBadge:
+    "SMPL-X · Spike comparison · raw risk remains",
   demoExperimentalSmoothedWarningBadge:
     "SMPL-X · Experimental · Smoothed · Raw jitter flagged",
   demoExperimentalRawBadge: "SMPL-X · Experimental fit · Raw",
