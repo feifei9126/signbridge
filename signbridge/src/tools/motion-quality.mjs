@@ -145,3 +145,22 @@ export function compareTracks(raw, display, before, after) {
     ),
   };
 }
+
+export function passesStabilityGate(
+  candidate,
+  baseline,
+  { minimumRangeRetention = 0.9, maximumFingerChangeCm = 0.2 } = {},
+) {
+  return (
+    Number.isFinite(candidate?.metrics?.wristMidpointP95Cm) &&
+    Number.isFinite(candidate?.minimumWristRangeRetention) &&
+    Number.isFinite(candidate?.fingerEndJointDisplacementP95Cm) &&
+    Number.isFinite(baseline?.metrics?.wristMidpointP95Cm) &&
+    Number.isFinite(baseline?.fingerEndJointDisplacementP95Cm) &&
+    candidate.metrics.wristMidpointP95Cm <=
+      baseline.metrics.wristMidpointP95Cm &&
+    candidate.minimumWristRangeRetention >= minimumRangeRetention &&
+    candidate.fingerEndJointDisplacementP95Cm <=
+      baseline.fingerEndJointDisplacementP95Cm + maximumFingerChangeCm
+  );
+}

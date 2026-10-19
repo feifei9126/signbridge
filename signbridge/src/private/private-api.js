@@ -92,6 +92,8 @@ export async function understand({
             (item) =>
               item &&
               typeof item.id === "string" &&
+              item.id.length > 0 &&
+              item.id.length <= 128 &&
               item.human_approved === false &&
               item.word_boundaries_verified === false &&
               item.training_ready === false,

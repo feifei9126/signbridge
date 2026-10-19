@@ -79,4 +79,18 @@ test("malformed or mismatched event graphs and evidence are rejected", async () 
       },
     }),
   );
+  await assert.rejects(
+    request({
+      ...base,
+      event_graph: eventGraph,
+      expression_plan: {
+        ...plan,
+        components: plan.components.map((c) =>
+          c.role === "predicate"
+            ? { ...c, evidence: [{ ...evidence, id: "x".repeat(129) }] }
+            : c,
+        ),
+      },
+    }),
+  );
 });

@@ -49,6 +49,41 @@ class PrivateServeTests(unittest.TestCase):
         conn.close()
         return result
 
+    def test_candidate_evidence_loader_returns_bounded_unreviewed_references(self):
+        path = Path(self.tmp.name) / 'candidates.json'
+        path.write_text(json.dumps([
+            {'id': 'handref-001', 'proposed_text': '你好', 'human_approved': False,
+             'word_boundaries_verified': False, 'training_ready': False,
+             'source_absolute_path': '/private/source.mp4'}
+        ]))
+        self.assertEqual(server_tool.load_unit_candidate_evidence(path), [
+            {'id': 'handref-001', 'proposed_text': '你好'}
+        ])
+
+    def test_candidate_evidence_loader_rejects_ambiguous_or_oversized_rows(self):
+        path = Path(self.tmp.name) / 'candidates.json'
+        invalid_sets = [
+            [{'id': 'duplicate', 'proposed_text': '你好'},
+             {'id': 'duplicate', 'proposed_text': '谢谢'}],
+            [{'id': 'x' * 129, 'proposed_text': '你好'}],
+            [{'id': 'long-text', 'proposed_text': '你' * 81}],
+            [{'id': 'approved', 'proposed_text': '你好', 'human_approved': True}],
+            [{'id': f'candidate-{n}', 'proposed_text': '你好'} for n in range(9)],
+        ]
+        for rows in invalid_sets:
+            with self.subTest(rows=rows):
+                path.write_text(json.dumps(rows))
+                with self.assertRaises(ValueError):
+                    server_tool.load_unit_candidate_evidence(path)
+
+    def test_candidate_evidence_loader_rejects_symlinked_files(self):
+        source = Path(self.tmp.name) / 'source.json'
+        source.write_text(json.dumps([{'id': 'safe', 'proposed_text': '你好'}]))
+        link = Path(self.tmp.name) / 'linked.json'
+        link.symlink_to(source)
+        with self.assertRaises(ValueError):
+            server_tool.load_unit_candidate_evidence(link)
+
     def test_authenticated_inference_no_cache(self):
         code, headers, body = self.request()
         self.assertEqual(code, 200)

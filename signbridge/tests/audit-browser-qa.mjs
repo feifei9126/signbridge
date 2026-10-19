@@ -5,6 +5,7 @@ import { existsSync } from "node:fs";
 import { mkdir, readFile, writeFile, stat } from "node:fs/promises";
 import { dirname, extname, join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
+import { resolveTestResultsDir } from "../scripts/test-results-dir.mjs";
 const { chromium } = await import(
   process.env.SIGNBRIDGE_PLAYWRIGHT_MODULE || "playwright"
 );
@@ -14,7 +15,7 @@ const dist = resolve(
 );
 const output = resolve(
   process.env.SIGNBRIDGE_AUDIT_QA_DIR ||
-    join(root, "test-results/audit-browser"),
+    join(resolveTestResultsDir(root), "audit-browser"),
 );
 const report = { status: "running", checks: [], errors: [] };
 const server = createServer(async (request, response) => {

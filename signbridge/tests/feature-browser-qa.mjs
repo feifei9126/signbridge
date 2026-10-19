@@ -5,6 +5,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { resolveTestResultsDir } from "../scripts/test-results-dir.mjs";
 const { chromium } = await import(
   process.env.SIGNBRIDGE_PLAYWRIGHT_MODULE || "playwright"
 );
@@ -17,10 +18,55 @@ const metadata = JSON.parse(
 );
 const output = resolve(
   process.env.SIGNBRIDGE_FEATURE_QA_DIR ||
-    join(root, "test-results/feature-browser"),
+    join(resolveTestResultsDir(root), "feature-browser"),
 );
 const profile = await mkdtemp(join(tmpdir(), "signbridge-features-"));
 const report = { status: "running", checks: [], errors: [] };
+async function installPlaybackTiming(page) {
+  await page.evaluate(() => {
+    window.__signbridgePlaybackTiming = {
+      armed: false,
+      clickedAt: null,
+      firstUpdateMs: null,
+    };
+    document.addEventListener(
+      "click",
+      (event) => {
+        const timing = window.__signbridgePlaybackTiming;
+        if (timing?.armed && event.target.closest("#play"))
+          timing.clickedAt = performance.now();
+      },
+      true,
+    );
+    window.addEventListener("message", (event) => {
+      const timing = window.__signbridgePlaybackTiming;
+      if (
+        timing?.armed &&
+        timing.clickedAt !== null &&
+        event.source === document.querySelector("#avatar")?.contentWindow &&
+        event.data?.source === "signbridge-demo-avatar" &&
+        event.data.type === "PROGRESS"
+      ) {
+        timing.armed = false;
+        timing.firstUpdateMs = performance.now() - timing.clickedAt;
+      }
+    });
+  });
+}
+
+async function measurePlaybackStart(page) {
+  await page.evaluate(() => {
+    window.__signbridgePlaybackTiming.armed = true;
+    window.__signbridgePlaybackTiming.clickedAt = null;
+    window.__signbridgePlaybackTiming.firstUpdateMs = null;
+  });
+  await page.locator("#play").click();
+  await page.waitForFunction(() =>
+    Number.isFinite(window.__signbridgePlaybackTiming.firstUpdateMs),
+  );
+  return page.evaluate(() => window.__signbridgePlaybackTiming.firstUpdateMs);
+}
+
 const server = createServer((_request, response) => {
   response.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
   response.end(
@@ -175,12 +221,11 @@ try {
     const sample = fittedIndex.clips[0];
     await page.locator("#stabilization-profile").selectOption("asset");
     await page.locator("#input").fill(sample.text);
-    await page.locator("#play").click();
-    await page.waitForFunction(() =>
-      document.querySelector("#status").textContent.startsWith("正在播放"),
-    );
+    await installPlaybackTiming(page);
+    const coldToFirstUpdateMs = await measurePlaybackStart(page);
     await page.waitForFunction(
       () =>
+        document.querySelector("#status").textContent.startsWith("正在播放") &&
         Number(
           document.querySelector("#progress-text").textContent.split(" /")[0],
         ) > 1,
@@ -238,6 +283,26 @@ try {
     );
     assert.equal(cachedSession.lastPlayedMotion.performance.cacheHit, true);
     await page.locator("#stop").click();
+    const warmReplayToFirstUpdateMs = [];
+    for (let index = 0; index < 3; index++) {
+      await page.waitForFunction(
+        () => document.querySelector("#stop").disabled,
+      );
+      warmReplayToFirstUpdateMs.push(await measurePlaybackStart(page));
+      await page.locator("#stop").click();
+    }
+    assert.ok(Number.isFinite(coldToFirstUpdateMs) && coldToFirstUpdateMs >= 0);
+    assert.equal(warmReplayToFirstUpdateMs.length, 3);
+    assert.ok(warmReplayToFirstUpdateMs.every(Number.isFinite));
+    report.playbackStartup = {
+      clipId: sample.id,
+      coldToFirstUpdateMs,
+      warmReplayToFirstUpdateMs,
+      warmCacheHit: cachedSession.lastPlayedMotion.performance.cacheHit,
+      milestone:
+        "play-click-to-first-progress-message-after-pose-apply-and-render-call",
+      environment: "headless-chromium-local-research-build",
+    };
     await page.locator("#research-details > summary").click();
     assert.equal(
       await page.locator("#research-details").getAttribute("open"),

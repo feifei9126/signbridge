@@ -187,14 +187,22 @@ flowchart LR
 ```bash
 cd signbridge
 npm run dev       # 持续构建
-npm run verify    # 构建 + ESLint + 自动化回归测试 + Prettier 检查
+npm run verify    # 单次构建 + ESLint + JavaScript/Python 测试 + Prettier 检查
 ```
+
+Python 测试会优先使用仓库根目录 `.venv-sign-data`；也可通过 `SIGNBRIDGE_PYTHON` 指定解释器。`npm run test:js` 和 `npm run test:python` 可单独执行。
 
 主要技术栈：Chrome Extension Manifest V3、Three.js、glTF、Transformers.js、ONNX Runtime Web、esbuild 和 Node.js Test Runner。
 
 ### 六轮浏览器回归
 
-`npm run verify` 不包含浏览器测试。完整验收需要额外准备 Playwright 和支持扩展加载的 Chromium；它们不是当前项目的 npm 依赖。已有独立安装时，可在内层扩展目录指定路径：
+`npm run verify` 不包含浏览器测试。Playwright 已列为开发依赖，运行 `npm ci` 后还需安装支持扩展加载的 Chromium：
+
+```bash
+npx playwright install chromium
+```
+
+Linux CI 可用 `npx playwright install --with-deps chromium`。若要使用自定义 Playwright 模块或 Chromium，可在内层扩展目录指定路径：
 
 ```bash
 export SIGNBRIDGE_PLAYWRIGHT_MODULE="/absolute/path/to/playwright/index.mjs"
@@ -202,7 +210,7 @@ export SIGNBRIDGE_CHROMIUM_PATH="/absolute/path/to/chromium-executable"
 npm run verify:release
 ```
 
-如果 Node 能直接导入 `playwright` 且对应浏览器已安装，可以不设置路径。脚本依次运行常规验证及 `tests/browser-phase1.mjs` 至 `tests/browser-phase6.mjs`，使用隔离浏览器数据，不读取日常 Chrome 个人资料。
+如果 Node 能直接导入 `playwright` 且对应浏览器已安装，可以不设置路径。脚本依次运行常规验证及 `tests/browser-phase1.mjs` 至 `tests/browser-phase6.mjs`，使用隔离浏览器数据，不读取日常 Chrome 个人资料。完整验收报告写入带单一开始时间戳的新目录，避免目录名与报告时间相差毫秒。
 
 - 验收报告：`signbridge/test-results/release-acceptance.json`，包含源码和构建 SHA-256、各阶段结果及人工待验收项。
 - 页面截图和阶段报告：`signbridge/test-results/phase*-browser/`。

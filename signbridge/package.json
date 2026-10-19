@@ -29,12 +29,13 @@
     "dev": "node scripts/build.mjs --watch",
     "lint": "eslint src/ tools/editor-full-entry.js",
     "format": "prettier --write src/ scripts/*.mjs tools/editor-full-entry.js tools/pose-editor.html tools/record-mode.html tests/ eslint.config.mjs package.json",
-    "test": "npm run build --silent && node --test tests/*.test.mjs",
-    "verify": "npm run build && npm run lint && npm test && npx prettier --check src/ scripts/*.mjs tools/editor-full-entry.js tools/pose-editor.html tools/record-mode.html tests/ eslint.config.mjs package.json",
+    "test": "npm run build --silent && npm run test:js",
+    "test:js": "node --test tests/*.test.mjs",
+    "test:python": "node scripts/run-python-tests.mjs",
+    "verify": "npm run build && npm run lint && npm run test:js && npm run test:python && npx prettier --check src/ scripts/*.mjs tools/editor-full-entry.js tools/pose-editor.html tools/record-mode.html tests/ eslint.config.mjs package.json",
     "verify:release": "node tests/release-acceptance.mjs",
     "build:private": "node scripts/build-private.mjs",
-    "build:research": "node scripts/build.mjs --profile=local-research",
-    "test:python": "python3 src/tools/sign-test-suite.py"
+    "build:research": "node scripts/build.mjs --profile=local-research"
   },
   "dependencies": {
     "@huggingface/transformers": "^3.7.6",

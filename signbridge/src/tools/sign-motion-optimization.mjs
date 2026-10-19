@@ -20,7 +20,10 @@ import {
   measureTrack,
   compareTracks,
   percentile,
+  passesStabilityGate,
 } from "./motion-quality.mjs";
+
+const RECOVERY_PROFILE = "quaternion-temporal-recovery-v1";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const { values } = parseArgs({
@@ -53,7 +56,6 @@ for (const path of [
 const model = loadSkeleton(join(root, "src/avatar/model.glb")),
   rig = createHumanoidRig(model),
   records = [];
-let previous = null;
 for (const directory of [values.assets, values.extra].filter(Boolean)) {
   const assets = resolve(directory),
     index = validateExperimentalIndex(
@@ -73,13 +75,19 @@ for (const directory of [values.assets, values.extra].filter(Boolean)) {
       rawCompileMs = performance.now() - start;
     const before = measureTrack(raw, rig, model),
       profiles = {};
-    for (const [name, profile] of [
-      [
-        "existing",
-        entry.display_stabilization_profile || MOTION_SMOOTHING_PROFILE,
-      ],
-      ["adaptive", ADAPTIVE_SMOOTHING_PROFILE],
-    ]) {
+    const existingProfile =
+      entry.display_stabilization_profile || MOTION_SMOOTHING_PROFILE;
+    const comparisons = [
+      ["existing", existingProfile],
+      ["recovery100ms", RECOVERY_PROFILE],
+      ["isolatedSpike", ADAPTIVE_SMOOTHING_PROFILE],
+    ];
+    const measuredProfiles = new Set();
+    for (const [name, profile] of comparisons) {
+      if (measuredProfiles.has(profile)) {
+        profiles[name] = profiles.existing;
+        continue;
+      }
       const began = performance.now(),
         display = stabilizeQuaternionTrack(raw, clip.fps, profile),
         filterMs = performance.now() - began;
@@ -91,27 +99,18 @@ for (const directory of [values.assets, values.extra].filter(Boolean)) {
         metrics: measured.metrics,
         ...deviation,
       };
+      measuredProfiles.add(profile);
     }
     const cache = createMotionCache();
     const first = cache.get(clip.id, () => retarget.compile(clip));
     const warm = cache.get(clip.id, () => {
       throw new Error("Cache miss on repeated compile");
     });
-    const boundary = previous
-      ? percentile(
-          Object.keys(raw[0]).map(
-            (name) => (previous[name].angleTo(raw[0][name]) * 180) / Math.PI,
-          ),
-        )
-      : null;
-    const existing = profiles.existing,
-      adaptive = profiles.adaptive;
-    const numericGuard =
-      adaptive.minimumWristRangeRetention >= 0.9 &&
-      adaptive.fingerEndJointDisplacementP95Cm <=
-        existing.fingerEndJointDisplacementP95Cm + 0.2 &&
-      adaptive.metrics.wristMidpointP95Cm <=
-        existing.metrics.wristMidpointP95Cm;
+    const existing = profiles.existing;
+    const numericGates = {
+      recovery100ms: passesStabilityGate(profiles.recovery100ms, existing),
+      isolatedSpike: passesStabilityGate(profiles.isolatedSpike, existing),
+    };
     records.push({
       id: clip.id,
       text: clip.text,
@@ -120,19 +119,17 @@ for (const directory of [values.assets, values.extra].filter(Boolean)) {
       rawCompileMs,
       raw: before.metrics,
       profiles,
+      numericGates,
       cache: {
         coldMs: first.compileMs,
         warmMs: warm.compileMs,
         warmHit: warm.cacheHit,
         ...cache.stats(),
       },
-      boundaryFromPreviousP95Degrees: boundary,
-      adaptivePassesNumericComparison: numericGuard,
       deployment: "research_option_only_no_automatic_promotion",
       human_approved: false,
       training_ready: false,
     });
-    previous = raw.at(-1);
     console.log(JSON.stringify({ id: clip.id, measured: records.length }));
   }
 }
@@ -142,20 +139,29 @@ for (const input of inputs)
 const mean = (array) => array.reduce((a, b) => a + b, 0) / array.length;
 const summary = {
   clips: records.length,
-  numericComparisonPass: records.filter(
-    (r) => r.adaptivePassesNumericComparison,
+  recovery100msNumericGatePasses: records.filter(
+    (r) => r.numericGates.recovery100ms,
+  ).length,
+  isolatedSpikeNumericGatePasses: records.filter(
+    (r) => r.numericGates.isolatedSpike,
   ).length,
   existingWristMidpointP95MeanCm: mean(
     records.map((r) => r.profiles.existing.metrics.wristMidpointP95Cm),
   ),
-  adaptiveWristMidpointP95MeanCm: mean(
-    records.map((r) => r.profiles.adaptive.metrics.wristMidpointP95Cm),
+  isolatedSpikeWristMidpointP95MeanCm: mean(
+    records.map((r) => r.profiles.isolatedSpike.metrics.wristMidpointP95Cm),
+  ),
+  recovery100msWristMidpointP95MeanCm: mean(
+    records.map((r) => r.profiles.recovery100ms.metrics.wristMidpointP95Cm),
   ),
   existingMinimumRangeRetention: Math.min(
     ...records.map((r) => r.profiles.existing.minimumWristRangeRetention),
   ),
-  adaptiveMinimumRangeRetention: Math.min(
-    ...records.map((r) => r.profiles.adaptive.minimumWristRangeRetention),
+  isolatedSpikeMinimumRangeRetention: Math.min(
+    ...records.map((r) => r.profiles.isolatedSpike.minimumWristRangeRetention),
+  ),
+  recovery100msMinimumRangeRetention: Math.min(
+    ...records.map((r) => r.profiles.recovery100ms.minimumWristRangeRetention),
   ),
   meanColdCompileMs: mean(records.map((r) => r.cache.coldMs)),
   meanWarmLookupMs: mean(records.map((r) => r.cache.warmMs)),
@@ -165,7 +171,7 @@ const summary = {
 };
 mkdirSync(output);
 const report = {
-  schema: "signbridge-motion-optimization-v1",
+  schema: "signbridge-motion-optimization-v2",
   createdAt: new Date().toISOString(),
   summary,
   records,
@@ -177,7 +183,7 @@ const report = {
     "These are target-avatar stability proxies, not CSL accuracy or measured real-world contact.",
     "Finger end joints are bone origins, not measured fingertip skin contacts.",
     "Near-hand distance is an avatar screening proxy on frames below 3cm in raw mode; not ground truth contact.",
-    "Clip ordering in this report is diagnostic, not an approved sentence construction. Filters preserve endpoint jumps; no new compositional playback is approved.",
+    "Each clip is an independent sequence; no cross-clip transition score is computed. Filters preserve endpoint jumps; no new compositional playback is approved.",
     "Numeric cache bytes exclude JavaScript object overhead, active tracks, renderer and decoded source poses.",
     "Comparisons use all available selected clips, not an independent held-out quality test. Default asset profiles remain unchanged.",
   ],

@@ -191,14 +191,42 @@ def load_parser(model, scope_experiment=False, unit_candidates=None):
         return module.load_model(model)
     evidence = []
     if unit_candidates is not None:
-        if unit_candidates.stat().st_size > 5000000:
-            raise ValueError('Candidate evidence too large')
-        evidence = json.loads(unit_candidates.read_text())
-        if not isinstance(evidence, list) or len(evidence) > 1000 or any(
-                not isinstance(r, dict) or not isinstance(r.get('id'), str)
-                or not isinstance(r.get('proposed_text'), str) for r in evidence):
-            raise ValueError('Invalid candidate evidence')
+        evidence = load_unit_candidate_evidence(unit_candidates)
     return module.ScopeParser(module.base.load_model(model), evidence)
+
+
+def load_unit_candidate_evidence(path):
+    path = Path(path)
+    if path.is_symlink() or not path.is_file() or path.stat().st_size > 5000000:
+        raise ValueError('Candidate evidence must be a regular file under 5 MB')
+    try:
+        rows = json.loads(path.read_text(encoding='utf-8'))
+    except (OSError, UnicodeError, json.JSONDecodeError, RecursionError) as error:
+        raise ValueError('Invalid candidate evidence JSON') from error
+    if not isinstance(rows, list) or len(rows) > 1000:
+        raise ValueError('Candidate evidence must be a list of at most 1000 rows')
+    ids, text_counts, evidence = set(), {}, []
+    for row in rows:
+        if not isinstance(row, dict):
+            raise ValueError('Candidate evidence row must be an object')
+        candidate_id, text = row.get('id'), row.get('proposed_text')
+        if (not isinstance(candidate_id, str) or
+                not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._:-]{0,127}', candidate_id) or
+                candidate_id in ids):
+            raise ValueError('Candidate evidence ID is invalid or duplicated')
+        if (not isinstance(text, str) or not 1 <= len(text) <= 80 or
+                text != text.strip() or not text.isprintable()):
+            raise ValueError('Candidate evidence text is invalid')
+        for field in ('human_approved', 'word_boundaries_verified', 'training_ready',
+                      'model_training_ready'):
+            if field in row and row[field] is not False:
+                raise ValueError('Candidate evidence contains an approved state')
+        text_counts[text] = text_counts.get(text, 0) + 1
+        if text_counts[text] > 8:
+            raise ValueError('Candidate evidence exceeds the per-text response limit')
+        ids.add(candidate_id)
+        evidence.append({'id': candidate_id, 'proposed_text': text})
+    return evidence
 
 
 def main():

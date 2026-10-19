@@ -10,18 +10,20 @@ import {
 import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { existsSync } from "node:fs";
+import { createReleaseReportLocation } from "../scripts/release-report-location.mjs";
+import { resolveTestResultsDir } from "../scripts/test-results-dir.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
-const reportDir = join(
-  root,
-  "test-results/releases",
-  new Date().toISOString().replaceAll(":", "-"),
+const resultsRoot = resolveTestResultsDir(root);
+const reportLocation = createReleaseReportLocation(
+  join(resultsRoot, "releases"),
 );
+const reportDir = reportLocation.directory;
 const reportPath = join(reportDir, "release-acceptance.json");
 const report = {
   format: "signbridge-release-acceptance",
   version: 1,
-  startedAt: new Date().toISOString(),
+  startedAt: reportLocation.startedAt,
   automatedStatus: "running",
   publishReady: false,
   stages: [],
@@ -44,9 +46,13 @@ async function save() {
   await writeFile(reportPath, JSON.stringify(report, null, 2) + "\n");
 }
 
-function run(command, args) {
+function run(command, args, env = process.env) {
   return new Promise((resolve, reject) => {
-    const child = spawn(command, args, { cwd: root, stdio: "inherit" });
+    const child = spawn(command, args, {
+      cwd: root,
+      env,
+      stdio: "inherit",
+    });
     child.once("error", reject);
     child.once("exit", (code, signal) => {
       if (code === 0) resolve();
@@ -66,9 +72,11 @@ async function fingerprint(paths) {
     for (const entry of (
       await readdir(join(root, path), { withFileTypes: true })
     ).sort((first, second) => first.name.localeCompare(second.name))) {
+      if (entry.name === "__pycache__") continue;
       const child = join(path, entry.name);
       if (entry.isDirectory()) await collect(child);
-      else if (entry.isFile()) entries.push(child);
+      else if (entry.isFile() && !entry.name.endsWith(".pyc"))
+        entries.push(child);
       else throw new Error(`Unsupported release input: ${child}`);
     }
   }
@@ -119,20 +127,27 @@ try {
     throw new Error(
       "Source changed during verification; rerun against a stable working tree.",
     );
-  report.stages.push({ id: "build-lint-unit-format", status: "passed" });
+  report.stages.push({ id: "build-lint-js-python-format", status: "passed" });
   report.source = source;
   report.build = await fingerprint(distPaths);
   report.extensionVersion = JSON.parse(
     await readFile(join(root, "dist/manifest.json"), "utf8"),
   ).version;
   await save();
+  const browserEnv = {
+    ...process.env,
+    SIGNBRIDGE_TEST_RESULTS_DIR: resultsRoot,
+    SIGNBRIDGE_AUDIT_QA_DIR: join(resultsRoot, "audit-browser"),
+    SIGNBRIDGE_FEATURE_QA_DIR: join(resultsRoot, "feature-browser"),
+  };
   for (let phase = 1; phase <= 6; phase++) {
-    const evidence = join(
-      root,
-      `test-results/phase${phase}-browser/report.json`,
-    );
+    const evidence = join(resultsRoot, `phase${phase}-browser/report.json`);
 
-    await run(process.execPath, [`tests/browser-phase${phase}.mjs`]);
+    await run(
+      process.execPath,
+      [`tests/browser-phase${phase}.mjs`],
+      browserEnv,
+    );
     const result = JSON.parse(await readFile(evidence, "utf8"));
     if (
       !Array.isArray(result.checks) ||
@@ -150,18 +165,18 @@ try {
     });
     await save();
   }
-  await run(process.execPath, ["tests/audit-browser-qa.mjs"]);
+  await run(process.execPath, ["tests/audit-browser-qa.mjs"], browserEnv);
   await copyFile(
-    join(root, "test-results/audit-browser/report.json"),
+    join(resultsRoot, "audit-browser/report.json"),
     join(reportDir, "audit-browser.json"),
   );
   report.stages.push({
     id: "audit-browser-analysis-and-boundaries",
     status: "passed",
   });
-  await run(process.execPath, ["tests/feature-browser-qa.mjs"]);
+  await run(process.execPath, ["tests/feature-browser-qa.mjs"], browserEnv);
   await copyFile(
-    join(root, "test-results/feature-browser/report.json"),
+    join(resultsRoot, "feature-browser/report.json"),
     join(reportDir, "feature-browser.json"),
   );
   report.stages.push({
@@ -189,10 +204,7 @@ try {
 } finally {
   report.finishedAt = new Date().toISOString();
   await save();
-  await copyFile(
-    reportPath,
-    join(root, "test-results/release-acceptance.json"),
-  );
+  await copyFile(reportPath, join(resultsRoot, "release-acceptance.json"));
   console.log(
     `\nAutomated acceptance: ${report.automatedStatus}. Human acceptance remains pending.\n${reportPath}`,
   );
