@@ -64,6 +64,7 @@ try {
   const metadata = JSON.parse(await readFile(join(dist, "BUILD.json"), "utf8"));
   report.profile = metadata.profile;
   const matches = async () => page.locator("#matches").innerText();
+  await page.locator("#research-details > summary").click();
   await page.locator('[data-mode="dictionary"]').click();
   for (const text of ["不是", "好久不见", "人民广场", "了解一下"]) {
     await page.locator("#input").fill(text);
@@ -165,6 +166,24 @@ try {
     path: join(output, "analysis-only.png"),
     fullPage: true,
   });
+  await page.locator("#meaning-task").click();
+  assert.equal(await page.locator("[data-workbench]").isVisible(), true);
+  assert.equal(
+    await page.locator("#endpoint").inputValue(),
+    "http://127.0.0.1:8770",
+  );
+  assert.equal(await page.locator("#open-local-service").isVisible(), true);
+  let calls = 0;
+  page.on("request", (request) => {
+    if (request.url().includes("/v1/understand")) calls++;
+  });
+  assert.equal(await page.locator("#analysis-fields").isVisible(), false);
+  assert.equal(calls, 0);
+  assert.equal(await page.locator("#output").textContent(), "");
+  assert.match(await page.locator("#status").textContent(), /分析页/);
+  report.checks.push(
+    "local HTTP workspace uses an explicit same-origin service handoff without leaking a token or attempting a forbidden cross-origin inference",
+  );
   assert.deepEqual(report.errors, []);
   report.status = "passed";
 } finally {

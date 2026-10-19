@@ -18,11 +18,6 @@ if (window.__SIGNBRIDGE_PAGE_AGENT__) {
     config: {},
   };
 
-  function recognitionLanguage() {
-    const language = state.config.sourceLanguage;
-    return language && language !== "auto" ? language : "zh-CN";
-  }
-
   function sendToIframe(type, data) {
     window.postMessage(
       { source: "signbridge-page", type, ...(data || {}) },
@@ -114,7 +109,7 @@ if (window.__SIGNBRIDGE_PAGE_AGENT__) {
 
     // ===== 字幕捕获 =====
     state.capturer = new SubtitleCapturer({
-      language: recognitionLanguage(),
+      language: "zh-CN",
       onSubtitle: (result) => {
         if (!state.active || !result.text) return;
         if (result.text === state.lastText) return;

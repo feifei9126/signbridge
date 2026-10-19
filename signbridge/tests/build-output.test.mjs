@@ -93,9 +93,9 @@ test("coverage tool uses external scripts under extension CSP", () => {
 
 test("visual review is a CSP-safe independent popup tool", () => {
   const html = readFileSync(join(dist, "tools/motion-review.html"), "utf8");
-  const popup = readFileSync(join(dist, "popup/index.html"), "utf8");
+  const workspace = readFileSync(join(dist, "demo/index.html"), "utf8");
   const bundle = readFileSync(join(dist, "tools/motion-review.js"), "utf8");
-  assert.match(popup, /id="btnMotionReview"/);
+  assert.match(workspace, /id="btnMotionReview"/);
   assert.doesNotMatch(html, /\son\w+=/i);
   assert.match(html, /<script type="module" src="motion-review.js"><\/script>/);
   assert.doesNotMatch(bundle, /from\s+["']three["']/);

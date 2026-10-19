@@ -63,3 +63,16 @@ export async function understand({
     throw new Error("privateResponseInvalid");
   return result;
 }
+
+export function localServicePage(value) {
+  return privateEndpoint(value).replace(
+    "/v1/understand",
+    "/private/index.html",
+  );
+}
+
+export function needsLocalServicePage(value, pageOrigin, workbench = false) {
+  const service = new URL(localServicePage(value));
+  if (pageOrigin.startsWith("chrome-extension://")) return workbench;
+  return service.origin !== pageOrigin;
+}

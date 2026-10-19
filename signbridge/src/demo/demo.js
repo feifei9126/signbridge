@@ -23,6 +23,22 @@ for (const el of document.querySelectorAll("[data-i18n-aria]"))
 const frame = document.querySelector("#avatar"),
   input = document.querySelector("#input");
 frame.title = t("demoStage");
+const researchDetails = document.querySelector("#research-details");
+const openResearch = () => {
+  researchDetails.open = true;
+};
+document
+  .querySelector("#open-research")
+  .addEventListener("click", openResearch);
+window.addEventListener("hashchange", () => {
+  if (location.hash === "#research-details") openResearch();
+});
+if (location.hash === "#research-details") openResearch();
+if (globalThis.chrome?.runtime?.id) {
+  document.querySelector("#extension-tools").hidden = false;
+  document.querySelector("#extension-tools-note").hidden = true;
+}
+
 const status = document.querySelector("#status"),
   playButton = document.querySelector("#play"),
   pauseButton = document.querySelector("#pause"),
@@ -59,6 +75,15 @@ function element(tag, text) {
 function refreshPlan() {
   currentPlan = planDemoText(input.value, mode, playableClips());
   renderSemanticPlan();
+  const analysisOnly = mode === "semantic";
+  document.querySelector("#playback-actions").hidden = analysisOnly;
+  document.querySelector("#motion-catalog").hidden = analysisOnly;
+  document.querySelector(".coverage").hidden = analysisOnly;
+  const routingNote = document.querySelector("#routing-note");
+  routingNote.hidden = mode === "auto";
+  routingNote.textContent = t(
+    analysisOnly ? "workbenchRuleOnly" : "workbenchForcedSource",
+  );
   document.querySelector("#chars").textContent =
     `${[...input.value].length} / 500`;
   document.querySelector("#match-count").textContent = t("demoCount", {
@@ -193,8 +218,9 @@ function renderCatalog() {
   );
   document.querySelector("#catalog-count").textContent =
     `${found.length} / ${catalog.length}`;
-  document.querySelector("#catalog-note").textContent =
-    catalogView === "phrases"
+  document.querySelector("#catalog-note").textContent = !researchDetails.open
+    ? t("workbenchCatalogCount", { count: catalog.length })
+    : catalogView === "phrases"
       ? t("demoPhraseSourceNote", {
           total: catalog.length,
           reference: catalog.filter((entry) => entry.source === "t08").length,
@@ -281,24 +307,38 @@ for (const button of document.querySelectorAll("[data-catalog-view]"))
     catalogView = button.dataset.catalogView;
     renderCatalog();
   });
-for (const b of document.querySelectorAll("[data-mode]"))
-  b.addEventListener("click", () => {
-    mode = b.dataset.mode;
-    if (mode === "t08") catalogView = "phrases";
-    send("STOP");
-    resetUi();
-    for (const n of document.querySelectorAll("[data-mode]")) {
-      n.classList.toggle("active", n === b);
-      n.setAttribute("aria-pressed", String(n === b));
-    }
-    refreshPlan();
-    renderCatalog();
-    setStatus(
-      modelAvailable || mode === "dictionary"
+function selectMode(nextMode) {
+  mode = nextMode;
+  if (mode === "t08") catalogView = "phrases";
+  send("STOP");
+  resetUi();
+  for (const n of document.querySelectorAll("[data-mode]")) {
+    const selected = n.dataset.mode === mode;
+    n.classList.toggle("active", selected);
+    n.setAttribute("aria-pressed", String(selected));
+  }
+  refreshPlan();
+  renderCatalog();
+  setStatus(
+    mode === "semantic"
+      ? "cslAnalysisOnly"
+      : modelAvailable || mode === "dictionary"
         ? "demoReady"
         : "demoPartialAsset",
-    );
-  });
+  );
+}
+for (const b of document.querySelectorAll("[data-mode]"))
+  b.addEventListener("click", () => selectMode(b.dataset.mode));
+researchDetails.addEventListener("toggle", (event) => {
+  renderCatalog();
+  // Closing research returns the ordinary workflow to automatic matching.
+  if (
+    event.target === researchDetails &&
+    !researchDetails.open &&
+    mode !== "auto"
+  )
+    selectMode("auto");
+});
 for (const b of document.querySelectorAll("[data-view]"))
   b.addEventListener("click", () => {
     send("VIEW", { view: b.dataset.view });
@@ -506,7 +546,15 @@ input.value = t("demoSample");
 document.querySelector("#tokens").textContent = t("demoTokenEmpty");
 renderCatalog();
 refreshPlan();
-research();
+let researchLoaded = false;
+const loadResearch = () => {
+  if (researchDetails.open && !researchLoaded) {
+    researchLoaded = true;
+    research();
+  }
+};
+researchDetails.addEventListener("toggle", loadResearch);
+loadResearch();
 try {
   const r = await fetch("t08-motion.json");
   if (!r.ok) throw new Error("demoInvalidAsset");

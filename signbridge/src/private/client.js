@@ -1,5 +1,9 @@
 import { t, setLocale } from "../i18n/locales.js";
-import { understand } from "./private-api.js";
+import {
+  understand,
+  needsLocalServicePage,
+  localServicePage,
+} from "./private-api.js";
 
 setLocale("zh-CN");
 for (const node of document.querySelectorAll("[data-i18n]"))
@@ -7,7 +11,11 @@ for (const node of document.querySelectorAll("[data-i18n]"))
 document.title = t("privateTitle");
 const form = document.querySelector("#understand-form");
 const endpoint = document.querySelector("#endpoint");
-if (location.protocol === "http:" && location.hostname === "127.0.0.1")
+if (
+  location.protocol === "http:" &&
+  location.hostname === "127.0.0.1" &&
+  document.querySelector("[data-workbench]").hidden
+)
   endpoint.value = location.origin;
 const token = document.querySelector("#token");
 const text = document.querySelector("#sentence");
@@ -15,6 +23,36 @@ const status = document.querySelector("#status");
 const output = document.querySelector("#output");
 const button = document.querySelector("#analyze");
 let pending = null;
+function needsServicePage() {
+  try {
+    return needsLocalServicePage(
+      endpoint.value,
+      location.origin,
+      !document.querySelector("[data-workbench]").hidden,
+    );
+  } catch {
+    return false;
+  }
+}
+function updateHandoff() {
+  const needed = needsServicePage();
+  document.querySelector("#local-handoff").hidden = !needed;
+  document.querySelector("#open-local-service").hidden = !needed;
+  document.querySelector("#analysis-fields").hidden = needed;
+  token.disabled = needed;
+  text.disabled = needed;
+  button.disabled = needed;
+  if (needed) status.textContent = t("workbenchServiceHandoff");
+}
+endpoint.addEventListener("input", updateHandoff);
+updateHandoff();
+document.querySelector("#open-local-service").addEventListener("click", () => {
+  try {
+    location.assign(localServicePage(endpoint.value));
+  } catch {
+    status.textContent = t("privateEndpointInvalid");
+  }
+});
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
   pending?.abort();
@@ -25,6 +63,11 @@ form.addEventListener("submit", async (event) => {
   status.textContent = t("privateAnalyzing");
   output.replaceChildren();
   try {
+    if (needsServicePage()) {
+      status.textContent = t("workbenchServiceHandoff");
+      return;
+    }
+    if (pending !== controller || controller.signal.aborted) return;
     const result = await understand({
       endpoint: endpoint.value,
       token: token.value,

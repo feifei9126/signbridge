@@ -112,6 +112,9 @@ async function canvasShot() {
 }
 try {
   await page.goto(url);
+  await page.locator("#research-details").evaluate((node) => {
+    node.open = true;
+  });
   await ready();
   assert.equal(await page.locator("#motion-smoothing").count(), 1);
   assert.equal(await page.locator("#motion-smoothing").isChecked(), true);
@@ -256,6 +259,7 @@ try {
   await broken.waitForFunction(() =>
     document.querySelector("#status").textContent.includes("加载失败"),
   );
+  await broken.locator("#research-details > summary").click();
   await broken.locator("[data-mode=dictionary]").click();
   await broken.locator("#input").fill("谢谢");
   await broken.locator("#play").click();

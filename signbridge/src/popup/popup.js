@@ -8,7 +8,6 @@ class SignBridgePopup {
     this._currentTabId = null;
     this._isActive = false;
     this._audioEnabled = false;
-    this._settingsTimer = null;
   }
 
   async init() {
@@ -18,7 +17,6 @@ class SignBridgePopup {
     this._cacheElements();
     this._applyTranslations();
     this._bindEvents();
-    this._populateSettings();
     this._updateUI();
     await this._queryStatus();
   }
@@ -30,16 +28,7 @@ class SignBridgePopup {
       toggleText: document.getElementById("btnToggleText"),
       statusDot: document.getElementById("statusDot"),
       statusText: document.getElementById("statusText"),
-      signLanguage: document.getElementById("signLanguage"),
-      avatarSize: document.getElementById("avatarSize"),
-      sizeValue: document.getElementById("sizeValue"),
-      sourceLanguage: document.getElementById("sourceLanguage"),
-      uiLocale: document.getElementById("uiLocale"),
       settingsBtn: document.getElementById("btnSettings"),
-      btnPoseEditor: document.getElementById("btnPoseEditor"),
-      btnRecordMode: document.getElementById("btnRecordMode"),
-      btnCoverage: document.getElementById("btnCoverage"),
-      btnMotionReview: document.getElementById("btnMotionReview"),
       btnDemo: document.getElementById("btnDemo"),
       version: document.getElementById("extension-version"),
       textInput: document.getElementById("textInput"),
@@ -47,7 +36,6 @@ class SignBridgePopup {
       btnHelp: document.getElementById("btnHelp"),
       btnAudio: document.getElementById("btnAudio"),
       audioStatus: document.getElementById("audioStatus"),
-      btnAsrSettings: document.getElementById("btnAsrSettings"),
     };
   }
 
@@ -69,29 +57,8 @@ class SignBridgePopup {
     this.elements.toggleBtn?.addEventListener("click", () =>
       this._handleToggle(),
     );
-    this.elements.signLanguage?.addEventListener("change", () =>
-      this._saveSettings(),
-    );
-    this.elements.avatarSize?.addEventListener("input", () => {
-      this._updateSizeLabel();
-      this._scheduleSettingsSave();
-    });
-    this.elements.avatarSize?.addEventListener("change", () =>
-      this._saveSettings(),
-    );
-    this.elements.sourceLanguage?.addEventListener("change", () =>
-      this._saveSettings(),
-    );
-    this.elements.uiLocale?.addEventListener("change", async () => {
-      await this._saveSettings();
-      this._setConfiguredLocale();
-      this._applyTranslations();
-      this._updateUI();
-      this._updateAudioUI();
-    });
     this.elements.settingsBtn?.addEventListener("click", () => {
-      const settings = document.getElementById("mainSettings");
-      if (settings) settings.hidden = !settings.hidden;
+      chrome.runtime.openOptionsPage();
     });
     this.elements.btnSendText?.addEventListener("click", () =>
       this._sendText(),
@@ -99,62 +66,15 @@ class SignBridgePopup {
     this.elements.textInput?.addEventListener("keydown", (event) => {
       if (event.key === "Enter") this._sendText();
     });
-    this.elements.btnPoseEditor?.addEventListener("click", () => {
-      chrome.tabs.create({
-        url: chrome.runtime.getURL("avatar/pose-editor.html"),
-      });
-    });
-    this.elements.btnRecordMode?.addEventListener("click", () => {
-      chrome.tabs.create({
-        url: chrome.runtime.getURL("avatar/record-mode.html"),
-      });
-    });
-    this.elements.btnCoverage?.addEventListener("click", () => {
-      chrome.tabs.create({ url: chrome.runtime.getURL("tools/coverage.html") });
-    });
     this.elements.btnDemo?.addEventListener("click", () => {
       chrome.tabs.create({ url: chrome.runtime.getURL("demo/index.html") });
-    });
-    this.elements.btnMotionReview?.addEventListener("click", () => {
-      chrome.tabs.create({
-        url: chrome.runtime.getURL("tools/motion-review.html"),
-      });
     });
     this.elements.btnAudio?.addEventListener("click", () =>
       this._handleAudio(),
     );
-    this.elements.btnAsrSettings?.addEventListener("click", () => {
-      chrome.runtime.openOptionsPage();
-    });
     this.elements.btnHelp?.addEventListener("click", () => {
       chrome.tabs.create({ url: chrome.runtime.getURL("avatar/help.html") });
     });
-  }
-
-  _populateSettings() {
-    if (this.elements.signLanguage) {
-      const requested = this.config.targetSignLanguage || "csl";
-      const supported = Array.from(this.elements.signLanguage.options).some(
-        (option) => option.value === requested,
-      );
-      this.elements.signLanguage.value = supported ? requested : "csl";
-    }
-    if (this.elements.avatarSize) {
-      this.elements.avatarSize.value = this.config.avatarSize || 260;
-      this._updateSizeLabel();
-    }
-    if (this.elements.sourceLanguage) {
-      this.elements.sourceLanguage.value = this.config.sourceLanguage || "auto";
-    }
-    if (this.elements.uiLocale) {
-      this.elements.uiLocale.value = this.config.uiLocale || "auto";
-    }
-  }
-
-  _updateSizeLabel() {
-    if (this.elements.sizeValue && this.elements.avatarSize) {
-      this.elements.sizeValue.textContent = `${this.elements.avatarSize.value}px`;
-    }
   }
 
   _updateUI() {
@@ -164,10 +84,13 @@ class SignBridgePopup {
     }
     if (this.elements.toggleText) {
       this.elements.toggleText.textContent = t(
-        this._isActive ? "stop" : "start",
+        this._isActive ? "workbenchStop" : "workbenchStart",
       );
     }
-    this._setStatus(this._isActive ? "translating" : "ready", this._isActive);
+    this._setStatus(
+      this._isActive ? "workbenchRunning" : "ready",
+      this._isActive,
+    );
   }
 
   _setStatus(key, translating = false) {
@@ -282,23 +205,6 @@ class SignBridgePopup {
         }
       }, 500);
     }
-  }
-
-  _scheduleSettingsSave() {
-    clearTimeout(this._settingsTimer);
-    this._settingsTimer = setTimeout(() => this._saveSettings(), 100);
-  }
-
-  async _saveSettings() {
-    clearTimeout(this._settingsTimer);
-    const updates = {
-      targetSignLanguage: this.elements.signLanguage?.value || "csl",
-      avatarSize: Number.parseInt(this.elements.avatarSize?.value || "260", 10),
-      sourceLanguage: this.elements.sourceLanguage?.value || "auto",
-      uiLocale: this.elements.uiLocale?.value || "auto",
-    };
-    this.config = await setConfig(updates);
-    await this._sendMessage("updateConfig", { config: updates });
   }
 
   async _queryStatus() {

@@ -57,7 +57,7 @@ test("stopping translation updates the audio button so the next click restarts c
   assert.equal(elements.audioStatus.textContent, "audioStopped");
   await elements.btnAudio.events.click();
   assert.equal(sent.at(-1).type, "ASR_START");
-  assert.equal(elements.btnToggleText.textContent, "stop");
+  assert.equal(elements.btnToggleText.textContent, "workbenchStop");
 });
 
 test("Demo popup entry opens a full-page extension tab without depending on the current website", async () => {

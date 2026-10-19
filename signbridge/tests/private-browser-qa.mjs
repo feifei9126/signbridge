@@ -24,6 +24,7 @@ const browser = config.extension ? null : await chromium.launch(launch);
 const context = config.extension
   ? await chromium.launchPersistentContext(profile, {
       ...launch,
+      channel: "chromium",
       args: [
         `--disable-extensions-except=${config.extension}`,
         `--load-extension=${config.extension}`,
@@ -38,6 +39,12 @@ const cases = [];
 try {
   await page.goto(config.url);
   if (config.endpoint) await page.locator("#endpoint").fill(config.endpoint);
+  if (config.handoff) {
+    assert.equal(await page.locator("#open-local-service").isVisible(), true);
+    await page.locator("#open-local-service").click();
+    await page.waitForURL(config.endpoint + "/private/index.html");
+    assert.equal(await page.locator("#token").inputValue(), "");
+  }
   await page.locator("#token").fill(config.token);
   async function analyze(text, expected) {
     await page.locator("#sentence").fill(text);
@@ -123,9 +130,11 @@ try {
       {
         status: "passed",
         browser: (browser || context.browser()).version(),
-        client_context: config.extension
-          ? "chrome_extension"
-          : "local_web_page",
+        client_context: config.handoff
+          ? "extension_to_local_service"
+          : config.extension
+            ? "chrome_extension"
+            : "local_web_page",
         cases,
         errors,
         checked: [

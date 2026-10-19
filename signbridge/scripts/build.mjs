@@ -349,6 +349,15 @@ async function buildDemo() {
   for (const file of ["index.html", "demo.css", "avatar.html", "avatar.css"]) {
     copyFileSync(join(ROOT, "src/demo", file), dp("demo", file));
   }
+  writeFileSync(
+    dp("private/index.html"),
+    readFileSync(join(ROOT, "src/private/index.html"), "utf8").replace(
+      "data-workbench hidden",
+      "data-workbench",
+    ),
+  );
+  copyFileSync(join(ROOT, "src/private/client.css"), dp("private/client.css"));
+  await bundle("private/client.js", "private/client.js");
   await bundle("demo/demo.js", "demo/demo.js");
   await bundle("demo/demo-avatar.js", "demo/demo-avatar.js");
 

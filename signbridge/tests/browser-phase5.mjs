@@ -99,8 +99,13 @@ try {
   const originalStorage = await storage();
   const popup = await context.newPage();
   await popup.goto(`${origin}/popup/index.html`);
+  const workspaceOpened = context.waitForEvent("page");
+  await popup.locator("#btnDemo").click();
+  const workspace = await workspaceOpened;
+  await workspace.waitForURL(`${origin}/demo/index.html`);
+  await workspace.locator("#research-details > summary").click();
   const opened = context.waitForEvent("page");
-  await popup.locator("#btnMotionReview").click();
+  await workspace.locator("#btnMotionReview").click();
   const page = await opened;
   await page.waitForURL(`${origin}/tools/motion-review.html`);
   await eventually(
@@ -114,7 +119,7 @@ try {
     fullPage: true,
   });
   checks.push(
-    "popup opens localized CSP-safe review page, real model and 52 unique built-in signs",
+    "workspace opens localized CSP-safe review page, real model and 52 unique built-in signs",
   );
   const select = async (keys) => {
     while (await page.locator("#review-catalog input:checked").count())

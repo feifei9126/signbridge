@@ -51,8 +51,13 @@ try {
   const origin = `chrome-extension://${new URL(worker.url()).host}`;
   const popup = await context.newPage();
   await popup.goto(`${origin}/popup/index.html`);
+  const workspaceOpened = context.waitForEvent("page");
+  await popup.locator("#btnDemo").click();
+  const workspace = await workspaceOpened;
+  await workspace.waitForURL(`${origin}/demo/index.html`);
+  await workspace.locator("#research-details > summary").click();
   const newPage = context.waitForEvent("page");
-  await popup.locator("#btnCoverage").click();
+  await workspace.locator("#btnCoverage").click();
   const page = await newPage;
   await page.waitForURL(`${origin}/tools/coverage.html`);
   await eventually(
@@ -62,7 +67,7 @@ try {
       ),
     "coverage ready",
   );
-  checks.push("popup opens the built, CSP-safe, localized coverage page");
+  checks.push("workspace opens the built, CSP-safe, localized coverage page");
 
   const analyze = async () => {
     await page.locator("#coverage-analyze").click();

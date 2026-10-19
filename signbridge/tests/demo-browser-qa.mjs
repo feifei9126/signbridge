@@ -92,6 +92,9 @@ async function played(text) {
 }
 try {
   await page.goto(url);
+  await page.locator("#research-details").evaluate((node) => {
+    node.open = true;
+  });
   await ready();
   assert.equal(
     await page.locator("#catalog-count").textContent(),
@@ -362,6 +365,7 @@ try {
   await fallback.waitForFunction(
     () => document.querySelector("#status").textContent === "本次播放完成。",
   );
+  await fallback.locator("#research-details > summary").click();
   await fallback.locator("[data-mode=t08]").click();
   assert.equal(await fallback.locator("#play").isDisabled(), true);
   await fallback.close();

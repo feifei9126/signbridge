@@ -159,6 +159,15 @@ try {
     id: "audit-browser-analysis-and-boundaries",
     status: "passed",
   });
+  await run(process.execPath, ["tests/feature-browser-qa.mjs"]);
+  await copyFile(
+    join(root, "test-results/feature-browser/report.json"),
+    join(reportDir, "feature-browser.json"),
+  );
+  report.stages.push({
+    id: "feature-simplification-browser",
+    status: "passed",
+  });
   if (
     (await fingerprint(sourcePaths)).sha256 !== report.source.sha256 ||
     (await fingerprint(distPaths)).sha256 !== report.build.sha256

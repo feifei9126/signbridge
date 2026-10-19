@@ -8,6 +8,18 @@
   </head>
   <body>
     <main>
+      <nav class="task-nav" data-workbench hidden>
+        <a href="../demo/index.html" data-i18n="workbenchMotion"></a>
+        <a
+          href="index.html"
+          aria-current="page"
+          data-i18n="workbenchMeaning"
+        ></a>
+        <a
+          href="../demo/index.html#research-details"
+          data-i18n="workbenchResearch"
+        ></a>
+      </nav>
       <h1 data-i18n="privateTitle"></h1>
       <p class="scope" data-i18n="privateScope"></p>
       <form id="understand-form">
@@ -19,30 +31,39 @@
           required
           autocomplete="off"
         />
-        <label for="token" data-i18n="privateToken"></label>
-        <input
-          id="token"
-          type="password"
-          required
-          minlength="40"
-          maxlength="128"
-          autocomplete="off"
-          spellcheck="false"
-        />
-        <p data-i18n="privateTokenHelp"></p>
-        <label for="sentence" data-i18n="privateSentence"></label>
-        <textarea id="sentence" rows="3" maxlength="500" required></textarea>
-        <div class="actions">
-          <button
-            id="analyze"
-            type="submit"
-            data-i18n="privateAnalyze"
-          ></button>
-          <button
-            id="disconnect"
-            type="button"
-            data-i18n="privateDisconnect"
-          ></button>
+        <p id="local-handoff" hidden data-i18n="workbenchServiceHandoff"></p>
+        <button
+          id="open-local-service"
+          hidden
+          type="button"
+          data-i18n="workbenchOpenService"
+        ></button>
+        <div id="analysis-fields">
+          <label for="token" data-i18n="privateToken"></label>
+          <input
+            id="token"
+            type="password"
+            required
+            minlength="40"
+            maxlength="128"
+            autocomplete="off"
+            spellcheck="false"
+          />
+          <p data-i18n="privateTokenHelp"></p>
+          <label for="sentence" data-i18n="privateSentence"></label>
+          <textarea id="sentence" rows="3" maxlength="500" required></textarea>
+          <div class="actions">
+            <button
+              id="analyze"
+              type="submit"
+              data-i18n="privateAnalyze"
+            ></button>
+            <button
+              id="disconnect"
+              type="button"
+              data-i18n="privateDisconnect"
+            ></button>
+          </div>
         </div>
       </form>
       <section aria-labelledby="result-title">

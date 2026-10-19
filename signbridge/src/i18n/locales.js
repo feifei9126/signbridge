@@ -1,3 +1,144 @@
+const WORKBENCH_ZH = {
+  workbenchCatalogCount:
+    "当前可选 {count} 条。匹配表示有动作数据，不代表手语含义已核准。",
+  workbenchScope:
+    "研究演示：当前播放已有动作。未覆盖内容会提示，意思分析与动作播放分别运行。",
+  workbenchServiceHandoff:
+    "意思分析由本机服务提供。请打开服务的分析页后填写口令；跳转不携带口令或输入文字。",
+  workbenchOpenService: "打开本机服务分析页",
+  workbenchCsl: "当前支持：中国手语",
+  workbenchTextPreview: "文字预览",
+  workbenchOpen: "打开工作台",
+  workbenchSettings: "SignBridge 设置",
+  workbenchSettingsLead:
+    "显示与声音统一设置。网页字幕按中文读取，声音识别可单独配置语言。",
+  workbenchDisplay: "显示",
+  workbenchSystemLanguage: "跟随系统",
+  workbenchChinese: "中文",
+  workbenchLocaleChinese: "简体中文",
+  workbenchLocaleEnglish: "English",
+  workbenchLocaleJapanese: "日本語",
+  workbenchAsrLead:
+    "无字幕时可在插件中主动开启声音识别。默认使用本地 Whisper；下载模型不会自动开始录音。",
+  workbenchAdvancedAsr: "高级声音设置：识别方式、模型与音频参数",
+  workbenchSettingsSaved:
+    "显示和声音设置已保存。已打开的虚拟人大小同步更新；界面语言重新打开相关页面后生效。",
+  workbenchTasks: "工作台任务",
+  workbenchMotion: "动作演示",
+  workbenchMeaning: "意思分析（训练模型）",
+  workbenchResearch: "研究工具与技术详情",
+  workbenchResearchLead:
+    "制作和核验已有动作，查看来源或比较规则分析。这里的工具不会自动产生中国手语批准。",
+  workbenchTools: "动作制作与检查",
+  workbenchExtensionTools:
+    "动作制作、覆盖／补词与验收工具需要 Chrome 扩展环境。请加载本次构建的扩展目录，再从插件打开工作台。",
+  workbenchAuthoring: "动作制作",
+  workbenchPose: "编辑单帧姿势",
+  workbenchSequence: "编排多帧动作",
+  workbenchRouting: "来源选择与规则对照",
+  workbenchPresentation: "视角与显示处理",
+  workbenchRuleOnly:
+    "当前为规则分析对照，只输出草案。使用上方“意思分析（训练模型）”可连接已有本机角色模型。",
+  workbenchForcedSource: "当前限定了动作来源。关闭研究区域即可恢复自动匹配。",
+  workbenchStart: "开始字幕辅助",
+  workbenchStop: "停止辅助",
+  workbenchRunning: "字幕辅助中",
+};
+const WORKBENCH_EN = {
+  workbenchCatalogCount:
+    "{count} entries available. Matching indicates motion data, not linguistic approval.",
+  workbenchScope:
+    "Research demo: plays existing motions and reports gaps. Meaning analysis and motion playback are separate tasks.",
+  workbenchServiceHandoff:
+    "Meaning analysis runs in the local service. Open its analysis page and enter the token there. Navigation carries no token or input text.",
+  workbenchOpenService: "Open local analysis service",
+  workbenchCsl: "Supported: Chinese Sign Language",
+  workbenchTextPreview: "Text preview",
+  workbenchOpen: "Open workspace",
+  workbenchSettings: "SignBridge settings",
+  workbenchSettingsLead:
+    "Display and audio in one place. Subtitles are read as Chinese; ASR language is configured separately.",
+  workbenchDisplay: "Display",
+  workbenchSystemLanguage: "Use system language",
+  workbenchChinese: "Chinese",
+  workbenchLocaleChinese: "简体中文",
+  workbenchLocaleEnglish: "English",
+  workbenchLocaleJapanese: "日本語",
+  workbenchAsrLead:
+    "Enable audio recognition from the extension when subtitles are unavailable. Local Whisper is the default; downloading a model does not start recording.",
+  workbenchAdvancedAsr: "Advanced audio: provider, model and capture settings",
+  workbenchSettingsSaved:
+    "Display and audio settings saved. Open avatars resize now; reopen other pages to apply the interface language.",
+  workbenchTasks: "Workspace tasks",
+  workbenchMotion: "Motion preview",
+  workbenchMeaning: "Meaning analysis (trained model)",
+  workbenchResearch: "Research tools and technical details",
+  workbenchResearchLead:
+    "Create and review existing motions, inspect sources or compare rule analysis. These tools never grant CSL approval automatically.",
+  workbenchTools: "Motion creation and checks",
+  workbenchExtensionTools:
+    "Motion creation, coverage and review require the Chrome extension. Load this build as an extension and open the workspace from its popup.",
+  workbenchAuthoring: "Create motions",
+  workbenchPose: "Edit a single pose",
+  workbenchSequence: "Arrange motion frames",
+  workbenchRouting: "Source selection and rule comparison",
+  workbenchPresentation: "View and display processing",
+  workbenchRuleOnly:
+    "Rule comparison produces a draft only. Use Meaning analysis (trained model) above to connect to the existing local role model.",
+  workbenchForcedSource:
+    "Motion sources are restricted. Close research details to restore automatic matching.",
+  workbenchStart: "Start subtitle assistance",
+  workbenchStop: "Stop assistance",
+  workbenchRunning: "Subtitle assistance active",
+};
+const WORKBENCH_JA = {
+  workbenchCatalogCount:
+    "選択可能：{count} 件。一致は動作データの存在を示し、手話の意味の承認ではありません。",
+  workbenchScope:
+    "研究デモ：既存の動作を再生し、未対応の内容を表示します。意味分析と動作再生は別々の操作です。",
+  workbenchServiceHandoff:
+    "ブラウザーのデモと推論サービスのポートが異なる場合、サービスの分析ページを開いて口令を入力してください。移動時に口令や入力文は送りません。",
+  workbenchOpenService: "ローカル分析サービスを開く",
+  workbenchCsl: "対応： 中国手話",
+  workbenchTextPreview: "テキストのプレビュー",
+  workbenchOpen: "ワークスペースを開く",
+  workbenchSettings: "SignBridge 設定",
+  workbenchSettingsLead:
+    "Display and audio in one place. Subtitles are read as Chinese; ASR language is configured separately.",
+  workbenchDisplay: "表示",
+  workbenchSystemLanguage: "システム言語に合わせる",
+  workbenchChinese: "中国語",
+  workbenchLocaleChinese: "简体中文",
+  workbenchLocaleEnglish: "English",
+  workbenchLocaleJapanese: "日本語",
+  workbenchAsrLead:
+    "Enable audio recognition from the extension when subtitles are unavailable. Local Whisper is the default; downloading a model does not start recording.",
+  workbenchAdvancedAsr: "Advanced audio: provider, model and capture settings",
+  workbenchSettingsSaved:
+    "Display and audio settings saved. Open avatars resize now; reopen other pages to apply the interface language.",
+  workbenchTasks: "ワークスペースの操作",
+  workbenchMotion: "動作プレビュー",
+  workbenchMeaning: "意味分析（学習済みモデル）",
+  workbenchResearch: "研究ツールと技術情報",
+  workbenchResearchLead:
+    "Create and review existing motions, inspect sources or compare rule analysis. These tools never grant CSL approval automatically.",
+  workbenchTools: "動作の作成と確認",
+  workbenchExtensionTools:
+    "Motion creation, coverage and review require the Chrome extension. Load this build as an extension and open the workspace from its popup.",
+  workbenchAuthoring: "動作を作成",
+  workbenchPose: "単一姿勢の編集",
+  workbenchSequence: "複数フレームの編成",
+  workbenchRouting: "動作ソースと規則の比較",
+  workbenchPresentation: "視点と表示処理",
+  workbenchRuleOnly:
+    "Rule comparison produces a draft only. Use Meaning analysis (trained model) above to connect to the existing local role model.",
+  workbenchForcedSource:
+    "Motion sources are restricted. Close research details to restore automatic matching.",
+  workbenchStart: "字幕支援を開始",
+  workbenchStop: "支援を停止",
+  workbenchRunning: "字幕支援中",
+};
+
 const PRIVATE_ZH = {
   privateTitle: "SignBridge · 中国手语理解研究版",
   privateScope:
@@ -560,6 +701,7 @@ const LOCALES = {
     ...DEMO_ZH,
     ...SEMANTIC_ZH,
     ...PRIVATE_ZH,
+    ...WORKBENCH_ZH,
     batchTitle: "本批补词清单 · 最多 8 个",
     batchManual: "手动加入完整词组（可选，避免分词误拆）",
     batchInvalidWord:
@@ -970,6 +1112,7 @@ const LOCALES = {
     ...DEMO_EN,
     ...SEMANTIC_EN,
     ...PRIVATE_EN,
+    ...WORKBENCH_EN,
     batchTitle: "Vocabulary batch · up to 8 items",
     batchManual:
       "Add a complete phrase manually (optional, avoids token-splitting mistakes)",
@@ -1411,6 +1554,7 @@ const LOCALES = {
     ...DEMO_EN,
     ...SEMANTIC_JA,
     ...PRIVATE_EN,
+    ...WORKBENCH_JA,
     batchTitle: "今回の語彙追加リスト · 最大 8 件",
     batchManual: "語句を手動で追加（任意・分割の誤りを回避）",
     batchInvalidWord:

@@ -5,17 +5,8 @@
 
 const DEFAULTS = {
   enabled: true,
-  sourceLanguage: "auto",
-  targetSignLanguage: "csl",
-  avatarStyle: "default",
   avatarSize: 260,
   avatarPosition: "bottom-right",
-  avatarOpacity: 0.9,
-  enableAutoDetect: true,
-  enableSubtitles: true,
-  voiceVolume: "medium",
-  speed: 1.0,
-  showAvatar: true,
   uiLocale: "auto",
 };
 

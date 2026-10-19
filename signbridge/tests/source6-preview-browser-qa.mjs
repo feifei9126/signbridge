@@ -85,6 +85,9 @@ async function capture() {
 }
 try {
   await page.goto(url);
+  await page.locator("#research-details").evaluate((node) => {
+    node.open = true;
+  });
   await page.waitForFunction(
     () =>
       document.querySelector("#experimental-count").textContent === "12" &&

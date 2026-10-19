@@ -94,3 +94,26 @@ section {
   margin-top: 25px;
   padding-top: 10px;
 }
+
+[hidden] {
+  display: none !important;
+}
+.task-nav {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding-bottom: 20px;
+  border-bottom: 1px solid #b6c9c0;
+}
+.task-nav a {
+  padding: 9px 12px;
+  border: 1px solid #b6c9c0;
+  border-radius: 7px;
+  color: #17332d;
+  text-decoration: none;
+}
+.task-nav a[aria-current="page"] {
+  background: #235044;
+  color: white;
+  border-color: #235044;
+}

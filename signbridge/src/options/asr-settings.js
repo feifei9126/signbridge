@@ -7,10 +7,15 @@ import {
   setAsrConfig,
 } from "../asr/asr-config.js";
 import { transcribeAudio } from "../asr/transcription-client.js";
-import { getConfig } from "../utils/config.js";
+import { getConfig, setConfig } from "../utils/config.js";
 import { setLocale, t } from "../i18n/locales.js";
 
 const elements = {
+  avatarSize: document.getElementById("avatarSize"),
+  sizeValue: document.getElementById("sizeValue"),
+  uiLocale: document.getElementById("uiLocale"),
+  localModelPanel: document.getElementById("localModelPanel"),
+  advanced: document.getElementById("asr-advanced"),
   providers: [...document.querySelectorAll('input[name="provider"]')],
   localPanel: document.getElementById("localPanel"),
   cloudPanel: document.getElementById("cloudPanel"),
@@ -35,6 +40,14 @@ function applyTranslations() {
   document.querySelectorAll("[data-i18n]").forEach((element) => {
     element.textContent = t(element.dataset.i18n);
   });
+  document.querySelectorAll("[data-i18n-aria]").forEach((element) => {
+    element.setAttribute("aria-label", t(element.dataset.i18nAria));
+  });
+  document.title = t("workbenchSettings");
+  document.documentElement.lang =
+    elements.uiLocale.value === "auto"
+      ? navigator.language
+      : elements.uiLocale.value;
   document.querySelectorAll("[data-i18n-title]").forEach((element) => {
     element.title = t(element.dataset.i18nTitle);
   });
@@ -48,6 +61,7 @@ function updateProviderPanels() {
   const local = selectedProvider() === "local";
   elements.localPanel.hidden = !local;
   elements.cloudPanel.hidden = local;
+  elements.localModelPanel.hidden = !local;
 }
 
 function collectConfig() {
@@ -74,6 +88,7 @@ function populate(config) {
   elements.language.value = config.language;
   elements.chunkSeconds.value = config.chunkSeconds;
   elements.chunkValue.textContent = `${config.chunkSeconds}s`;
+  if (config.provider === "cloud") elements.advanced.open = true;
   updateProviderPanels();
 }
 
@@ -94,7 +109,27 @@ async function saveConfig() {
       return null;
     }
     const saved = await setAsrConfig(config);
-    elements.saveStatus.textContent = t("asrSaved");
+    const display = {
+      avatarSize: Math.min(
+        320,
+        Math.max(120, Number(elements.avatarSize.value) || 260),
+      ),
+      uiLocale: elements.uiLocale.value,
+    };
+    await setConfig(display);
+    // Notify only existing content scripts; this must not inject into new tabs.
+    const tabs = await chrome.tabs.query({});
+    await Promise.allSettled(
+      tabs
+        .filter((tab) => tab.id != null)
+        .map((tab) =>
+          chrome.tabs.sendMessage(tab.id, {
+            action: "updateConfig",
+            config: display,
+          }),
+        ),
+    );
+    elements.saveStatus.textContent = t("workbenchSettingsSaved");
     return saved;
   } catch (error) {
     console.error("[SignBridge] ASR settings save failed:", error);
@@ -224,12 +259,27 @@ async function testConnection() {
 
 async function initialize() {
   const uiConfig = await getConfig();
+  elements.uiLocale.value = ["zh-CN", "en", "ja"].includes(uiConfig.uiLocale)
+    ? uiConfig.uiLocale
+    : "auto";
+  elements.avatarSize.value = uiConfig.avatarSize || 260;
+  elements.sizeValue.textContent = `${elements.avatarSize.value}px`;
   setLocale(uiConfig.uiLocale === "auto" ? null : uiConfig.uiLocale);
   applyTranslations();
   populate(await getAsrConfig());
   await refreshDeploymentStatus();
 }
 
+elements.avatarSize.addEventListener("input", () => {
+  elements.sizeValue.textContent = `${elements.avatarSize.value}px`;
+});
+elements.uiLocale.addEventListener("change", () => {
+  setLocale(
+    elements.uiLocale.value === "auto" ? null : elements.uiLocale.value,
+  );
+  applyTranslations();
+  refreshDeploymentStatus();
+});
 elements.providers.forEach((input) => {
   input.addEventListener("change", () => {
     updateProviderPanels();
