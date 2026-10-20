@@ -329,6 +329,43 @@ try {
     "",
   );
   assert.equal(await page.locator("#extension-tools").isVisible(), true);
+  await page.locator('[data-mode="auto"]').click();
+  const autoModeNote = await page.locator("#routing-note").textContent();
+  assert.match(autoModeNote, /自动匹配/);
+  assert.equal(
+    await page
+      .locator('[data-catalog-view="phrases"]')
+      .getAttribute("aria-pressed"),
+    "true",
+  );
+  await page.locator('[data-mode="t08"]').click();
+  const t08ModeNote = await page.locator("#routing-note").textContent();
+  assert.match(t08ModeNote, /参考|T08/);
+  assert.notEqual(t08ModeNote, autoModeNote);
+  await page.locator('[data-mode="dictionary"]').click();
+  const dictionaryModeNote = await page.locator("#routing-note").textContent();
+  assert.match(dictionaryModeNote, /内置词库/);
+  assert.notEqual(dictionaryModeNote, t08ModeNote);
+  assert.equal(
+    await page
+      .locator('[data-catalog-view="words"]')
+      .getAttribute("aria-pressed"),
+    "true",
+  );
+  await page.locator('[data-mode="semantic"]').click();
+  const semanticModeNote = await page.locator("#routing-note").textContent();
+  assert.match(semanticModeNote, /规则研究/);
+  assert.equal(await page.locator("#semantic-panel").isVisible(), true);
+  assert.equal(await page.locator("#motion-catalog").isVisible(), false);
+  assert.equal(await page.locator("#playback-actions").isVisible(), false);
+  assert.equal(
+    new Set([autoModeNote, t08ModeNote, dictionaryModeNote, semanticModeNote])
+      .size,
+    4,
+  );
+  report.checks.push(
+    "four source modes show distinct descriptions, catalog views and analysis-only controls",
+  );
   await page.locator("#motion-authoring > summary").click();
   for (const [id, path] of [
     ["btnPoseEditor", "avatar/pose-editor.html"],

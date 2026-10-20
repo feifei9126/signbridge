@@ -32,10 +32,14 @@
 ```sh
 ../.venv-sign-data/bin/python src/tools/sign-private-serve.py \
   --model ../local-data/csl-understanding-20261017-rLaeiN/learned-roles-v3 \
-  --client ../local-data/csl-understanding-20261017-rLaeiN/private-client-v2 --port 8770
+  --client ../local-data/existing-resources-optimization-20261019-v1/thin-client-v1.0.5 \
+  --port 8770 --scope-experiment \
+  --unit-candidates ../local-data/existing-resources-optimization-20261019-v1/unit-candidates-final/candidates.json
 ```
 
 打开终端显示的 `/private/index.html` 页面，填入终端本次生成的会话口令即可。口令不写入文件、URL、报告、浏览器存储或安装包，重启服务即失效。清空／退出页面会清除页面内存口令。插件跨来源连接还需启动参数 `--allow-extension chrome-extension://准确的32位扩展ID`；普通网页无需此参数。不得填通配符。
+
+从普通本机网页打开分析页时，客户端会先检查服务是否监听；未启动会留在当前页并显示上述命令，不再跳入浏览器连接错误页。健康检查不发送口令或分析文本。
 
 接口只有 `POST /v1/understand`，输入为 `{"text":"我帮你"}`。返回当前句子的语义角色和模型版本；不会返回完整词表、训练集、权重或动作库。解析成功仍返回 `csl_translation_trained:false` 和 `requires_csl_alignment_review`，没有词库播放回退。输入最多500字／8192字节，单进程所有连接共享60次／分钟，最多12个连接和2次并发推理。只绑定127.0.0.1，校验 Host、准确 Origin、随机 Bearer；只允许三个静态客户端文件，禁止目录浏览，响应不缓存，访问日志不记录原文或口令。
 

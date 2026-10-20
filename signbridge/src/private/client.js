@@ -3,6 +3,7 @@ import {
   understand,
   needsLocalServicePage,
   localServicePage,
+  probeLocalService,
 } from "./private-api.js";
 
 setLocale("zh-CN");
@@ -26,6 +27,8 @@ const text = document.querySelector("#sentence");
 const status = document.querySelector("#status");
 const output = document.querySelector("#output");
 const button = document.querySelector("#analyze");
+const openServiceButton = document.querySelector("#open-local-service");
+const serviceUnavailable = document.querySelector("#local-service-unavailable");
 let pending = null;
 function needsServicePage() {
   try {
@@ -40,6 +43,7 @@ function needsServicePage() {
 }
 function updateHandoff() {
   const needed = needsServicePage();
+  serviceUnavailable.hidden = true;
   document.querySelector("#local-handoff").hidden = !needed;
   document.querySelector("#open-local-service").hidden = !needed;
   document.querySelector("#analysis-fields").hidden = needed;
@@ -50,11 +54,35 @@ function updateHandoff() {
 }
 endpoint.addEventListener("input", updateHandoff);
 updateHandoff();
-document.querySelector("#open-local-service").addEventListener("click", () => {
+openServiceButton.addEventListener("click", async () => {
+  openServiceButton.disabled = true;
+  serviceUnavailable.hidden = true;
   try {
+    const probeablePage =
+      location.protocol === "http:" &&
+      ["127.0.0.1", "localhost"].includes(location.hostname);
+    if (probeablePage) {
+      const controller = new globalThis.AbortController();
+      const timeout = setTimeout(() => controller.abort(), 2500);
+      let available = false;
+      try {
+        available = await probeLocalService(endpoint.value, {
+          signal: controller.signal,
+        });
+      } finally {
+        clearTimeout(timeout);
+      }
+      if (!available) {
+        serviceUnavailable.hidden = false;
+        status.textContent = t("privateServiceUnavailableStatus");
+        return;
+      }
+    }
     location.assign(localServicePage(endpoint.value, scopeExperiment));
   } catch {
     status.textContent = t("privateEndpointInvalid");
+  } finally {
+    openServiceButton.disabled = false;
   }
 });
 form.addEventListener("submit", async (event) => {

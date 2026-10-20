@@ -181,7 +181,10 @@ try {
   assert.equal(await page.locator("#analysis-fields").isVisible(), false);
   assert.equal(calls, 0);
   assert.equal(await page.locator("#output").textContent(), "");
-  assert.match(await page.locator("#status").textContent(), /分析页/);
+  assert.match(
+    await page.locator("#status").textContent(),
+    /检查服务是否已启动/,
+  );
   report.checks.push(
     "local HTTP workspace uses an explicit same-origin service handoff without leaking a token or attempting a forbidden cross-origin inference",
   );

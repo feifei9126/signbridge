@@ -106,3 +106,10 @@ node signbridge/src/tools/sign-motion-optimization.mjs \
 修复验收指纹把 Python 测试生成的 `__pycache__` 字节码误认为源码变化后，单独保留失败记录在 `release-evidence-v1/releases/2026-10-19T13-53-40.485Z/release-acceptance.json`。测试启动器现在禁写 `.pyc`，源码指纹也明确跳过 `__pycache__`；增加候选文件符号链接和超长文本回归后，最终复跑结果位于 `release-evidence-v3/releases/2026-10-19T14-03-16.877Z/release-acceptance.json`。
 
 最终记录为 1.0.5 `public-demo`，282个源文件指纹稳定；构建、Lint、233项 JavaScript 测试、492项 Python 测试和 Prettier 检查通过；六个浏览器阶段63项检查，以及语义/词边界审计和功能浏览器回归均通过。阶段截图、脚本输出和总报告全部写入 `release-evidence-v3/`，没有覆盖原固定 `test-results/`。`publishReady:false` 及五项人工检查仍待处理；没有对外发布。
+
+## 2026-10-20 本机服务与来源模式修正
+
+- 来源模式保持同一工作台，但各模式显示不同说明和实际目录：自动匹配、T08参考/拟合动作、内置词条、规则语义分析。切换到“内置词库”会自动切换到词条目录；规则语义模式隐藏动作播放和动作目录。
+- 本机分析跳转在普通 `127.0.0.1` / `localhost` 工作台先请求无凭据、无用户文本的 `/health`。服务未运行时留在当前页，显示可直接运行的本地启动命令；服务启动后重试再打开分析页。健康端点只返回 `{"status":"ok"}`，不放宽带口令的推理接口来源校验。
+- 本机页面浏览器回归覆盖服务关闭提示、服务启动后的作用域页面跳转、四种模式内容差异；服务启动命令显式带 `--scope-experiment`，避免规则研究标签与实际解析器配置不一致。
+- 验收：`npm run verify:release` 通过，235项 JavaScript、493项 Python、Lint/Prettier、六阶段浏览器65项和新增长的服务交接2项检查通过。报告：`local-data/service-mode-fix-20261020-v1/release-evidence-v2/releases/2026-10-20T10-31-40.514Z/release-acceptance.json`。本机服务当前不会由网页自动启动；页面在检测不到服务时提供了仓库根目录启动命令。

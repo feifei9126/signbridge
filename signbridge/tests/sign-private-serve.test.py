@@ -90,6 +90,19 @@ class PrivateServeTests(unittest.TestCase):
         self.assertEqual(headers['Cache-Control'], 'no-store')
         self.assertFalse(json.loads(body)['csl_translation_trained'])
 
+    def test_health_endpoint_is_read_only_and_cors_limited_to_loopback_pages(self):
+        code, headers, body = self.request('/health', method='GET', headers={
+            'Authorization': '', 'Origin': f'http://127.0.0.1:{self.port + 1}'
+        })
+        self.assertEqual(code, 200)
+        self.assertEqual(headers['Access-Control-Allow-Origin'],
+                         f'http://127.0.0.1:{self.port + 1}')
+        self.assertEqual(json.loads(body), {'status': 'ok'})
+        self.assertEqual(self.request('/health', method='GET', headers={
+            'Origin': 'https://attacker.example'
+        })[0], 403)
+        self.assertEqual(self.request('/health?token=x', method='GET')[0], 404)
+
     def test_no_auth_wrong_auth_and_cross_origin_blocked(self):
         for fields, expected in [({'Authorization': ''}, 401), ({'Authorization': 'Bearer bad'}, 401),
                                  ({'Origin': 'https://attacker.example'}, 403),

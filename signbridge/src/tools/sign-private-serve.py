@@ -73,11 +73,14 @@ class Handler(BaseHTTPRequestHandler):
         origin = self.headers.get('Origin')
         return origin is None or origin in allowed
 
-    def trusted_request(self):
+    def trusted_host(self):
         expected = {f'127.0.0.1:{self.server.server_port}', f'localhost:{self.server.server_port}'}
-        return len(self.headers.get_all('Host', [])) == 1 and self.headers.get('Host') in expected and self.permitted_origin()
+        return len(self.headers.get_all('Host', [])) == 1 and self.headers.get('Host') in expected
 
-    def send(self, status, value, content_type='application/json; charset=utf-8'):
+    def trusted_request(self):
+        return self.trusted_host() and self.permitted_origin()
+
+    def send(self, status, value, content_type='application/json; charset=utf-8', cors_origin=None):
         body = value if isinstance(value, bytes) else json.dumps(value, ensure_ascii=False).encode()
         self.send_response(status)
         self.send_header('Content-Type', content_type)
@@ -89,14 +92,24 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header('X-Content-Type-Options', 'nosniff')
         self.send_header('Referrer-Policy', 'no-referrer')
         self.send_header('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self' http://127.0.0.1:*; object-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'")
-        origin = self.headers.get('Origin')
-        if origin and self.permitted_origin():
+        origin = cors_origin or self.headers.get('Origin')
+        if cors_origin:
+            self.send_header('Access-Control-Allow-Origin', cors_origin)
+            self.send_header('Vary', 'Origin')
+        elif origin and self.permitted_origin():
             self.send_header('Access-Control-Allow-Origin', origin)
             self.send_header('Vary', 'Origin')
         self.end_headers()
         self.wfile.write(body)
 
     def do_GET(self):
+        if self.path == '/health':
+            if not self.trusted_host():
+                return self.send(403, {'error': 'forbidden_host'})
+            origin = self.headers.get('Origin')
+            if origin and not re.fullmatch(r'http://(?:127\.0\.0\.1|localhost):[0-9]{1,5}', origin):
+                return self.send(403, {'error': 'forbidden_origin'})
+            return self.send(200, {'status': 'ok'}, cors_origin=origin)
         if not self.trusted_request():
             return self.send(403, {'error': 'forbidden_origin_or_host'})
         # Exact allowlist only. No URL decoding, filesystem joins from user paths,

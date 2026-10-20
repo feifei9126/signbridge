@@ -1,6 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { privateEndpoint, understand } from "../src/private/private-api.js";
+import {
+  privateEndpoint,
+  probeLocalService,
+  understand,
+} from "../src/private/private-api.js";
 
 test("private client only sends to explicit loopback service", () => {
   assert.equal(
@@ -15,6 +19,40 @@ test("private client only sends to explicit loopback service", () => {
     "http://127.0.0.1:8770?token=abc",
   ])
     assert.throws(() => privateEndpoint(value));
+});
+
+test("service probe checks only the local health route without credentials or text", async () => {
+  let request;
+  const available = await probeLocalService("http://127.0.0.1:8770", {
+    fetchImpl: async (url, options) => {
+      request = { url, options };
+      return { ok: true, json: async () => ({ status: "ok" }) };
+    },
+  });
+  assert.equal(available, true);
+  assert.equal(request.url, "http://127.0.0.1:8770/health");
+  assert.equal(request.options.method, "GET");
+  assert.equal(request.options.credentials, "omit");
+  assert.equal(request.options.cache, "no-store");
+  assert.equal("body" in request.options, false);
+  assert.equal("headers" in request.options, false);
+});
+
+test("service probe reports unavailable or unexpected responses without throwing", async () => {
+  assert.equal(
+    await probeLocalService("http://127.0.0.1:8770", {
+      fetchImpl: async () => {
+        throw new TypeError("connection refused");
+      },
+    }),
+    false,
+  );
+  assert.equal(
+    await probeLocalService("http://127.0.0.1:8770", {
+      fetchImpl: async () => ({ ok: false, json: async () => ({}) }),
+    }),
+    false,
+  );
 });
 
 test("only the requested sentence and ephemeral bearer leave the thin client", async () => {

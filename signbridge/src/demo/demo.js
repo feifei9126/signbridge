@@ -57,6 +57,12 @@ let clips = [],
   current = null,
   running = false,
   requestId = 0;
+const modeDescriptionKeys = {
+  auto: "workbenchModeAutoDescription",
+  t08: "workbenchModeT08Description",
+  dictionary: "workbenchModeDictionaryDescription",
+  semantic: "workbenchModeSemanticDescription",
+};
 const setStatus = (key, args = {}) => {
   status.textContent = t(key, args);
 };
@@ -80,10 +86,7 @@ function refreshPlan() {
   document.querySelector("#motion-catalog").hidden = analysisOnly;
   document.querySelector(".coverage").hidden = analysisOnly;
   const routingNote = document.querySelector("#routing-note");
-  routingNote.hidden = mode === "auto";
-  routingNote.textContent = t(
-    analysisOnly ? "workbenchRuleOnly" : "workbenchForcedSource",
-  );
+  routingNote.textContent = t(modeDescriptionKeys[mode]);
   document.querySelector("#chars").textContent =
     `${[...input.value].length} / 500`;
   document.querySelector("#match-count").textContent = t("demoCount", {
@@ -313,7 +316,8 @@ for (const button of document.querySelectorAll("[data-catalog-view]"))
   });
 function selectMode(nextMode) {
   mode = nextMode;
-  if (mode === "t08") catalogView = "phrases";
+  if (mode === "auto" || mode === "t08") catalogView = "phrases";
+  else if (mode === "dictionary") catalogView = "words";
   send("STOP");
   resetUi();
   for (const n of document.querySelectorAll("[data-mode]")) {

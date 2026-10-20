@@ -33,6 +33,17 @@ p {
   border-left: 4px solid #486524;
   padding: 12px 16px;
 }
+.service-help {
+  padding: 12px 16px;
+  border-left: 4px solid #8a4b16;
+  background: #fff4e8;
+}
+.service-help pre {
+  max-height: 260px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
 label {
   display: block;
   font-weight: 650;

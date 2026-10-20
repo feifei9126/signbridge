@@ -126,6 +126,28 @@ export function localServicePage(value, scopeExperiment = false) {
   return scopeExperiment ? `${target}?scope=1` : target;
 }
 
+export async function probeLocalService(
+  endpoint,
+  { fetchImpl = fetch, signal } = {},
+) {
+  const url = new URL(privateEndpoint(endpoint));
+  url.pathname = "/health";
+  url.search = "";
+  try {
+    const response = await fetchImpl(url.href, {
+      method: "GET",
+      credentials: "omit",
+      cache: "no-store",
+      redirect: "error",
+      signal,
+    });
+    if (!response.ok) return false;
+    return (await response.json()).status === "ok";
+  } catch {
+    return false;
+  }
+}
+
 export function needsLocalServicePage(
   value,
   pageOrigin,

@@ -10,7 +10,7 @@ const WORKBENCH_ZH = {
   workbenchScope:
     "研究演示：当前播放已有动作。未覆盖内容会提示，意思分析与动作播放分别运行。",
   workbenchServiceHandoff:
-    "意思分析由本机服务提供。请打开服务的分析页后填写口令；跳转不携带口令或输入文字。",
+    "意思分析由本机服务提供。按钮会先检查服务是否已启动；跳转不携带口令或输入文字。",
   workbenchOpenService: "打开本机服务分析页",
   workbenchCsl: "当前支持：中国手语",
   workbenchTextPreview: "文字预览",
@@ -42,6 +42,14 @@ const WORKBENCH_ZH = {
   workbenchPose: "编辑单帧姿势",
   workbenchSequence: "编排多帧动作",
   workbenchRouting: "来源选择与规则对照",
+  workbenchModeAutoDescription:
+    "自动匹配：优先使用完整参考句，再按可用动作补齐词库片段；缺失内容会标出，不会静默替换。",
+  workbenchModeT08Description:
+    "参考与实验动作：只筛选已有 T08 参考和拟合候选，不回退到内置词库；候选不代表语义或动作质量已批准。",
+  workbenchModeDictionaryDescription:
+    "内置词库：仅使用已收录的词条动作。当前已切到词条目录，不调用 T08 参考句。",
+  workbenchModeSemanticDescription:
+    "中文意思分析：当前规则研究只显示解析草案，不播放动作；训练角色模型请打开上方独立分析任务。",
   workbenchPresentation: "视角与显示处理",
   workbenchRuleOnly:
     "当前为规则分析对照，只输出草案。使用上方“意思分析（训练模型）”可连接已有本机角色模型。",
@@ -94,6 +102,14 @@ const WORKBENCH_EN = {
   workbenchPose: "Edit a single pose",
   workbenchSequence: "Arrange motion frames",
   workbenchRouting: "Source selection and rule comparison",
+  workbenchModeAutoDescription:
+    "Automatic matching: prefer complete reference phrases, then fill gaps with available dictionary entries. Unsupported text remains visible.",
+  workbenchModeT08Description:
+    "Reference and experimental motions: use existing T08 references and fit candidates only; do not fall back to dictionary motions.",
+  workbenchModeDictionaryDescription:
+    "Built-in dictionary: use recorded word motions only. The catalog switches to word entries and excludes T08 phrase references.",
+  workbenchModeSemanticDescription:
+    "Chinese meaning analysis: this rules experiment shows a draft and never plays motion. Open the separate meaning task for the trained role model.",
   workbenchPresentation: "View and display processing",
   workbenchRuleOnly:
     "Rule comparison produces a draft only. Use Meaning analysis (trained model) above to connect to the existing local role model.",
@@ -147,6 +163,14 @@ const WORKBENCH_JA = {
   workbenchPose: "単一姿勢の編集",
   workbenchSequence: "複数フレームの編成",
   workbenchRouting: "動作ソースと規則の比較",
+  workbenchModeAutoDescription:
+    "自動照合：文全体の参考動作を優先し、不足分を利用可能な辞書動作で補います。対応できない文字は表示します。",
+  workbenchModeT08Description:
+    "参考・実験動作：既存のT08参考動作とフィット候補のみを使い、辞書動作にはフォールバックしません。",
+  workbenchModeDictionaryDescription:
+    "内蔵辞書：登録済み単語動作のみを使います。カタログを単語一覧に切り替え、T08文全体の参考動作は除外します。",
+  workbenchModeSemanticDescription:
+    "中国語の意味分析：規則研究の案だけを表示し、動作は再生しません。学習済み役割モデルは上部の別タスクで開きます。",
   workbenchPresentation: "視点と表示処理",
   workbenchRuleOnly:
     "Rule comparison produces a draft only. Use Meaning analysis (trained model) above to connect to the existing local role model.",
@@ -200,6 +224,12 @@ const PRIVATE_ZH = {
   privateResponseInvalid: "服务返回内容不符合当前模型接口。",
   privateConnectionFailed:
     "无法连接本机服务或请求已超时，请检查服务地址和运行状态。",
+  privateServiceUnavailableStatus: "本机语义服务未运行，尚未离开当前页面。",
+  privateServiceUnavailable:
+    "没有检测到本机语义服务。请在项目仓库根目录打开终端并运行下面的命令；服务启动后回到这里重试。",
+  privateServiceStartFromRoot: "启动命令（在 SignBridge 项目仓库根目录运行）：",
+  privateServiceCommand:
+    ".venv-sign-data/bin/python signbridge/src/tools/sign-private-serve.py --model local-data/csl-understanding-20261017-rLaeiN/learned-roles-v3 --client local-data/existing-resources-optimization-20261019-v1/thin-client-v1.0.5 --port 8770 --scope-experiment --unit-candidates local-data/existing-resources-optimization-20261019-v1/unit-candidates-final/candidates.json",
   privateRoles: {
     actor: "谁／施事",
     predicate: "动作／状态",
@@ -263,6 +293,13 @@ const PRIVATE_EN = {
   privateResponseInvalid: "Unexpected model response.",
   privateConnectionFailed:
     "Local service unavailable or request timed out. Check the address and service.",
+  privateServiceUnavailableStatus:
+    "The local meaning service is not running. You have not left this page.",
+  privateServiceUnavailable:
+    "The local meaning service was not detected. Open a terminal at the SignBridge repository root, run the command below, then return here and retry.",
+  privateServiceStartFromRoot: "Start command (run at the repository root):",
+  privateServiceCommand:
+    ".venv-sign-data/bin/python signbridge/src/tools/sign-private-serve.py --model local-data/csl-understanding-20261017-rLaeiN/learned-roles-v3 --client local-data/existing-resources-optimization-20261019-v1/thin-client-v1.0.5 --port 8770 --scope-experiment --unit-candidates local-data/existing-resources-optimization-20261019-v1/unit-candidates-final/candidates.json",
   privateRoles: {
     actor: "Actor",
     predicate: "Action / state",
@@ -1599,6 +1636,15 @@ const LOCALES = {
     ...SEMANTIC_JA,
     ...PRIVATE_EN,
     ...WORKBENCH_JA,
+    workbenchServiceHandoff:
+      "意味分析はローカルサービスで実行します。ボタンで起動状態を確認してからページを開きます。移動時に口令や入力文は送りません。",
+    privateServiceUnavailableStatus:
+      "ローカル意味分析サービスが起動していません。このページから移動していません。",
+    privateServiceUnavailable:
+      "ローカル意味分析サービスを確認できません。SignBridge リポジトリのルートでターミナルを開き、次のコマンドを実行してから再試行してください。",
+    privateServiceStartFromRoot: "起動コマンド（リポジトリのルートで実行）：",
+    privateServiceCommand:
+      ".venv-sign-data/bin/python signbridge/src/tools/sign-private-serve.py --model local-data/csl-understanding-20261017-rLaeiN/learned-roles-v3 --client local-data/existing-resources-optimization-20261019-v1/thin-client-v1.0.5 --port 8770 --scope-experiment --unit-candidates local-data/existing-resources-optimization-20261019-v1/unit-candidates-final/candidates.json",
     batchTitle: "今回の語彙追加リスト · 最大 8 件",
     batchManual: "語句を手動で追加（任意・分割の誤りを回避）",
     batchInvalidWord:

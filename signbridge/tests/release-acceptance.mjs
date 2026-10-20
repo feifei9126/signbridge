@@ -139,6 +139,10 @@ try {
     SIGNBRIDGE_TEST_RESULTS_DIR: resultsRoot,
     SIGNBRIDGE_AUDIT_QA_DIR: join(resultsRoot, "audit-browser"),
     SIGNBRIDGE_FEATURE_QA_DIR: join(resultsRoot, "feature-browser"),
+    SIGNBRIDGE_PRIVATE_HANDOFF_QA_DIR: join(
+      resultsRoot,
+      "private-handoff-browser",
+    ),
   };
   for (let phase = 1; phase <= 6; phase++) {
     const evidence = join(resultsRoot, `phase${phase}-browser/report.json`);
@@ -182,6 +186,32 @@ try {
   report.stages.push({
     id: "feature-simplification-browser",
     status: "passed",
+  });
+  await run(
+    process.execPath,
+    ["tests/private-handoff-browser-qa.mjs"],
+    browserEnv,
+  );
+  const handoffEvidence = join(
+    resultsRoot,
+    "private-handoff-browser/report.json",
+  );
+  const handoffResult = JSON.parse(await readFile(handoffEvidence, "utf8"));
+  if (
+    handoffResult.status !== "passed" ||
+    !Array.isArray(handoffResult.checks) ||
+    handoffResult.checks.length !== 2 ||
+    handoffResult.errors.length
+  )
+    throw new Error("Private service handoff browser checks failed");
+  await copyFile(
+    handoffEvidence,
+    join(reportDir, "private-handoff-browser.json"),
+  );
+  report.stages.push({
+    id: "private-service-handoff-browser",
+    status: "passed",
+    checks: handoffResult.checks,
   });
   if (
     (await fingerprint(sourcePaths)).sha256 !== report.source.sha256 ||
