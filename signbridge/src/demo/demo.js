@@ -524,8 +524,24 @@ document.querySelector("#download").addEventListener("click", () => {
           tokens: current.tokens,
           candidate: current.item.source === "candidate",
           experimental: current.item.source === "experimental",
-          humanApproved: current.item.source === "experimental" ? false : null,
+          humanApproved:
+            current.item.source === "experimental"
+              ? clips.find((clip) => clip.id === current.item.id)
+                  ?.human_approved === true
+              : null,
+          motionReviewStatus:
+            current.item.source === "experimental"
+              ? clips.find((clip) => clip.id === current.item.id)
+                  ?.motion_review_status || null
+              : null,
+          motionApprovalScope:
+            current.item.source === "experimental" &&
+            clips.find((clip) => clip.id === current.item.id)
+              ?.human_approved === true
+              ? "motion_quality_only"
+              : null,
           trainingReady: false,
+          modelTrainingReady: false,
           presentation: current.presentation || "raw",
           motionAssetSha256:
             clips.find((clip) => clip.id === current.item.id)?.sha256 || null,
@@ -638,7 +654,11 @@ try {
       ? t(
           experimental.some((c) => c.preview_only)
             ? "demoExperimentalPreviewWarning"
-            : "demoExperimentalWarning",
+            : experimental.every((c) => c.human_approved === true)
+              ? "demoExperimentalApprovedWarning"
+              : experimental.some((c) => c.human_approved === true)
+                ? "demoExperimentalMixedWarning"
+                : "demoExperimentalWarning",
         )
       : "";
 } catch {

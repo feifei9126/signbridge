@@ -53,6 +53,60 @@ const index = {
   parents: [-1, ...Array.from({ length: 54 }, (_, i) => i)],
   clips: [entry],
 };
+const approvalId = "motion-approval-user-declaration-v1";
+const poseDigest = (poses) =>
+  createHash("sha256")
+    .update(
+      poses
+        .flat(2)
+        .map((v) => String(Math.round(v * 1e6)))
+        .join(","),
+    )
+    .digest("hex");
+const approvedAsset = {
+  ...asset,
+  human_approved: true,
+  motion_review_status: "approved_for_demo_motion",
+  motion_approval_id: approvalId,
+};
+const approvedBytes = JSON.stringify(approvedAsset);
+const approvedEntry = {
+  ...entry,
+  human_approved: true,
+  motion_review_status: "approved_for_demo_motion",
+  motion_approval_id: approvalId,
+  sha256: createHash("sha256").update(approvedBytes).digest("hex"),
+};
+const approvalRecord = {
+  schema: "signbridge-human-motion-approval-v1",
+  id: approvalId,
+  scope: "motion_quality_only",
+  declaration: "验证过了，现候选的83条实验拟合动作已获人工批准",
+  basis: "explicit_user_statement_in_current_conversation",
+  captured_at_utc: "2026-10-20T00:00:00.000Z",
+  source_index_sha256: "d".repeat(64),
+  clips: [
+    {
+      id: entry.id,
+      reviewed_asset_sha256: entry.sha256,
+      source_sha256: entry.source_sha256,
+      fitted_sha256: entry.fitted_sha256,
+      poses_sha256: poseDigest(asset.poses),
+    },
+  ],
+};
+const approvalBytes = JSON.stringify(approvalRecord);
+const approvedIndex = {
+  ...index,
+  motion_approval: {
+    schema: "signbridge-human-motion-approval-ref-v1",
+    id: approvalId,
+    scope: "motion_quality_only",
+    asset: "experimental/motion-approval.json",
+    sha256: createHash("sha256").update(approvalBytes).digest("hex"),
+  },
+  clips: [approvedEntry],
+};
 
 test("experimental reconstruction routes separately from token-trained references", () => {
   assert.equal(
@@ -125,6 +179,94 @@ test("experimental contracts reject invented approvals, malformed frames and uns
   const broken = structuredClone(asset);
   broken.poses[0][0][0] = NaN;
   assert.throws(() => experimental.validateExperimentalClip(broken, entry));
+});
+
+test("motion approval requires a matching review record and keeps training gates closed", async () => {
+  assert.equal(
+    experimental.validateExperimentalIndex(approvedIndex),
+    approvedIndex,
+  );
+  assert.equal(
+    experimental.validateExperimentalClip(approvedAsset, approvedEntry),
+    approvedAsset,
+  );
+  assert.equal(approvedIndex.training_ready, false);
+  assert.equal(approvedIndex.model_training_ready, false);
+  assert.equal(approvedEntry.training_data_member, false);
+  assert.equal(approvedAsset.text_verified, undefined);
+
+  const loader = experimental.createExperimentalLoader(
+    approvedIndex,
+    async (path) =>
+      new Response(
+        path === approvedIndex.motion_approval.asset
+          ? approvalBytes
+          : approvedBytes,
+      ),
+  );
+  assert.equal((await loader.load(approvedEntry.id)).human_approved, true);
+
+  assert.throws(() =>
+    experimental.validateExperimentalIndex({
+      ...index,
+      clips: [
+        {
+          ...entry,
+          human_approved: true,
+          motion_review_status: "approved_for_demo_motion",
+          motion_approval_id: approvalId,
+        },
+      ],
+    }),
+  );
+
+  const mismatchedApproval = {
+    ...approvalRecord,
+    clips: [{ ...approvalRecord.clips[0], fitted_sha256: "e".repeat(64) }],
+  };
+  const mismatchBytes = JSON.stringify(mismatchedApproval);
+  const mismatchIndex = {
+    ...approvedIndex,
+    motion_approval: {
+      ...approvedIndex.motion_approval,
+      sha256: createHash("sha256").update(mismatchBytes).digest("hex"),
+    },
+  };
+  const mismatchLoader = experimental.createExperimentalLoader(
+    mismatchIndex,
+    async (path) =>
+      new Response(
+        path === mismatchIndex.motion_approval.asset
+          ? mismatchBytes
+          : approvedBytes,
+      ),
+  );
+  await assert.rejects(mismatchLoader.load(approvedEntry.id));
+});
+
+test("approved fitted motion cannot change after its pose digest was reviewed", async () => {
+  const changed = structuredClone(approvedAsset);
+  changed.poses[0][0][0] = 0.2;
+  const changedBytes = JSON.stringify(changed);
+  const changedIndex = {
+    ...approvedIndex,
+    clips: [
+      {
+        ...approvedEntry,
+        sha256: createHash("sha256").update(changedBytes).digest("hex"),
+      },
+    ],
+  };
+  const loader = experimental.createExperimentalLoader(
+    changedIndex,
+    async (path) =>
+      new Response(
+        path === changedIndex.motion_approval.asset
+          ? approvalBytes
+          : changedBytes,
+      ),
+  );
+  await assert.rejects(loader.load(approvedEntry.id));
 });
 
 test("experimental clips bind an allowlisted display recovery profile", () => {
@@ -268,6 +410,8 @@ test("experimental source labels exist in every supported locale", () => {
       "demoExperimentalWarningBadge",
       "demoExperimentalToken",
       "demoExperimentalWarning",
+      "demoExperimentalApprovedWarning",
+      "demoExperimentalMixedWarning",
       "demoExperimentalPreviewWarning",
       "demoInvalidExperimentalAsset",
       "demoSmoothing",

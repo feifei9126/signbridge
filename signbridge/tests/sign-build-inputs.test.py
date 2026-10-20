@@ -33,6 +33,22 @@ class BuildInputTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'Unsafe'):
                 module.snapshot(root, root, root / 'inputs.json')
 
+    def test_snapshot_binds_motion_approval_sidecar(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            (root / 'experimental').mkdir()
+            for name, value in [('t08-motion.json', '{}'), ('t08-candidates.json', '{}'), ('research.json', '[]')]:
+                (root / name).write_text(value)
+            (root / 'experimental/motion-approval.json').write_text('{}')
+            index = {
+                'clips': [],
+                'motion_approval': {'asset': 'experimental/motion-approval.json'},
+            }
+            (root / 'experimental-index.json').write_text(json.dumps(index))
+            result = module.snapshot(root, root, root / 'inputs.json')
+            self.assertIn('experimental/motion-approval.json', result['experimental'])
+            self.assertEqual(len(result['experimental']), 2)
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -18,8 +18,11 @@ def snapshot(demo, experimental, output):
     names = ['t08-motion.json', 't08-candidates.json', 'research.json']
     research = json.loads((demo / 'research.json').read_text())
     index = json.loads((experimental / 'experimental-index.json').read_text())
+    experimental_paths = ['experimental-index.json'] + [entry['asset'] for entry in index['clips']]
+    if index.get('motion_approval'):
+        experimental_paths.append(index['motion_approval']['asset'])
     paths = {'demo': names + [item['image'] for item in research],
-             'experimental': ['experimental-index.json'] + [entry['asset'] for entry in index['clips']]}
+             'experimental': experimental_paths}
     for group, files in paths.items():
         root = demo if group == 'demo' else experimental
         for name in files:

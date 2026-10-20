@@ -14,8 +14,9 @@ if (!output) throw new Error("Set a new SIGNBRIDGE_DEMO_QA_DIR for evidence");
 await mkdir(output, { recursive: false });
 const url =
   process.env.SIGNBRIDGE_DEMO_URL || "http://127.0.0.1:8766/demo/index.html";
+const buildRoot = process.env.SIGNBRIDGE_DEMO_BUILD_DIR || join(root, "dist");
 const loadJson = async (path) =>
-  JSON.parse(await readFile(join(root, "dist/demo", path), "utf8"));
+  JSON.parse(await readFile(join(buildRoot, "demo", path), "utf8"));
 const index = await loadJson("experimental-index.json");
 const catalog = buildDemoPhraseCatalog([
   ...(await loadJson("t08-motion.json")).clips,
@@ -122,6 +123,15 @@ try {
     await page.locator("#catalog-count").textContent(),
     `${catalog.length} / ${catalog.length}`,
   );
+  const approvedCount = index.clips.filter(
+    (clip) => clip.human_approved === true,
+  ).length;
+  if (approvedCount === index.clips.length && approvedCount > 0) {
+    assert.match(
+      await page.locator("#experimental-warning").textContent(),
+      /动作质量人工审核|human motion-quality review/,
+    );
+  }
   assert.equal(report.requests.length, 0);
   await page.screenshot({ path: join(output, "desktop.png"), fullPage: true });
   report.checks.push("deduplicated catalog; no pose downloads before playback");
@@ -202,8 +212,20 @@ try {
   );
   assert.equal(session.lastPlayedMotion.source, "experimental");
   assert.equal(session.lastPlayedMotion.trainingDataMember, false);
-  assert.equal(session.lastPlayedMotion.humanApproved, false);
+  assert.equal(
+    session.lastPlayedMotion.humanApproved,
+    example.human_approved === true,
+  );
   assert.equal(session.lastPlayedMotion.motionAssetSha256, example.sha256);
+  assert.equal(
+    session.lastPlayedMotion.motionReviewStatus,
+    example.motion_review_status,
+  );
+  assert.equal(
+    session.lastPlayedMotion.motionApprovalScope,
+    example.human_approved ? "motion_quality_only" : null,
+  );
+  assert.equal(session.lastPlayedMotion.modelTrainingReady, false);
   assert.equal(session.lastPlayedMotion.presentation, "quaternion-temporal-v1");
   await page.waitForFunction(
     () => document.querySelector("#status").textContent === "本次播放完成。",

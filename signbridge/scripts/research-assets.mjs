@@ -6,7 +6,9 @@ import {
   validateT08CandidateBundle,
 } from "../src/avatar/reference-motion-asset.js";
 import {
+  experimentalPoseDigestInput,
   validateExperimentalIndex,
+  validateExperimentalApprovalRecord,
   validateExperimentalClip,
 } from "../src/demo/experimental-motion.js";
 const hash = (bytes) => createHash("sha256").update(bytes).digest("hex");
@@ -66,11 +68,34 @@ export function readResearchAssets(profile) {
   const experimental = validateExperimentalIndex(
     JSON.parse(read("experimental", "experimental-index.json")),
   );
+  let approvalItems;
+  if (experimental.motion_approval) {
+    const approvalBytes = read(
+      "experimental",
+      experimental.motion_approval.asset,
+    );
+    if (hash(approvalBytes) !== experimental.motion_approval.sha256)
+      throw new Error("Motion approval record digest differs");
+    approvalItems = validateExperimentalApprovalRecord(
+      experimental,
+      JSON.parse(approvalBytes.toString("utf8")),
+    );
+  }
   for (const entry of experimental.clips) {
     const bytes = read("experimental", entry.asset);
     if (hash(bytes) !== entry.sha256)
       throw new Error("Experimental clip digest differs");
-    validateExperimentalClip(JSON.parse(bytes), entry);
+    const clip = JSON.parse(bytes);
+    validateExperimentalClip(clip, entry);
+    if (entry.human_approved === true) {
+      const item = approvalItems?.get(entry.id);
+      if (
+        !item ||
+        hash(Buffer.from(experimentalPoseDigestInput(clip.poses))) !==
+          item.poses_sha256
+      )
+        throw new Error("Approved motion pose digest differs: " + entry.id);
+    }
   }
   for (const group of ["demo", "experimental"]) {
     if (Object.keys(manifest[group] || {}).length !== consumed[group].length)
