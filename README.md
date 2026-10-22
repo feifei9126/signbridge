@@ -247,6 +247,7 @@ flowchart LR
 
 ## 文档
 
+- [CE-CSL 词条与元数据候选库：本地导入、划分保留和检索](docs/ce-csl-candidate-library.md)
 - [架构与数据流](docs/architecture.md)
 - [第一阶段稳定性修复与复测说明](docs/phase1-stability.md)
 - [第二阶段共享动作库：制作、迁移与启用](docs/phase2-motion-library.md)
