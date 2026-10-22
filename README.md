@@ -340,7 +340,7 @@ MIT 适用于项目代码；第三方模型、纹理、依赖和外部素材仍�
 
 ## 黑客松演示网页
 
-在线演示：<https://feifei9126.github.io/signbridge/>。展示页包含约一分钟的实际操作录屏、工作流程和已构建的 Chrome 扩展下载包，适合直接分享给评委。静态页面源码、更新方法见 [docs/README.md](docs/README.md)；网页供观看介绍与下载，实时手语功能需在 Chrome 中安装扩展。
+在线演示：<https://feifei9126.github.io/signbridge/>。展示页提供包含 83 条 SMPL-X 拟合演示动作的 Chrome 扩展包；动作质量已人工审核，但不代表中文含义、词界或中国手语表达准确性已认证。包内姿态可提取，原始视频和训练检查点不包含。静态页面源码、更新方法见 [docs/README.md](docs/README.md)；实时手语功能需在 Chrome 中安装扩展。
 
 ## 中国手语理解研究与私有交付
 
