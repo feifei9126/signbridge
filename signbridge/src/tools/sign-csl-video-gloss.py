@@ -16,6 +16,7 @@ from datetime import datetime, timezone
 import hashlib
 import json
 import math
+import os
 from pathlib import Path
 import random
 import re
@@ -133,8 +134,11 @@ def read_train_package(package: Path | str) -> tuple[list[dict], dict]:
     respect to the user's train-only authorization.
     """
 
-    root = Path(package).resolve()
-    if root.is_symlink() or not root.is_dir():
+    root_arg = Path(package).absolute()
+    if root_arg.is_symlink():
+        raise ValueError("Train package root cannot be a symlink")
+    root = root_arg.resolve()
+    if not root.is_dir():
         raise ValueError("Train package root must be a real directory")
     manifest = _read_manifest(root)
     sample_path, relative = _train_samples_path(root)
@@ -205,10 +209,11 @@ def verify_video_assets(rows: Sequence[dict], video_root: Path | str) -> dict:
     if not root.is_dir():
         raise ValueError(f"Video root is not a directory: {root}")
     verified_bytes = 0
+    records = []
     for row in rows:
         relative = row["video_relative_path"]
         path = root / relative
-        if path.is_symlink() or not path.is_file() or not path.resolve().is_relative_to(root):
+        if path.is_symlink() or not path.is_file() or os.path.commonpath((str(root), str(path.resolve()))) != str(root):
             raise ValueError(f"Missing or unsafe train video: {relative}")
         expected_sha = row.get("video_sha256")
         expected_bytes = row.get("video_bytes")
@@ -219,7 +224,9 @@ def verify_video_assets(rows: Sequence[dict], video_root: Path | str) -> dict:
         if sha(path) != expected_sha:
             raise ValueError(f"Train video digest differs: {relative}")
         verified_bytes += expected_bytes
-    return {"verified_video_count": len(rows), "verified_video_bytes": verified_bytes, "all_video_hashes_match": True}
+        records.append({"id": row["id"], "video_relative_path": relative, "sha256": expected_sha, "bytes": expected_bytes})
+    return {"verified_video_count": len(rows), "verified_video_bytes": verified_bytes,
+            "all_video_hashes_match": True, "records": records}
 
 
 def prepare_video_cache(rows: Sequence[dict], video_root: Path | str, cache_root: Path | str, frames: int, image_size: int) -> dict:
@@ -341,7 +348,8 @@ def sample_video(path: Path | str, frames: int = 32, image_size: int = 64):
         frame_count = int(capture.get(cv2.CAP_PROP_FRAME_COUNT))
         if frame_count <= 0:
             raise ValueError(f"Video has no frames: {path}")
-        targets = set(round(index * (frame_count - 1) / (frames - 1)) for index in range(frames))
+        positions = [round(index * (frame_count - 1) / (frames - 1)) for index in range(frames)]
+        targets = set(positions)
         selected = {}
         index = 0
         while True:
@@ -357,7 +365,7 @@ def sample_video(path: Path | str, frames: int = 32, image_size: int = 64):
                 break
         if len(selected) != len(targets):
             raise ValueError(f"Video decode ended early: {path} ({len(selected)}/{len(targets)} frames)")
-        return torch.stack([selected[target] for target in sorted(targets)])
+        return torch.stack([selected[target] for target in positions])
     finally:
         capture.release()
 
@@ -378,7 +386,8 @@ class VideoGlossDataset(Dataset):
     def __getitem__(self, index: int):
         row = self.rows[index]
         path = self.video_root / row["video_relative_path"]
-        if not path.is_file() or path.is_symlink():
+        if (not path.is_file() or path.is_symlink()
+                or os.path.commonpath((str(self.video_root), str(path.resolve()))) != str(self.video_root)):
             raise FileNotFoundError(f"Missing or unsafe video: {path}")
         if self.cache_root is not None:
             import numpy as np
@@ -448,18 +457,18 @@ def _epoch(model, loader, loss_fn, optimizer=None, device="cpu", scaler=None):
     model.train(training)
     total_loss = 0.0
     references, predictions, records = [], [], []
+    gloss_by_id = getattr(loader.dataset, "gloss_by_id", {})
     context = torch.enable_grad() if training else torch.no_grad()
     with context:
         for videos, targets, target_lengths, rows in loader:
             videos = videos.to(device, non_blocking=True)
             targets = targets.to(device)
-            target_lengths = target_lengths.to(device)
             if training:
                 optimizer.zero_grad(set_to_none=True)
             use_amp = scaler is not None and scaler.is_enabled()
             with torch.cuda.amp.autocast(enabled=use_amp):
                 log_probs = model(videos)
-                input_lengths = torch.full((videos.shape[0],), log_probs.shape[0], dtype=torch.long, device=device)
+                input_lengths = torch.full((videos.shape[0],), log_probs.shape[0], dtype=torch.long, device="cpu")
                 loss = loss_fn(log_probs, targets, input_lengths, target_lengths)
             if training:
                 if use_amp:
@@ -476,12 +485,16 @@ def _epoch(model, loader, loss_fn, optimizer=None, device="cpu", scaler=None):
             indices = log_probs.detach().argmax(dim=-1).transpose(0, 1).cpu().tolist()
             offset = 0
             for row, target_length, indices_one in zip(rows, target_lengths.cpu().tolist(), indices):
-                reference = targets[offset : offset + target_length].detach().cpu().tolist()
+                reference_ids = targets[offset : offset + target_length].detach().cpu().tolist()
                 offset += target_length
-                prediction = ctc_greedy_decode(indices_one)
+                prediction_ids = ctc_greedy_decode(indices_one)
+                reference = list(row["gloss_sequence"])
+                prediction = [gloss_by_id.get(index, "<invalid>") for index in prediction_ids]
                 references.append(reference)
                 predictions.append(prediction)
-                records.append({"id": row["id"], "reference": reference, "prediction": prediction})
+                records.append({"id": row["id"], "reference_ids": reference_ids,
+                                "prediction_ids": prediction_ids, "reference_gloss": reference,
+                                "prediction_gloss": prediction})
     metrics = sequence_metrics(references, predictions)
     metrics["loss"] = total_loss / max(len(loader.dataset), 1)
     return metrics, records
@@ -489,6 +502,12 @@ def _epoch(model, loader, loss_fn, optimizer=None, device="cpu", scaler=None):
 
 def _write_json(path: Path, value) -> None:
     path.write_text(json.dumps(value, ensure_ascii=False, indent=2, allow_nan=False) + "\n", encoding="utf-8")
+
+
+def _save_checkpoint(path: Path, checkpoint) -> None:
+    temporary = path.with_name(path.name + ".tmp")
+    torch.save(checkpoint, temporary)
+    os.replace(temporary, path)
 
 
 def _write_manifest(root: Path) -> None:
@@ -499,8 +518,20 @@ def _write_manifest(root: Path) -> None:
     (root / "SHA256SUMS").write_text("\n".join(entries) + "\n", encoding="utf-8")
 
 
+def _write_tree_manifest(root: Path, destination: Path) -> str:
+    entries = []
+    for path in sorted(root.rglob("*")):
+        if path.is_file():
+            entries.append(f"{sha(path)}  {path.relative_to(root).as_posix()}")
+    destination.write_text("\n".join(entries) + "\n", encoding="utf-8")
+    return sha(destination)
+
+
 def train(args) -> dict:
     _require_runtime()
+    if not torch.cuda.is_available():
+        raise RuntimeError("GPU-only training requested, but CUDA is unavailable")
+    run_started = datetime.now(timezone.utc)
     _seed_everything(args.seed)
     all_rows, package_info = read_train_package(args.package)
     rows, duplicate_video_groups = exclude_duplicate_videos(all_rows)
@@ -521,11 +552,16 @@ def train(args) -> dict:
     if output.exists() and any(output.iterdir()):
         raise FileExistsError(f"Output must be new and empty: {output}")
     output.mkdir(parents=True, exist_ok=True)
+    (output / "video-integrity.jsonl").write_text(
+        "".join(json.dumps(row, ensure_ascii=False) + "\n" for row in video_integrity.pop("records")),
+        encoding="utf-8",
+    )
     config = {key: str(value) if isinstance(value, Path) else value for key, value in vars(args).items()}
     cache_root = output.parent / f"{output.name}-frame-cache"
     cache_info = prepare_video_cache(rows, video_root, cache_root, args.frames, args.image_size)
     cache_info["location"] = str(cache_root)
-    device = torch.device("cuda" if torch.cuda.is_available() and not args.cpu else "cpu")
+    cache_info["sha256_manifest"] = _write_tree_manifest(cache_root, output / "frame-cache.SHA256SUMS")
+    device = torch.device("cuda")
     model = VideoGlossModel(len(vocab), args.width).to(device)
     train_loader = DataLoader(
         VideoGlossDataset(train_rows, video_root, vocab, args.frames, args.image_size, cache_root),
@@ -535,6 +571,8 @@ def train(args) -> dict:
         pin_memory=device.type == "cuda",
         collate_fn=_collate,
     )
+    inverse_vocab = {index: token for token, index in vocab.items()}
+    train_loader.dataset.gloss_by_id = inverse_vocab
     selection_loader = DataLoader(
         VideoGlossDataset(selection_rows, video_root, vocab, args.frames, args.image_size, cache_root),
         batch_size=args.batch_size,
@@ -543,13 +581,13 @@ def train(args) -> dict:
         pin_memory=device.type == "cuda",
         collate_fn=_collate,
     )
+    selection_loader.dataset.gloss_by_id = inverse_vocab
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
     loss_fn = nn.CTCLoss(blank=0, zero_infinity=True)
     scaler = torch.cuda.amp.GradScaler(enabled=device.type == "cuda" and args.amp)
     best_error = math.inf
     best_epoch = None
     history = []
-    start = datetime.now(timezone.utc)
     for epoch in range(1, args.epochs + 1):
         train_metrics, _ = _epoch(model, train_loader, loss_fn, optimizer, device, scaler)
         selection_metrics, _ = _epoch(model, selection_loader, loss_fn, None, device, None)
@@ -564,11 +602,11 @@ def train(args) -> dict:
             "selection_source_code": args.selection_source_code,
             "final_holdout_source_code": args.heldout_source_code,
         }
-        torch.save(checkpoint, output / "checkpoint-last.pt")
+        _save_checkpoint(output / "checkpoint-last.pt", checkpoint)
         if selection_metrics["gloss_error_rate"] < best_error:
             best_error = selection_metrics["gloss_error_rate"]
             best_epoch = epoch
-            torch.save(checkpoint, output / "checkpoint-best.pt")
+            _save_checkpoint(output / "checkpoint-best.pt", checkpoint)
         _write_json(output / "history.json", history)
         print(json.dumps(entry, ensure_ascii=False), flush=True)
         if best_epoch is not None and epoch - best_epoch >= args.patience:
@@ -583,24 +621,25 @@ def train(args) -> dict:
         pin_memory=device.type == "cuda",
         collate_fn=_collate,
     )
+    final_loader.dataset.gloss_by_id = inverse_vocab
     final_metrics, final_predictions = _epoch(model, final_loader, loss_fn, None, device, None)
     gloss_by_id = {index: token for token, index in vocab.items()}
     (output / "predictions-final-holdout.jsonl").write_text(
         "".join(json.dumps({
             "id": record["id"],
-            "reference_ids": record["reference"],
-            "prediction_ids": record["prediction"],
-            "reference_gloss": [gloss_by_id.get(index, "<invalid>") for index in record["reference"]],
-            "prediction_gloss": [gloss_by_id.get(index, "<invalid>") for index in record["prediction"]],
+            "reference_ids": record["reference_ids"],
+            "prediction_ids": record["prediction_ids"],
+            "reference_gloss": record["reference_gloss"],
+            "prediction_gloss": record["prediction_gloss"],
         }, ensure_ascii=False) + "\n" for record in final_predictions), encoding="utf-8"
     )
     finished = datetime.now(timezone.utc)
     _write_json(output / "vocab.json", vocab)
-    _write_json(output / "config.json", {**config, "device": str(device), "started_at_utc": start.isoformat()})
+    _write_json(output / "config.json", {**config, "device": str(device), "started_at_utc": run_started.isoformat()})
     report = {
         "schema": "signbridge-ce-csl-video-gloss-training-report-v1",
         "created_at_utc": finished.isoformat(),
-        "started_at_utc": start.isoformat(),
+        "started_at_utc": run_started.isoformat(),
         "finished_at_utc": finished.isoformat(),
         "package": package_info,
         "video_root": str(video_root),
@@ -668,8 +707,10 @@ def main() -> None:
     parser.add_argument("--width", type=int, default=32)
     parser.add_argument("--num-workers", type=int, default=2)
     parser.add_argument("--seed", type=int, default=20261023)
-    parser.add_argument("--amp", action=argparse.BooleanOptionalAction, default=True)
-    parser.add_argument("--cpu", action="store_true")
+    amp = parser.add_mutually_exclusive_group()
+    amp.add_argument("--amp", dest="amp", action="store_true")
+    amp.add_argument("--no-amp", dest="amp", action="store_false")
+    parser.set_defaults(amp=True)
     args = parser.parse_args()
     print(json.dumps(train(args), ensure_ascii=False, indent=2))
 
