@@ -80,6 +80,85 @@ class GlossTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'digest'):
                 m.read_data(root)
 
+    def test_skip_test_verifies_digest_without_parsing_test_labels(self):
+        m = module()
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            manifest = []
+            for split in ['train', 'dev', 'test']:
+                path = root / 'splits' / split / 'samples.jsonl'
+                path.parent.mkdir(parents=True)
+                content = (json.dumps(sample(split, split, '我去', ['我', '去'])) + '\n'
+                           if split != 'test' else '{not parsed by test-excluded run}\n')
+                path.write_text(content)
+                manifest.append(hashlib.sha256(path.read_bytes()).hexdigest() + '  ' + path.relative_to(root).as_posix())
+            (root / 'SHA256SUMS').write_text('\n'.join(manifest) + '\n')
+
+            data, inputs = m.read_data(root, include_test=False)
+
+            self.assertEqual(len(data['train']), 1)
+            self.assertEqual(len(data['dev']), 1)
+            self.assertEqual(data['test'], [])
+            self.assertIn('splits/test/samples.jsonl', inputs)
+            path.write_text(content + 'changed')
+            with self.assertRaisesRegex(ValueError, 'digest'):
+                m.read_data(root, include_test=False)
+
+    @unittest.skipUnless(importlib.util.find_spec('torch'), 'Optional training runtime not installed')
+    def test_initialization_loads_only_digest_bound_compatible_weights(self):
+        import torch
+        m = module()
+        vocab = {'source': ['<pad>', '<unk>', '<bos>', '<eos>', '我'],
+                 'target': ['<pad>', '<unk>', '<bos>', '<eos>', '我']}
+        config = {'width': 2, 'heads': 1, 'layers': 1, 'feedforward': 4,
+                  'dropout': 0.0, 'max_source': 8, 'max_target': 8}
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source = torch.nn.Linear(2, 2)
+            checkpoint = root / 'epoch.pt'
+            torch.save(source.state_dict(), checkpoint)
+            (root / 'vocab.json').write_text(json.dumps(vocab))
+            (root / 'model.json').write_text(json.dumps({
+                'schema': 'signbridge-ce-csl-text-to-gloss-v1',
+                'research_only': True,
+                'checkpoint': 'epoch.pt',
+                'checkpoint_sha256': hashlib.sha256(checkpoint.read_bytes()).hexdigest(),
+                'config': config,
+            }))
+            (root / 'report.json').write_text(json.dumps({
+                'status': 'completed',
+                'checkpoint': 'epoch.pt',
+                'checkpoint_sha256': hashlib.sha256(checkpoint.read_bytes()).hexdigest(),
+                'selected_epoch': 40,
+                'optimizer_steps': 3120,
+            }))
+            target = torch.nn.Linear(2, 2)
+
+            provenance = m.load_initial_weights(target, vocab, config, root)
+
+            self.assertTrue(torch.equal(target.weight, source.weight))
+            self.assertEqual(provenance['mode'], 'weights_only_initialization')
+            self.assertFalse(provenance['optimizer_state_restored'])
+            self.assertEqual(provenance['source_selected_epoch'], 40)
+            self.assertEqual(provenance['source_optimizer_steps'], 3120)
+            self.assertEqual(provenance['source_checkpoint_sha256'], hashlib.sha256(checkpoint.read_bytes()).hexdigest())
+
+            changed_vocab = {**vocab, 'source': vocab['source'] + ['新字']}
+            with self.assertRaisesRegex(ValueError, 'vocabulary'):
+                m.load_initial_weights(torch.nn.Linear(2, 2), changed_vocab, config, root)
+            changed_config = {**config, 'width': 4}
+            with self.assertRaisesRegex(ValueError, 'configuration'):
+                m.load_initial_weights(torch.nn.Linear(2, 2), vocab, changed_config, root)
+            report_path = root / 'report.json'
+            report = json.loads(report_path.read_text())
+            report_path.write_text(json.dumps({**report, 'checkpoint_sha256': '0' * 64}))
+            with self.assertRaisesRegex(ValueError, 'report'):
+                m.load_initial_weights(torch.nn.Linear(2, 2), vocab, config, root)
+            report_path.write_text(json.dumps(report))
+            checkpoint.write_bytes(checkpoint.read_bytes() + b'tampered')
+            with self.assertRaisesRegex(ValueError, 'digest'):
+                m.load_initial_weights(torch.nn.Linear(2, 2), vocab, config, root)
+
     def test_empty_labels_or_overlong_sequences_are_not_silently_truncated(self):
         m = module()
         for row in [sample('bad', 'train', '我去', []),

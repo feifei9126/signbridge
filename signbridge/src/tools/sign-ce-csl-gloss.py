@@ -46,7 +46,7 @@ def validate_sample(row, split):
     return row
 
 
-def read_data(library):
+def read_data(library, include_test=True):
     root = Path(library).resolve()
     manifest = {}
     for line in (root / 'SHA256SUMS').read_text().splitlines():
@@ -61,6 +61,9 @@ def read_data(library):
         if path.is_symlink() or not path.resolve().is_relative_to(root) or sha(path) != manifest.get(relative):
             raise ValueError('Dataset split digest differs: ' + relative)
         inputs[relative] = manifest[relative]
+        if split == 'test' and not include_test:
+            data[split] = []
+            continue
         data[split] = [validate_sample(json.loads(line), split) for line in path.read_text(encoding='utf-8').splitlines() if line.strip()]
         for row in data[split]:
             if row['id'] in identities:
@@ -268,13 +271,61 @@ def training_device(name):
     return torch.device(name)
 
 
+def load_initial_weights(model, vocab, config, model_root):
+    import torch
+    root = Path(model_root).absolute()
+    if root.is_symlink() or not root.is_dir():
+        raise ValueError('Initial model directory must be a regular directory')
+    root = root.resolve()
+    metadata_path = root / 'model.json'
+    vocab_path = root / 'vocab.json'
+    report_path = root / 'report.json'
+    if metadata_path.is_symlink() or vocab_path.is_symlink() or report_path.is_symlink():
+        raise ValueError('Initial model metadata cannot be symlinks')
+    metadata = json.loads(metadata_path.read_text(encoding='utf-8'))
+    if metadata.get('schema') != 'signbridge-ce-csl-text-to-gloss-v1' or metadata.get('research_only') is not True:
+        raise ValueError('Initial model is not a compatible research checkpoint')
+    if json.loads(vocab_path.read_text(encoding='utf-8')) != vocab:
+        raise ValueError('Initial model vocabulary differs from current train-only vocabulary')
+    if metadata.get('config') != config:
+        raise ValueError('Initial model configuration differs from the current model')
+    checkpoint_name = metadata.get('checkpoint')
+    if not isinstance(checkpoint_name, str) or not checkpoint_name or Path(checkpoint_name).is_absolute():
+        raise ValueError('Initial checkpoint path is invalid')
+    checkpoint = root / checkpoint_name
+    if (checkpoint.is_symlink() or not checkpoint.resolve().is_relative_to(root)
+            or not checkpoint.is_file() or sha(checkpoint) != metadata.get('checkpoint_sha256')):
+        raise ValueError('Initial checkpoint digest/path differs')
+    source_report = None
+    if report_path.is_file():
+        source_report = json.loads(report_path.read_text(encoding='utf-8'))
+        if (source_report.get('status') != 'completed'
+                or source_report.get('checkpoint_sha256') != metadata['checkpoint_sha256']
+                or source_report.get('checkpoint') != checkpoint_name):
+            raise ValueError('Initial training report does not bind the selected checkpoint')
+    state = torch.load(checkpoint, map_location='cpu', weights_only=True)
+    if not isinstance(state, dict) or not state:
+        raise ValueError('Initial checkpoint does not contain a model state dictionary')
+    model.load_state_dict(state, strict=True)
+    return {
+        'mode': 'weights_only_initialization',
+        'source_model_root': str(root),
+        'source_checkpoint': checkpoint_name,
+        'source_checkpoint_sha256': sha(checkpoint),
+        'source_selected_epoch': (source_report or {}).get('selected_epoch'),
+        'source_optimizer_steps': (source_report or {}).get('optimizer_steps'),
+        'optimizer_state_restored': False,
+        'optimizer_state_note': 'Checkpoint contains model weights only; a new AdamW optimizer is initialized.',
+    }
+
+
 def train(args):
     import torch
     library, output = args.library.resolve(), args.output.resolve()
     if (output == library or output.is_relative_to(library) or library.is_relative_to(output)
             or output.exists()):
         raise ValueError('Choose a NEW training output separate from candidate inputs')
-    data, inputs = read_data(library)
+    data, inputs = read_data(library, include_test=not args.skip_test)
     if not args.research_only:
         raise ValueError('Explicit research-only training scope is required')
     if args.epochs < 1 or args.epochs > 200 or not 1 <= args.batch_size <= 256:
@@ -288,8 +339,12 @@ def train(args):
     config = {'width': 128, 'heads': 4, 'layers': 2, 'feedforward': 384,
               'dropout': .15, 'max_source': 128, 'max_target': 64}
     model = make_model(vocab, config).to(device)
+    initialization = None
+    if args.initialize_from_model:
+        initialization = load_initial_weights(model, vocab, config, args.initialize_from_model)
     initial_weights = weights_hash(model)
-    flags = {split: overlap_flags(data['train'], data[split]) for split in ['dev', 'test']}
+    selected_splits = ['dev'] if args.skip_test else ['dev', 'test']
+    flags = {split: overlap_flags(data['train'], data[split]) for split in selected_splits}
     output.mkdir(parents=True)
     (output / 'checkpoints').mkdir()
     write_json(output / 'vocab.json', vocab)
@@ -298,11 +353,13 @@ def train(args):
     metadata = {
         'schema': 'signbridge-ce-csl-text-to-gloss-v1', 'status': 'running',
         'started_at_utc': datetime.now(timezone.utc).isoformat(),
-        'experiment': 'Chinese character Transformer to CE-CSL gloss tokens; from scratch',
+        'experiment': ('Chinese character Transformer to CE-CSL gloss tokens; weights-only initialization'
+                       if initialization else 'Chinese character Transformer to CE-CSL gloss tokens; from scratch'),
         'authorization': {'basis': 'explicit_user_request', 'statement': '开始下一步训练',
-                          'scope': 'local_research_text_to_gloss_sequence_training'},
+                          'scope': 'authorized_gpu_research_text_to_gloss_continuation'},
         'candidate_approval_state_unchanged': True,
         'research_only': True, 'human_approved': False, 'deployment_ready': False,
+        'training_ready': False, 'model_training_ready': False,
         'text_to_motion_trained': False, 'video_recognition_trained': False,
         'training_started': True, 'old_checkpoints_modified': False,
         'source_library': str(library), 'source_files_sha256': inputs,
@@ -314,10 +371,15 @@ def train(args):
         'config': config, 'arguments': {k: str(v) if isinstance(v, Path) else v for k, v in vars(args).items()},
         'vocabulary_source': 'train_only', 'source_vocabulary_size': len(vocab['source']),
         'target_vocabulary_size': len(vocab['target']),
-        'split_counts': {split: len(rows) for split, rows in data.items()},
+        'split_counts': {'train': len(data['train']), 'dev': len(data['dev']),
+                         'test': len(data['test']) if not args.skip_test else None},
+        'test_data_loaded': not args.skip_test,
+        'test_digest_verified_without_parsing': args.skip_test,
+        'initialization': initialization or {'mode': 'from_scratch'},
         'parameter_count': sum(p.numel() for p in model.parameters()),
         'initial_weights_sha256': initial_weights,
-        'selection': 'minimum dev nonoverlap gloss edit error; test never used for selection',
+        'selection': 'minimum dev nonoverlap gloss edit error; test is excluded from this run'
+                     if args.skip_test else 'minimum dev nonoverlap gloss edit error; test never used for selection',
         'evaluation_references': 'raw original gloss labels; eval-only labels stay unseen and count as errors',
         'preprocessing': 'NFKC Chinese characters without Unicode punctuation/whitespace; raw inputs unchanged',
         'limits': ['No pretrained language model; small dataset baseline.',
@@ -373,7 +435,7 @@ def train(args):
         if selected_weights == initial_weights:
             raise ValueError('Model weights did not change')
         final_metrics = {}
-        for split in ['dev', 'test']:
+        for split in selected_splits:
             rows = data[split]
             predicted = predict_rows(model, rows, vocab, device, args.batch_size)
             baseline_predictions = [baseline.predict(r['proposed_text']) for r in rows]
@@ -399,12 +461,14 @@ def train(args):
                          'checkpoint': selected_path.relative_to(output).as_posix(),
                          'checkpoint_sha256': sha(selected_path), 'selected_weights_sha256': selected_weights,
                          'new_model_weights_updated': True, 'text_to_gloss_trained': True,
-                         'test_evaluated_after_checkpoint_selection': True, 'evaluation': final_metrics})
+                         'test_evaluated_after_checkpoint_selection': not args.skip_test,
+                         'evaluation': final_metrics})
         write_json(output / 'report.json', metadata)
         write_json(output / 'progress.json', {'status': 'completed', 'epochs_completed': epoch, 'selected_epoch': best_epoch})
         write_json(output / 'model.json', {key: metadata[key] for key in ['schema', 'checkpoint', 'checkpoint_sha256',
                                                                         'config', 'research_only', 'text_to_motion_trained',
-                                                                        'video_recognition_trained', 'deployment_ready']})
+                                                                        'video_recognition_trained', 'deployment_ready',
+                                                                        'training_ready', 'model_training_ready']})
         (output / 'SHA256SUMS').write_text(''.join(f'{sha(path)}  {path.relative_to(output).as_posix()}\n'
                                                  for path in sorted(output.rglob('*')) if path.is_file()), encoding='utf-8')
         print(json.dumps({'status': 'completed', 'output': str(output), 'selected_epoch': best_epoch,
@@ -456,6 +520,10 @@ def main():
     fit.add_argument('--device', choices=['cuda', 'mps', 'cpu'], default='cuda')
     fit.add_argument('--evaluate-every', type=int, default=2)
     fit.add_argument('--patience', type=int, default=6)
+    fit.add_argument('--initialize-from-model', type=Path,
+                     help='Initialize model weights from a compatible research model directory; optimizer state is not restored.')
+    fit.add_argument('--skip-test', action='store_true',
+                     help='Verify test split bytes but do not parse labels, evaluate, or save test predictions.')
     prediction = sub.add_parser('predict')
     prediction.add_argument('--model', type=Path, required=True)
     prediction.add_argument('--text', required=True)
