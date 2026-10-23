@@ -511,7 +511,7 @@ def _collate(batch):
 if torch is not None:
 
     class VideoGlossModel(nn.Module):
-        def __init__(self, vocab_size: int, width: int = 32):
+        def __init__(self, vocab_size: int, width: int = 32, blank_logit_bias: float = -2.0):
             super().__init__()
             if vocab_size < 2 or width < 4:
                 raise ValueError("vocab_size must include blank and width must be >= 4")
@@ -527,6 +527,8 @@ if torch is not None:
             )
             self.temporal = nn.GRU(width * 2 * 4 * 4, width, num_layers=2, bidirectional=True, dropout=0.1)
             self.head = nn.Linear(width * 2, vocab_size)
+            with torch.no_grad():
+                self.head.bias[0] = float(blank_logit_bias)
 
         def forward(self, videos):
             batch, time, channels, height, width = videos.shape
@@ -684,7 +686,7 @@ def train(args) -> dict:
         cache_info["location"] = str(cache_root)
         cache_info["sha256_manifest"] = _write_tree_manifest(cache_root, output / "frame-cache.SHA256SUMS")
     device = torch.device("cuda")
-    model = VideoGlossModel(len(vocab), args.width).to(device)
+    model = VideoGlossModel(len(vocab), args.width, args.blank_logit_bias).to(device)
     train_loader = DataLoader(
         VideoGlossDataset(train_rows, video_root, vocab, args.frames, args.image_size, cache_root),
         batch_size=args.batch_size,
@@ -857,6 +859,7 @@ def main() -> None:
     parser.add_argument("--learning-rate", type=float, default=2e-4)
     parser.add_argument("--weight-decay", type=float, default=1e-4)
     parser.add_argument("--blank-penalty-weight", type=float, default=0.1)
+    parser.add_argument("--blank-logit-bias", type=float, default=-2.0)
     parser.add_argument("--width", type=int, default=32)
     parser.add_argument("--min-gloss-count", type=int, default=1)
     parser.add_argument("--num-workers", type=int, default=2)

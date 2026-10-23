@@ -190,6 +190,15 @@ class VideoGlossTests(unittest.TestCase):
         self.assertTrue(bool(torch.isfinite(penalty)))
         self.assertGreater(float(penalty), 0.0)
 
+    def test_model_can_initialize_blank_logit_below_regular_gloss_logits(self):
+        m = module()
+        if m.torch is None:
+            self.skipTest('PyTorch unavailable')
+        import torch
+        model = m.VideoGlossModel(vocab_size=4, width=4, blank_logit_bias=-2.0)
+        self.assertLess(float(model.head.bias.detach()[0]), float(model.head.bias.detach()[1]))
+        self.assertTrue(bool(torch.isfinite(model.head.bias).all()))
+
     def test_ctc_greedy_decode_collapses_repeats_and_blanks(self):
         m = module()
         self.assertEqual(m.ctc_greedy_decode([1, 1, 0, 2, 2, 0, 1], blank=0), [1, 2, 1])
