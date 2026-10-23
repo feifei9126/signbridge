@@ -95,7 +95,7 @@ def _validate_row(row: dict, line_number: int, seen_ids: set[str], seen_videos: 
         row.get("schema") != "signbridge-ce-csl-sample-v1"
         or row.get("source_split") != "train"
         or not isinstance(identity, str)
-        or not identity
+        or not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", identity)
         or identity in seen_ids
         or not isinstance(source_code, str)
         or not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", source_code)
@@ -179,6 +179,28 @@ def group_holdout(rows: Sequence[dict], source_code: str) -> tuple[list[dict], l
     return train, heldout
 
 
+def grouped_partition(rows: Sequence[dict], selection_code: str, final_holdout_code: str,
+                      excluded_codes: Iterable[str] = ()) -> tuple[list[dict], list[dict], list[dict], list[dict]]:
+    excluded_codes = set(excluded_codes)
+    if selection_code == final_holdout_code or selection_code in excluded_codes or final_holdout_code in excluded_codes:
+        raise ValueError("Selection, final holdout and excluded source codes must be disjoint")
+    source_codes = {row["source_code"] for row in rows}
+    for code in {selection_code, final_holdout_code} | excluded_codes:
+        if code not in source_codes:
+            raise ValueError(f"Unknown source code in partition: {code}")
+    selection = [row for row in rows if row["source_code"] == selection_code]
+    final_holdout = [row for row in rows if row["source_code"] == final_holdout_code]
+    excluded = [row for row in rows if row["source_code"] in excluded_codes]
+    train = [row for row in rows if row["source_code"] not in ({selection_code, final_holdout_code} | excluded_codes)]
+    if not train or not selection or not final_holdout:
+        raise ValueError("Grouped partition produced an empty train, selection or final holdout")
+    groups = [{row["id"] for row in group} for group in (train, selection, final_holdout, excluded)]
+    for index, left in enumerate(groups):
+        if any(left & right for right in groups[index + 1 :]):
+            raise ValueError("Grouped partition identities overlap")
+    return train, selection, final_holdout, excluded
+
+
 def exclude_duplicate_videos(rows: Sequence[dict]) -> tuple[list[dict], list[dict]]:
     """Quarantine every repeated video digest before any grouped split."""
 
@@ -229,6 +251,49 @@ def verify_video_assets(rows: Sequence[dict], video_root: Path | str) -> dict:
             "all_video_hashes_match": True, "records": records}
 
 
+def verify_cached_frames(rows: Sequence[dict], cache_root: Path | str, manifest_path: Path | str,
+                         source_report_path: Path | str, frames: int, image_size: int) -> dict:
+    cache_arg = Path(cache_root).absolute()
+    manifest_arg = Path(manifest_path).absolute()
+    report_arg = Path(source_report_path).absolute()
+    if cache_arg.is_symlink() or manifest_arg.is_symlink() or report_arg.is_symlink():
+        raise ValueError("Cached frame provenance paths cannot be symlinks")
+    cache = cache_arg.resolve()
+    manifest = manifest_arg.resolve()
+    source_report = json.loads(report_arg.read_text(encoding="utf-8"))
+    source_cache = source_report.get("frame_cache", {})
+    if (source_cache.get("cached_video_count") != len(rows)
+            or source_cache.get("frames") != frames
+            or source_cache.get("image_size") != image_size
+            or Path(source_cache.get("location", "")).resolve() != cache
+            or source_cache.get("sha256_manifest") != sha(manifest)):
+        raise ValueError("Cached frame provenance does not match requested rows/configuration")
+    entries = {}
+    for line_number, line in enumerate(manifest.read_text(encoding="utf-8").splitlines(), 1):
+        try:
+            digest, relative = line.split("  ", 1)
+        except ValueError as exc:
+            raise ValueError(f"Malformed cached-frame manifest line {line_number}") from exc
+        if not re.fullmatch(r"[0-9a-f]{64}", digest) or not _safe_relative(relative) or relative in entries:
+            raise ValueError(f"Invalid cached-frame manifest entry: {relative}")
+        entries[relative] = digest
+    expected_names = {row["id"] + ".npy" for row in rows}
+    if set(entries) != expected_names:
+        raise ValueError("Cached-frame manifest IDs differ from eligible train rows")
+    verified_bytes = 0
+    for relative, expected_digest in entries.items():
+        path = cache / relative
+        if (path.is_symlink() or not path.is_file()
+                or os.path.commonpath((str(cache), str(path.resolve()))) != str(cache)):
+            raise ValueError(f"Missing or unsafe cached frame array: {relative}")
+        if sha(path) != expected_digest:
+            raise ValueError(f"Cached frame cache digest differs: {relative}")
+        verified_bytes += path.stat().st_size
+    return {"cached_video_count": len(rows), "cached_bytes": verified_bytes, "frames": frames,
+            "image_size": image_size, "location": str(cache), "sha256_manifest": sha(manifest),
+            "reused": True, "source_report": str(report_arg.resolve()), "all_cache_hashes_match": True}
+
+
 def prepare_video_cache(rows: Sequence[dict], video_root: Path | str, cache_root: Path | str, frames: int, image_size: int) -> dict:
     """Decode each source video once and persist compact uint8 RGB samples."""
 
@@ -262,6 +327,18 @@ def ctc_greedy_decode(indices: Iterable[int], blank: int = 0) -> list[int]:
 
 def ctc_minimum_frames(tokens: Sequence[str]) -> int:
     return len(tokens) + sum(left == right for left, right in zip(tokens, tokens[1:]))
+
+
+def ctc_prediction_diagnostics(frame_predictions: Sequence[Sequence[int]], blank: int = 0) -> dict:
+    total_frames = sum(len(row) for row in frame_predictions)
+    blank_frames = sum(int(index) == blank for row in frame_predictions for index in row)
+    decoded = [ctc_greedy_decode(row, blank) for row in frame_predictions]
+    empty = sum(not prediction for prediction in decoded)
+    predicted_tokens = sum(len(prediction) for prediction in decoded)
+    return {"prediction_frames": total_frames, "blank_frames": blank_frames,
+            "blank_frame_fraction": blank_frames / max(total_frames, 1),
+            "empty_prediction_samples": empty, "empty_prediction_rate": empty / max(len(decoded), 1),
+            "predicted_gloss_tokens": predicted_tokens, "predicted_tokens": predicted_tokens}
 
 
 def validate_ctc_capacity(rows: Sequence[dict], frames: int) -> dict:
@@ -455,8 +532,11 @@ else:  # pragma: no cover - import surface remains useful without torch.
             _require_runtime()
 
 
-def build_vocab(rows: Sequence[dict]) -> dict[str, int]:
-    tokens = sorted({token for row in rows for token in row["gloss_sequence"]})
+def build_vocab(rows: Sequence[dict], min_count: int = 1) -> dict[str, int]:
+    if min_count < 1:
+        raise ValueError("min_count must be at least 1")
+    counts = Counter(token for row in rows for token in row["gloss_sequence"])
+    tokens = sorted(token for token, count in counts.items() if count >= min_count)
     return {"<blank>": 0, "<unk>": 1, **{token: index + 2 for index, token in enumerate(tokens)}}
 
 
@@ -472,7 +552,7 @@ def _epoch(model, loader, loss_fn, optimizer=None, device="cpu", scaler=None):
     training = optimizer is not None
     model.train(training)
     total_loss = 0.0
-    references, predictions, records = [], [], []
+    references, predictions, records, frame_predictions = [], [], [], []
     gloss_by_id = getattr(loader.dataset, "gloss_by_id", {})
     context = torch.enable_grad() if training else torch.no_grad()
     with context:
@@ -499,6 +579,7 @@ def _epoch(model, loader, loss_fn, optimizer=None, device="cpu", scaler=None):
                     optimizer.step()
             total_loss += float(loss.detach().cpu()) * len(rows)
             indices = log_probs.detach().argmax(dim=-1).transpose(0, 1).cpu().tolist()
+            frame_predictions.extend(indices)
             offset = 0
             for row, target_length, indices_one in zip(rows, target_lengths.cpu().tolist(), indices):
                 reference_ids = targets[offset : offset + target_length].detach().cpu().tolist()
@@ -512,6 +593,7 @@ def _epoch(model, loader, loss_fn, optimizer=None, device="cpu", scaler=None):
                                 "prediction_ids": prediction_ids, "reference_gloss": reference,
                                 "prediction_gloss": prediction})
     metrics = sequence_metrics(references, predictions)
+    metrics.update(ctc_prediction_diagnostics(frame_predictions))
     metrics["loss"] = total_loss / max(len(loader.dataset), 1)
     return metrics, records
 
@@ -552,16 +634,18 @@ def train(args) -> dict:
     all_rows, package_info = read_train_package(args.package)
     rows, duplicate_video_groups = exclude_duplicate_videos(all_rows)
     ctc_capacity = validate_ctc_capacity(rows, args.frames)
-    train_pool, heldout_rows = group_holdout(rows, args.heldout_source_code)
-    if args.selection_source_code == args.heldout_source_code:
-        raise ValueError("Selection and final holdout source codes must differ")
-    train_rows, selection_rows = group_holdout(train_pool, args.selection_source_code)
+    train_rows, selection_rows, heldout_rows, excluded_rows = grouped_partition(
+        rows, args.selection_source_code, args.heldout_source_code, args.exclude_source_codes
+    )
     package_root = Path(args.package).resolve()
     video_root = Path(args.video_root).resolve() if args.video_root else package_root
     video_integrity = verify_video_assets(all_rows, video_root)
-    vocab = build_vocab(train_rows)
+    vocab = build_vocab(train_rows, args.min_gloss_count)
     selection_oov = sorted({token for row in selection_rows for token in row["gloss_sequence"] if token not in vocab})
     final_oov = sorted({token for row in heldout_rows for token in row["gloss_sequence"] if token not in vocab})
+    train_tokens = [token for row in train_rows for token in row["gloss_sequence"]]
+    selection_tokens = [token for row in selection_rows for token in row["gloss_sequence"]]
+    final_tokens = [token for row in heldout_rows for token in row["gloss_sequence"]]
     output_arg = Path(args.output).absolute()
     if output_arg.is_symlink():
         raise ValueError("Output directory cannot be a symlink")
@@ -574,10 +658,20 @@ def train(args) -> dict:
         encoding="utf-8",
     )
     config = {key: str(value) if isinstance(value, Path) else value for key, value in vars(args).items()}
-    cache_root = output.parent / f"{output.name}-frame-cache"
-    cache_info = prepare_video_cache(rows, video_root, cache_root, args.frames, args.image_size)
-    cache_info["location"] = str(cache_root)
-    cache_info["sha256_manifest"] = _write_tree_manifest(cache_root, output / "frame-cache.SHA256SUMS")
+    if args.reuse_frame_cache:
+        if not args.reuse_frame_cache_manifest or not args.reuse_frame_cache_report:
+            raise ValueError("Reusing frames requires both the source manifest and report")
+        cache_root = Path(args.reuse_frame_cache).resolve()
+        cache_info = verify_cached_frames(
+            rows, cache_root, args.reuse_frame_cache_manifest, args.reuse_frame_cache_report,
+            args.frames, args.image_size
+        )
+        (output / "frame-cache.SHA256SUMS").write_bytes(Path(args.reuse_frame_cache_manifest).read_bytes())
+    else:
+        cache_root = output.parent / f"{output.name}-frame-cache"
+        cache_info = prepare_video_cache(rows, video_root, cache_root, args.frames, args.image_size)
+        cache_info["location"] = str(cache_root)
+        cache_info["sha256_manifest"] = _write_tree_manifest(cache_root, output / "frame-cache.SHA256SUMS")
     device = torch.device("cuda")
     model = VideoGlossModel(len(vocab), args.width).to(device)
     train_loader = DataLoader(
@@ -667,9 +761,19 @@ def train(args) -> dict:
             "train_rows": len(train_rows),
             "selection_rows": len(selection_rows),
             "heldout_rows": len(heldout_rows),
+            "excluded_source_rows": len(excluded_rows),
             "vocab_size": len(vocab),
+            "minimum_gloss_count": args.min_gloss_count,
+            "train_gloss_token_occurrences": len(train_tokens),
+            "train_oov_gloss_occurrences": sum(token not in vocab for token in train_tokens),
+            "selection_gloss_token_occurrences": len(selection_tokens),
+            "selection_oov_gloss_occurrences": sum(token not in vocab for token in selection_tokens),
+            "selection_oov_token_fraction": sum(token not in vocab for token in selection_tokens) / max(len(selection_tokens), 1),
             "selection_oov_token_types": len(selection_oov),
             "selection_oov_token_examples": selection_oov[:20],
+            "final_holdout_gloss_token_occurrences": len(final_tokens),
+            "final_holdout_oov_gloss_occurrences": sum(token not in vocab for token in final_tokens),
+            "final_holdout_oov_token_fraction": sum(token not in vocab for token in final_tokens) / max(len(final_tokens), 1),
             "final_holdout_oov_token_types": len(final_oov),
             "final_holdout_oov_token_examples": final_oov[:20],
         },
@@ -677,8 +781,25 @@ def train(args) -> dict:
         "ctc_capacity": ctc_capacity,
         "duplicate_video_groups_quarantined": duplicate_video_groups,
         "frame_cache": cache_info,
-        "selection": {"source_code": args.selection_source_code, "used_for_checkpoint_selection": True},
-        "holdout": {"source_code": args.heldout_source_code, "metrics": final_metrics, "is_signer_independent": False, "used_for_checkpoint_selection": False, "train_ids_disjoint": True},
+        "source_code_partition": {
+            "gradient_train_codes": sorted({row["source_code"] for row in train_rows}),
+            "selection_code": args.selection_source_code,
+            "final_holdout_code": args.heldout_source_code,
+            "excluded_codes": sorted(set(args.exclude_source_codes)),
+            "excluded_rows": len(excluded_rows),
+            "signer_identity_verified": False,
+        },
+        "selection": {"source_code": args.selection_source_code, "used_for_checkpoint_selection": True,
+                      "previously_used_for_v1_checkpoint_selection": args.selection_source_code == "G"},
+        "holdout": {
+            "source_code": args.heldout_source_code,
+            "metrics": final_metrics,
+            "is_signer_independent": False,
+            "used_for_checkpoint_selection": False,
+            "train_ids_disjoint": True,
+            "was_used_in_v1_gradient_train": args.heldout_source_code in set("ABCDEFIJKL"),
+            "cross_run_unseen": args.heldout_source_code not in set("ABCDEFIJKL"),
+        },
         "device": str(device),
         "python_version": __import__("sys").version,
         "torch_version": torch.__version__,
@@ -699,6 +820,7 @@ def train(args) -> dict:
         "limitations": [
             "Sequence-level Gloss labels do not provide verified word/frame boundaries.",
             "Source codes are dataset-local identifiers, not verified signer identities.",
+            "The final source-code group is disjoint within this run but may have appeared in a prior run's gradient training.",
             "This is a research baseline and not evidence of complete Chinese Sign Language understanding.",
             "No official dev or test files were opened, read, uploaded or evaluated.",
         ],
@@ -715,6 +837,7 @@ def main() -> None:
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--heldout-source-code", default="H")
     parser.add_argument("--selection-source-code", default="G")
+    parser.add_argument("--exclude-source-codes", nargs="*", default=[])
     parser.add_argument("--frames", type=int, default=32)
     parser.add_argument("--image-size", type=int, default=128)
     parser.add_argument("--batch-size", type=int, default=8)
@@ -723,8 +846,12 @@ def main() -> None:
     parser.add_argument("--learning-rate", type=float, default=2e-4)
     parser.add_argument("--weight-decay", type=float, default=1e-4)
     parser.add_argument("--width", type=int, default=32)
+    parser.add_argument("--min-gloss-count", type=int, default=1)
     parser.add_argument("--num-workers", type=int, default=2)
     parser.add_argument("--seed", type=int, default=20261023)
+    parser.add_argument("--reuse-frame-cache", type=Path)
+    parser.add_argument("--reuse-frame-cache-manifest", type=Path)
+    parser.add_argument("--reuse-frame-cache-report", type=Path)
     amp = parser.add_mutually_exclusive_group()
     amp.add_argument("--amp", dest="amp", action="store_true")
     amp.add_argument("--no-amp", dest="amp", action="store_false")

@@ -128,6 +128,54 @@ class VideoGlossTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'CTC frame capacity'):
             m.validate_ctc_capacity([row], frames=3)
 
+    def test_minimum_gloss_frequency_collapses_rare_targets_to_unk(self):
+        m = module()
+        rows = [
+            {'gloss_sequence': ['常见', '常见', '稀有']},
+            {'gloss_sequence': ['常见', '另一个稀有']},
+        ]
+        vocab = m.build_vocab(rows, min_count=2)
+        self.assertEqual(vocab, {'<blank>': 0, '<unk>': 1, '常见': 2})
+
+    def test_source_partition_keeps_final_holdout_fresh_and_excluded_codes_unused(self):
+        m = module()
+        rows = [
+            {'id': 'a', 'source_code': 'A'}, {'id': 'g', 'source_code': 'G'},
+            {'id': 'f', 'source_code': 'F'}, {'id': 'h', 'source_code': 'H'},
+        ]
+        train, selection, final_holdout, excluded = m.grouped_partition(
+            rows, selection_code='G', final_holdout_code='F', excluded_codes={'H'})
+        self.assertEqual({row['id'] for row in train}, {'a'})
+        self.assertEqual({row['id'] for row in selection}, {'g'})
+        self.assertEqual({row['id'] for row in final_holdout}, {'f'})
+        self.assertEqual({row['id'] for row in excluded}, {'h'})
+
+    def test_cached_frames_require_matching_provenance_and_exact_hash_manifest(self):
+        m = module()
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve(); cache = root / 'cache'; cache.mkdir()
+            artifact = cache / 'a.npy'; artifact.write_bytes(b'cached-frame-payload')
+            manifest = root / 'cache.SHA256SUMS'
+            digest = hashlib.sha256(artifact.read_bytes()).hexdigest()
+            manifest.write_text(f'{digest}  a.npy\n')
+            source_report = root / 'source-report.json'
+            source_report.write_text(json.dumps({'counts': {'eligible_after_duplicate_quarantine': 1},
+                'frame_cache': {'cached_video_count': 1, 'frames': 32, 'image_size': 64,
+                    'location': str(cache), 'sha256_manifest': hashlib.sha256(manifest.read_bytes()).hexdigest()}}))
+            rows = [{'id': 'a', 'video_relative_path': 'video/train/A/a.mp4'}]
+            result = m.verify_cached_frames(rows, cache, manifest, source_report, frames=32, image_size=64)
+            self.assertTrue(result['all_cache_hashes_match'])
+            artifact.write_bytes(b'tampered')
+            with self.assertRaisesRegex(ValueError, 'cache digest'):
+                m.verify_cached_frames(rows, cache, manifest, source_report, frames=32, image_size=64)
+
+    def test_ctc_diagnostics_detect_blank_collapse(self):
+        m = module()
+        diagnostics = m.ctc_prediction_diagnostics([[0, 0, 0], [1, 1, 0]], blank=0)
+        self.assertEqual(diagnostics['empty_prediction_samples'], 1)
+        self.assertEqual(diagnostics['predicted_tokens'], 1)
+        self.assertAlmostEqual(diagnostics['blank_frame_fraction'], 4 / 6)
+
     def test_ctc_greedy_decode_collapses_repeats_and_blanks(self):
         m = module()
         self.assertEqual(m.ctc_greedy_decode([1, 1, 0, 2, 2, 0, 1], blank=0), [1, 2, 1])
