@@ -55,7 +55,15 @@ Gloss 或角色分项退化不得被训练 loss 或其他分项的高分掩盖�
 - 标签是 sequence-level Gloss，不含已核验的词级帧边界。原 train/dev 共享来源代码 A-L，导入记录也明确 `source_split_is_signer_independent=false`；代码只是数据集内来源标识，尚未证实每个代码与唯一手语者身份的一一关系。
 - 为防止普通随机划分掩盖来源差异，已从 train-only 数据生成 12 个 leave-one-source-code-out 折。折清单是评估准备，不是已验证的 signer-independent 测试，也不是训练结果。官方 dev/test 内容没有进入折生成。
 - 当前统一文字模型的独立 dev 误差分析见 `local-data/unified-library-20261023-v1/dev-error-analysis-current-v1/`。Gloss GER 70.82%→70.35%，句子 exact match 仍为 11/515；95 条逐句编辑距离改善、93 条退步、327 条持平。常见诊断线索包括“你/我”替换、编号 Gloss 变体替换，以及“我/不/想”等删除。编辑对齐存在并列路径，不据此自动更改标注。
-- 这些结果支持另建视频→Gloss 模型，而不是继续加训文本→Gloss 模型。视觉训练尚未开始：上次训练的明确边界是不上传原视频，CE-CSL 上游授权条款也未独立核实。原视频目前只在本机，未传服务器；必须先解决数据移动授权与实际来源代码/手语者映射，再启动 GPU 训练。
+- 这些结果支持另建视频→Gloss 模型，而不是继续加训文本→Gloss 模型。用户已明确授权将 CE-CSL 用于本项目，并另行授权仅把 train 视频和 train Gloss 标签传到其私有 GPU 服务器做研究训练；dev/test 不上传、不读取，视频不进入 GitHub。上游公开许可条款仍未独立核实，因此本轮只限私有研究用途，不做再分发。A-L 来源代码仍未证明对应唯一 signer。
 - 视频审计结果：`local-data/ce-csl-video-readiness-20261023-v2/`。来源代码分组折：`local-data/ce-csl-source-code-folds-20261023-v1/`。第一版审计因本工具把 ffprobe/ffmpeg 路径变量混用而产生失败报告，保留在 v1；回归测试修复后 v2 的 5,488 条全部通过。
 
-截至此审计，`test_read=false`、`training_ready=false`、`model_training_ready=false`、`deployment_ready=false`；没有发生视频识别训练或 Demo 集成。
+## 视频→Gloss 首轮研究基线
+
+- 新增独立工具 `signbridge/src/tools/sign-csl-video-gloss.py`，与文本→Gloss 模型、SMPL-X/动作库及 Demo 播放完全分离。模型采用逐帧轻量 CNN 空间特征 + 双向 GRU 时间编码 + CTC Gloss 解码；均匀采样 32 帧，保持 16:9 全画面并补边到 128×128，避免中心裁剪切掉手部。训练输入逐条校验 SHA-256/字节数；相同视频字节的重复记录在划分前整体隔离，避免跨折泄漏或矛盾标签。
+- 数据仅来自 4,973 条 train 记录。来源代码 G 仅用于每轮 checkpoint 选择；来源代码 H 只在选择完 checkpoint 后做一次最终 holdout 评估；两者都不是已验证的 signer 独立划分。其余 train 来源代码用于梯度更新。词表仅从梯度训练子集构建，selection/final holdout 未见 Gloss 映射到 `<unk>`，并单独报告 OOV。
+- 训练包只含 train 样本 ID、来源代码、Gloss 序列、视频相对路径及完整性摘要；不含原始中文句子、用户本机绝对路径或 dev/test。视频单独传到私有 GPU 机器系统盘，先逐条校验后使用，不写空间紧张的数据盘；不安装依赖、不改旧权重。
+- 初始配置：固定 seed 20261023、32 帧、128×128、batch 8、AdamW、learning rate 2e-4、最多 20 epoch、patience 6；按 G 组 GER 选权重，在所选 checkpoint 上对 H 组仅评估一次。结果必须报告 Gloss GER、整句 exact match、substitution/deletion/insertion、OOV 和逐条预测，不把训练损失当作识别率。
+- 训练中缓存的缩放帧是可重建的临时派生输入，与正式模型产物分开。模型和输入验证结束后仍需审查日志、摘要、有限权重与预测复算；实验成功不等于真实 CSL 理解，也不授权动作播放或 Demo 上线。
+
+截至视频模型训练验证完成前，`test_read=false`、`training_ready=false`、`model_training_ready=false`、`deployment_ready=false`；不接入 Demo、不修改 T08 或动作库。

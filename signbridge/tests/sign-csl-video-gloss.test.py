@@ -71,6 +71,55 @@ class VideoGlossTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 m.read_train_package(package)
 
+    def test_sample_tampering_after_manifest_fails_closed(self):
+        m = module()
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve(); package = fixture(root)
+            with (package / 'samples.jsonl').open('a') as stream:
+                stream.write('\n')
+            with self.assertRaisesRegex(ValueError, 'digest'):
+                m.read_train_package(package)
+
+    def test_video_path_must_match_train_source_and_digest_is_preserved(self):
+        m = module()
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve(); package = fixture(root)
+            rows = [json.loads(x) for x in (package / 'samples.jsonl').read_text().splitlines()]
+            rows[0]['video_relative_path'] = 'video/test/A/a1.mp4'
+            (package / 'samples.jsonl').write_text(''.join(json.dumps(x) + '\n' for x in rows))
+            manifest(package)
+            with self.assertRaises(ValueError):
+                m.read_train_package(package)
+
+    def test_video_assets_are_hash_and_size_verified(self):
+        m = module()
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            video = root / 'video/train/A/a1.mp4'
+            video.parent.mkdir(parents=True)
+            video.write_bytes(b'clip')
+            record = {'id': 'a1', 'video_relative_path': 'video/train/A/a1.mp4',
+                      'video_sha256': hashlib.sha256(b'clip').hexdigest(), 'video_bytes': 4}
+            self.assertTrue(m.verify_video_assets([record], root)['all_video_hashes_match'])
+            video.write_bytes(b'bad!')
+            with self.assertRaisesRegex(ValueError, 'digest'):
+                m.verify_video_assets([record], root)
+
+    def test_duplicate_video_bytes_are_quarantined_to_prevent_split_leakage(self):
+        m = module()
+        rows = [
+            {'id': 'train-a', 'source_code': 'A', 'video_sha256': 'f' * 64,
+             'video_relative_path': 'video/train/A/train-a.mp4', 'gloss_sequence': ['我']},
+            {'id': 'holdout-b', 'source_code': 'B', 'video_sha256': 'f' * 64,
+             'video_relative_path': 'video/train/B/holdout-b.mp4', 'gloss_sequence': ['你']},
+            {'id': 'unique-c', 'source_code': 'C', 'video_sha256': 'e' * 64,
+             'video_relative_path': 'video/train/C/unique-c.mp4', 'gloss_sequence': ['去']},
+        ]
+        retained, duplicate_groups = m.exclude_duplicate_videos(rows)
+        self.assertEqual([row['id'] for row in retained], ['unique-c'])
+        self.assertEqual(duplicate_groups[0]['ids'], ['holdout-b', 'train-a'])
+        self.assertTrue(duplicate_groups[0]['label_conflict'])
+
     def test_ctc_greedy_decode_collapses_repeats_and_blanks(self):
         m = module()
         self.assertEqual(m.ctc_greedy_decode([1, 1, 0, 2, 2, 0, 1], blank=0), [1, 2, 1])
