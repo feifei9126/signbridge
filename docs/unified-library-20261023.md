@@ -67,3 +67,15 @@ Gloss 或角色分项退化不得被训练 loss 或其他分项的高分掩盖�
 - 训练中缓存的缩放帧是可重建的临时派生输入，与正式模型产物分开。模型和输入验证结束后仍需审查日志、摘要、有限权重与预测复算；实验成功不等于真实 CSL 理解，也不授权动作播放或 Demo 上线。
 
 截至视频模型训练验证完成前，`test_read=false`、`training_ready=false`、`model_training_ready=false`、`deployment_ready=false`；不接入 Demo、不修改 T08 或动作库。
+
+## 视频→Gloss 三次 GPU 尝试的最终结论（2026-10-23）
+
+- 三次尝试均使用同一台 RTX 4090 D 私有服务器、同一批 4,973 条 train 视频，并复用逐条 SHA-256 校验通过的 4,971 条 32×128×128 缓存帧；官方 dev/test 从未读取或上传，H 组在 V2/V3 中完全排除。
+- V1（原始词表，G 选模、H 最终留出）运行 7 轮后停止：train/G/H 均 blank collapse，GER 100%，exact match 0，最终留出 101 条全部空预测。
+- V2（Gloss 最低出现次数 3、词表约 1,091 类、blank penalty 0.1，G 选模、F 最终留出、H 排除）运行 7 轮后停止：G/F GER 均 100%，exact match 0，空预测率 100%。
+- V3（V2 配置 + blank penalty 1.0 + blank logit 初始偏置 -2.0）运行 7 轮后停止：第 1 轮训练集短暂出现非 blank 输出，但 G 组仍全 blank；最终 F 留出 492 条 GER 100%、exact match 0、空预测率 100%。
+- 三次的 checkpoint 参数均有限、可加载，训练进程均已终止，训练输出内部 SHA-256 和预测复算均通过；因此结论是**当前轻量 CNN+GRU+CTC 基线在这批 sequence-level Gloss、无词级边界的监督下发生系统性 blank collapse**，不是服务器、磁盘、视频摘要或归档损坏。
+- 证据归档：`local-data/ce-csl-video-gloss-results-20261023-v1/`；远端外层归档 SHA-256 为 `06fe97a3474cb514a1a795e6db750bb5ec4c57a5511421442f00c7804102eb8d`。三次尝试、日志、配置、权重、预测和包清单均保留。
+- 本轮停止继续训练，不把 0% 识别结果接入 Demo，不把它称为中国手语理解模型。后续若要继续，必须改变监督/模型目标（例如可靠词级边界或不同的视频识别架构）并建立新的独立实验；不能只重复增加 epoch。
+
+最终状态仍为：`test_read=false`、`dev_read=false`、`training_ready=false`、`model_training_ready=false`、`deployment_ready=false`；动作库、T08 checkpoint 和公开 Demo 未修改。
