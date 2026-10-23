@@ -165,6 +165,10 @@ class VideoGlossTests(unittest.TestCase):
             rows = [{'id': 'a', 'video_relative_path': 'video/train/A/a.mp4'}]
             result = m.verify_cached_frames(rows, cache, manifest, source_report, frames=32, image_size=64)
             self.assertTrue(result['all_cache_hashes_match'])
+            stray = cache / 'stray.npy'; stray.write_bytes(b'extra')
+            with self.assertRaisesRegex(ValueError, 'unexpected'):
+                m.verify_cached_frames(rows, cache, manifest, source_report, frames=32, image_size=64)
+            stray.unlink()
             artifact.write_bytes(b'tampered')
             with self.assertRaisesRegex(ValueError, 'cache digest'):
                 m.verify_cached_frames(rows, cache, manifest, source_report, frames=32, image_size=64)

@@ -280,6 +280,9 @@ def verify_cached_frames(rows: Sequence[dict], cache_root: Path | str, manifest_
     expected_names = {row["id"] + ".npy" for row in rows}
     if set(entries) != expected_names:
         raise ValueError("Cached-frame manifest IDs differ from eligible train rows")
+    actual_names = {path.name for path in cache.iterdir() if path.is_file() and path.suffix == ".npy"}
+    if actual_names != expected_names:
+        raise ValueError("Cached frame directory contains missing or unexpected .npy IDs")
     verified_bytes = 0
     for relative, expected_digest in entries.items():
         path = cache / relative
