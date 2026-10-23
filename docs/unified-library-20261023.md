@@ -48,3 +48,14 @@ Gloss 或角色分项退化不得被训练 loss 或其他分项的高分掩盖�
 - 83 条动作仍是独立动作库：25 条通过固定数值显示代理门槛，58 条排除；其中 3 条候选带源质量警告。数值门槛不证明无抖动或手语正确，派生动作未获新的人审，也未启用播放。
 
 训练完成后仍保持 `human_approved=false`、`training_ready=false`、`model_training_ready=false`、`deployment_ready=false`；模型未接入 Demo，旧动作权重未与文本权重混合。
+
+## 视频识别准备审计（2026-10-23）
+
+- 本机 CE-CSL train/dev 共 5,488 段视频，均与候选库的句子及整句 Gloss 记录一一对应。新审计重新核对了视频 SHA-256、文件大小和容器元数据，并对所有 5,488 段做完整解码；全部通过。审计没有打开或枚举 test 视频/标签。
+- 标签是 sequence-level Gloss，不含已核验的词级帧边界。原 train/dev 共享来源代码 A-L，导入记录也明确 `source_split_is_signer_independent=false`；代码只是数据集内来源标识，尚未证实每个代码与唯一手语者身份的一一关系。
+- 为防止普通随机划分掩盖来源差异，已从 train-only 数据生成 12 个 leave-one-source-code-out 折。折清单是评估准备，不是已验证的 signer-independent 测试，也不是训练结果。官方 dev/test 内容没有进入折生成。
+- 当前统一文字模型的独立 dev 误差分析见 `local-data/unified-library-20261023-v1/dev-error-analysis-current-v1/`。Gloss GER 70.82%→70.35%，句子 exact match 仍为 11/515；95 条逐句编辑距离改善、93 条退步、327 条持平。常见诊断线索包括“你/我”替换、编号 Gloss 变体替换，以及“我/不/想”等删除。编辑对齐存在并列路径，不据此自动更改标注。
+- 这些结果支持另建视频→Gloss 模型，而不是继续加训文本→Gloss 模型。视觉训练尚未开始：上次训练的明确边界是不上传原视频，CE-CSL 上游授权条款也未独立核实。原视频目前只在本机，未传服务器；必须先解决数据移动授权与实际来源代码/手语者映射，再启动 GPU 训练。
+- 视频审计结果：`local-data/ce-csl-video-readiness-20261023-v2/`。来源代码分组折：`local-data/ce-csl-source-code-folds-20261023-v1/`。第一版审计因本工具把 ffprobe/ffmpeg 路径变量混用而产生失败报告，保留在 v1；回归测试修复后 v2 的 5,488 条全部通过。
+
+截至此审计，`test_read=false`、`training_ready=false`、`model_training_ready=false`、`deployment_ready=false`；没有发生视频识别训练或 Demo 集成。
