@@ -260,6 +260,22 @@ def ctc_greedy_decode(indices: Iterable[int], blank: int = 0) -> list[int]:
     return result
 
 
+def ctc_minimum_frames(tokens: Sequence[str]) -> int:
+    return len(tokens) + sum(left == right for left, right in zip(tokens, tokens[1:]))
+
+
+def validate_ctc_capacity(rows: Sequence[dict], frames: int) -> dict:
+    insufficient = [
+        {"id": row["id"], "minimum_frames": ctc_minimum_frames(row["gloss_sequence"])}
+        for row in rows if ctc_minimum_frames(row["gloss_sequence"]) > frames
+    ]
+    if insufficient:
+        raise ValueError(f"CTC frame capacity is insufficient for {len(insufficient)} samples: {insufficient[:10]}")
+    return {"checked_samples": len(rows), "max_minimum_frames": max(
+        (ctc_minimum_frames(row["gloss_sequence"]) for row in rows), default=0
+    ), "frames": frames, "all_samples_fit": True}
+
+
 def _edit_counts(reference: Sequence[int], hypothesis: Sequence[int]) -> tuple[int, int, int]:
     n, m = len(reference), len(hypothesis)
     table = [[0] * (m + 1) for _ in range(n + 1)]
@@ -535,6 +551,7 @@ def train(args) -> dict:
     _seed_everything(args.seed)
     all_rows, package_info = read_train_package(args.package)
     rows, duplicate_video_groups = exclude_duplicate_videos(all_rows)
+    ctc_capacity = validate_ctc_capacity(rows, args.frames)
     train_pool, heldout_rows = group_holdout(rows, args.heldout_source_code)
     if args.selection_source_code == args.heldout_source_code:
         raise ValueError("Selection and final holdout source codes must differ")
@@ -657,6 +674,7 @@ def train(args) -> dict:
             "final_holdout_oov_token_examples": final_oov[:20],
         },
         "video_integrity": video_integrity,
+        "ctc_capacity": ctc_capacity,
         "duplicate_video_groups_quarantined": duplicate_video_groups,
         "frame_cache": cache_info,
         "selection": {"source_code": args.selection_source_code, "used_for_checkpoint_selection": True},

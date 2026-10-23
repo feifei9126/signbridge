@@ -120,6 +120,14 @@ class VideoGlossTests(unittest.TestCase):
         self.assertEqual(duplicate_groups[0]['ids'], ['holdout-b', 'train-a'])
         self.assertTrue(duplicate_groups[0]['label_conflict'])
 
+    def test_ctc_capacity_accounts_for_adjacent_repeated_glosses(self):
+        m = module()
+        row = {'id': 'repeat', 'gloss_sequence': ['我', '我', '去']}
+        self.assertEqual(m.ctc_minimum_frames(row['gloss_sequence']), 4)
+        m.validate_ctc_capacity([row], frames=4)
+        with self.assertRaisesRegex(ValueError, 'CTC frame capacity'):
+            m.validate_ctc_capacity([row], frames=3)
+
     def test_ctc_greedy_decode_collapses_repeats_and_blanks(self):
         m = module()
         self.assertEqual(m.ctc_greedy_decode([1, 1, 0, 2, 2, 0, 1], blank=0), [1, 2, 1])
