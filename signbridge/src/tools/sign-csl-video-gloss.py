@@ -344,6 +344,12 @@ def ctc_prediction_diagnostics(frame_predictions: Sequence[Sequence[int]], blank
             "predicted_gloss_tokens": predicted_tokens, "predicted_tokens": predicted_tokens}
 
 
+def ctc_blank_penalty(log_probs):
+    if torch is None:
+        raise RuntimeError("PyTorch is required for CTC blank penalty")
+    return log_probs.exp()[..., 0].mean()
+
+
 def validate_ctc_capacity(rows: Sequence[dict], frames: int) -> dict:
     insufficient = [
         {"id": row["id"], "minimum_frames": ctc_minimum_frames(row["gloss_sequence"])}
@@ -551,7 +557,7 @@ def _seed_everything(seed: int) -> None:
             torch.cuda.manual_seed_all(seed)
 
 
-def _epoch(model, loader, loss_fn, optimizer=None, device="cpu", scaler=None):
+def _epoch(model, loader, loss_fn, optimizer=None, device="cpu", scaler=None, blank_penalty_weight=0.0):
     training = optimizer is not None
     model.train(training)
     total_loss = 0.0
@@ -569,6 +575,8 @@ def _epoch(model, loader, loss_fn, optimizer=None, device="cpu", scaler=None):
                 log_probs = model(videos)
                 input_lengths = torch.full((videos.shape[0],), log_probs.shape[0], dtype=torch.long, device="cpu")
                 loss = loss_fn(log_probs, targets, input_lengths, target_lengths)
+                blank_penalty = ctc_blank_penalty(log_probs)
+                loss = loss + blank_penalty_weight * blank_penalty
             if training:
                 if use_amp:
                     scaler.scale(loss).backward()
@@ -703,8 +711,8 @@ def train(args) -> dict:
     best_epoch = None
     history = []
     for epoch in range(1, args.epochs + 1):
-        train_metrics, _ = _epoch(model, train_loader, loss_fn, optimizer, device, scaler)
-        selection_metrics, _ = _epoch(model, selection_loader, loss_fn, None, device, None)
+        train_metrics, _ = _epoch(model, train_loader, loss_fn, optimizer, device, scaler, args.blank_penalty_weight)
+        selection_metrics, _ = _epoch(model, selection_loader, loss_fn, None, device, None, args.blank_penalty_weight)
         entry = {"epoch": epoch, "train": train_metrics, "selection": selection_metrics}
         history.append(entry)
         checkpoint = {
@@ -736,7 +744,7 @@ def train(args) -> dict:
         collate_fn=_collate,
     )
     final_loader.dataset.gloss_by_id = inverse_vocab
-    final_metrics, final_predictions = _epoch(model, final_loader, loss_fn, None, device, None)
+    final_metrics, final_predictions = _epoch(model, final_loader, loss_fn, None, device, None, args.blank_penalty_weight)
     gloss_by_id = {index: token for token, index in vocab.items()}
     (output / "predictions-final-holdout.jsonl").write_text(
         "".join(json.dumps({
@@ -848,6 +856,7 @@ def main() -> None:
     parser.add_argument("--patience", type=int, default=6)
     parser.add_argument("--learning-rate", type=float, default=2e-4)
     parser.add_argument("--weight-decay", type=float, default=1e-4)
+    parser.add_argument("--blank-penalty-weight", type=float, default=0.1)
     parser.add_argument("--width", type=int, default=32)
     parser.add_argument("--min-gloss-count", type=int, default=1)
     parser.add_argument("--num-workers", type=int, default=2)

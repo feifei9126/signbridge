@@ -180,6 +180,16 @@ class VideoGlossTests(unittest.TestCase):
         self.assertEqual(diagnostics['predicted_tokens'], 1)
         self.assertAlmostEqual(diagnostics['blank_frame_fraction'], 4 / 6)
 
+    def test_ctc_blank_penalty_is_finite_and_zero_for_no_blank_probability(self):
+        m = module()
+        if m.torch is None:
+            self.skipTest('PyTorch unavailable')
+        import torch
+        logits = torch.log_softmax(torch.tensor([[[0.0, 3.0], [0.0, 3.0]]]), dim=-1)
+        penalty = m.ctc_blank_penalty(logits)
+        self.assertTrue(bool(torch.isfinite(penalty)))
+        self.assertGreater(float(penalty), 0.0)
+
     def test_ctc_greedy_decode_collapses_repeats_and_blanks(self):
         m = module()
         self.assertEqual(m.ctc_greedy_decode([1, 1, 0, 2, 2, 0, 1], blank=0), [1, 2, 1])
