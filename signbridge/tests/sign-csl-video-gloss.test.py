@@ -182,6 +182,7 @@ class VideoGlossTests(unittest.TestCase):
             manifest.write_text(f'{digest}  a.npy\n')
             source_report = root / 'source-report.json'
             source_report.write_text(json.dumps({'package': {'train_samples_sha256': 'a' * 64},
+                'video_integrity': {'verified_video_count': 1, 'all_video_hashes_match': True},
                 'counts': {'eligible_after_duplicate_quarantine': 1},
                 'frame_cache': {'cached_video_count': 1, 'frames': 32, 'image_size': 64,
                     'location': str(cache), 'sha256_manifest': hashlib.sha256(manifest.read_bytes()).hexdigest()}}))
@@ -215,6 +216,24 @@ class VideoGlossTests(unittest.TestCase):
                 m.verify_cached_frames([{'id': 'a'}], cache, manifest, source_report,
                                        frames=32, image_size=64, expected_train_samples_sha256='b' * 64)
 
+    def test_cached_frames_reject_unverified_source_video_integrity(self):
+        m = module()
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve(); cache = root / 'cache'; cache.mkdir()
+            artifact = cache / 'a.npy'; artifact.write_bytes(b'cached-frame-payload')
+            manifest = root / 'cache.SHA256SUMS'
+            digest = hashlib.sha256(artifact.read_bytes()).hexdigest()
+            manifest.write_text(f'{digest}  a.npy\n')
+            source_report = root / 'source-report.json'
+            source_report.write_text(json.dumps({'package': {'train_samples_sha256': 'a' * 64},
+                'video_integrity': {'verified_video_count': 1, 'all_video_hashes_match': False},
+                'frame_cache': {'cached_video_count': 1, 'frames': 32, 'image_size': 64,
+                    'location': str(cache), 'sha256_manifest': hashlib.sha256(manifest.read_bytes()).hexdigest()}}))
+            with self.assertRaisesRegex(ValueError, 'source videos were not fully verified'):
+                m.verify_cached_frames([{'id': 'a', 'video_relative_path': 'video/train/A/a.mp4'}], cache,
+                    manifest, source_report, frames=32, image_size=64,
+                    expected_train_samples_sha256='a' * 64)
+
     def test_ctc_diagnostics_detect_blank_collapse(self):
         m = module()
         diagnostics = m.ctc_prediction_diagnostics([[0, 0, 0], [1, 1, 0]], blank=0)
@@ -231,6 +250,22 @@ class VideoGlossTests(unittest.TestCase):
         penalty = m.ctc_blank_penalty(logits)
         self.assertTrue(bool(torch.isfinite(penalty)))
         self.assertGreater(float(penalty), 0.0)
+
+    def test_gradient_component_diagnostics_report_cnn_gru_and_head(self):
+        m = module()
+        if m.torch is None:
+            self.skipTest('PyTorch unavailable')
+        import torch
+        parameters = [
+            ('spatial.weight', torch.nn.Parameter(torch.tensor([1.0]))),
+            ('temporal.weight', torch.nn.Parameter(torch.tensor([2.0]))),
+            ('head.weight', torch.nn.Parameter(torch.tensor([3.0]))),
+        ]
+        for _, parameter in parameters:
+            parameter.grad = torch.ones_like(parameter)
+        result = m.gradient_component_diagnostics(parameters)
+        self.assertTrue(result['all_components_nonzero'])
+        self.assertEqual(set(result['components']), {'spatial', 'temporal', 'head'})
 
     def test_model_can_initialize_blank_logit_below_regular_gloss_logits(self):
         m = module()

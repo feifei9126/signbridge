@@ -252,7 +252,8 @@ def verify_video_assets(rows: Sequence[dict], video_root: Path | str) -> dict:
 
 
 def verify_cached_frames(rows: Sequence[dict], cache_root: Path | str, manifest_path: Path | str,
-                         source_report_path: Path | str, frames: int, image_size: int) -> dict:
+                         source_report_path: Path | str, frames: int, image_size: int,
+                         expected_train_samples_sha256: str | None = None) -> dict:
     cache_arg = Path(cache_root).absolute()
     manifest_arg = Path(manifest_path).absolute()
     report_arg = Path(source_report_path).absolute()
@@ -262,6 +263,14 @@ def verify_cached_frames(rows: Sequence[dict], cache_root: Path | str, manifest_
     manifest = manifest_arg.resolve()
     source_report = json.loads(report_arg.read_text(encoding="utf-8"))
     source_cache = source_report.get("frame_cache", {})
+    source_train_sha = source_report.get("package", {}).get("train_samples_sha256")
+    if expected_train_samples_sha256 and source_train_sha != expected_train_samples_sha256:
+        raise ValueError("Cached frame source train sample digest does not match current package")
+    integrity = source_report.get("video_integrity", {})
+    if (integrity.get("all_video_hashes_match") is not True
+            or not isinstance(integrity.get("verified_video_count"), int)
+            or integrity["verified_video_count"] < len(rows)):
+        raise ValueError("Cached frame source videos were not fully verified")
     if (source_cache.get("cached_video_count") != len(rows)
             or source_cache.get("frames") != frames
             or source_cache.get("image_size") != image_size
@@ -348,6 +357,226 @@ def ctc_blank_penalty(log_probs):
     if torch is None:
         raise RuntimeError("PyTorch is required for CTC blank penalty")
     return log_probs.exp()[..., 0].mean()
+
+
+def select_overfit_rows(rows: Sequence[dict], count: int, seed: int,
+                        max_gloss_tokens: int) -> list[dict]:
+    if count < 2 or max_gloss_tokens < 1:
+        raise ValueError("Overfit diagnostic requires at least 2 samples and a positive Gloss limit")
+    candidates = sorted(
+        (row for row in rows if 1 <= len(row.get("gloss_sequence", [])) <= max_gloss_tokens),
+        key=lambda row: row["id"],
+    )
+    if len(candidates) < count:
+        raise ValueError(f"Not enough eligible train samples: requested {count}, found {len(candidates)}")
+    return random.Random(seed).sample(candidates, count)
+
+
+def gradient_component_diagnostics(named_parameters) -> dict:
+    components = {"spatial": [], "temporal": [], "head": []}
+    missing = []
+    for name, parameter in named_parameters:
+        component = name.split(".", 1)[0]
+        if component not in components:
+            continue
+        if parameter.grad is None:
+            missing.append(name)
+        else:
+            components[component].append(parameter.grad.detach())
+    norms = {}
+    for name, gradients in components.items():
+        if not gradients:
+            norms[name] = {"parameters_with_grad": 0, "l2_norm": 0.0, "all_finite": False}
+            continue
+        finite = all(bool(torch.isfinite(gradient).all()) for gradient in gradients)
+        norm = torch.sqrt(sum(gradient.float().pow(2).sum() for gradient in gradients))
+        norms[name] = {"parameters_with_grad": len(gradients), "l2_norm": float(norm.cpu()),
+                       "all_finite": finite}
+    return {"components": norms, "missing_gradient_parameters": missing,
+            "all_components_nonzero": all(item["l2_norm"] > 0 and item["all_finite"]
+                                           for item in norms.values())}
+
+
+def _load_cached_video_rows(rows: Sequence[dict], cache_root: Path, frames: int,
+                            image_size: int, device):
+    import numpy as np
+
+    videos = []
+    targets = []
+    for row in rows:
+        path = cache_root / (row["id"] + ".npy")
+        if path.is_symlink() or not path.is_file():
+            raise FileNotFoundError(f"Missing cached train sample: {row['id']}")
+        array = np.load(path, allow_pickle=False)
+        if array.dtype != np.uint8 or tuple(array.shape) != (frames, image_size, image_size, 3):
+            raise ValueError(f"Cached frame shape/dtype differs for train sample {row['id']}")
+        videos.append(torch.from_numpy(np.array(array, copy=True)).permute(0, 3, 1, 2).float().div_(255.0))
+        targets.append(row["gloss_sequence"])
+    vocab = build_vocab([{"gloss_sequence": tokens} for tokens in targets])
+    target_ids = [torch.tensor([vocab[token] for token in tokens], dtype=torch.long) for tokens in targets]
+    return torch.stack(videos).to(device), torch.cat(target_ids).to(device), \
+        torch.tensor([len(tokens) for tokens in targets], dtype=torch.long), vocab
+
+
+def _diagnostic_predictions(model, videos, targets, target_lengths, rows, vocab):
+    inverse_vocab = {index: token for token, index in vocab.items()}
+    model.eval()
+    with torch.no_grad():
+        log_probs = model(videos)
+        indices = log_probs.argmax(dim=-1).transpose(0, 1).cpu().tolist()
+        predictions = []
+        references = []
+        reference_ids_by_row = []
+        offset = 0
+        for row, length, frame_ids in zip(rows, target_lengths.tolist(), indices):
+            reference_ids = targets[offset:offset + length].detach().cpu().tolist()
+            offset += length
+            reference_ids_by_row.append(reference_ids)
+            prediction_ids = ctc_greedy_decode(frame_ids)
+            reference = list(row["gloss_sequence"])
+            prediction = [inverse_vocab.get(index, "<invalid>") for index in prediction_ids]
+            references.append(reference)
+            predictions.append(prediction)
+    metrics = sequence_metrics(references, predictions)
+    metrics.update(ctc_prediction_diagnostics(indices))
+    return metrics, [
+        {"id": row["id"], "source_code": row["source_code"],
+         "reference_ids": reference_ids_by_row[index],
+         "prediction_ids": ctc_greedy_decode(frame_ids),
+         "reference_gloss": references[index], "prediction_gloss": predictions[index]}
+        for index, (row, frame_ids) in enumerate(zip(rows, indices))
+    ]
+
+
+def diagnose_overfit(args) -> dict:
+    _require_runtime()
+    if not torch.cuda.is_available():
+        raise RuntimeError("GPU-only overfit diagnostic requested, but CUDA is unavailable")
+    _seed_everything(args.seed)
+    all_rows, package_info = read_train_package(args.package)
+    rows, duplicate_groups = exclude_duplicate_videos(all_rows)
+    train_rows, _, _, _ = grouped_partition(
+        rows, args.selection_source_code, args.heldout_source_code, args.exclude_source_codes
+    )
+    if not args.reuse_frame_cache or not args.reuse_frame_cache_manifest or not args.reuse_frame_cache_report:
+        raise ValueError("Overfit diagnostic requires the previously verified frame cache and provenance")
+    cache_root = Path(args.reuse_frame_cache).resolve()
+    cache_info = verify_cached_frames(
+        rows, cache_root, args.reuse_frame_cache_manifest, args.reuse_frame_cache_report,
+        args.frames, args.image_size, package_info["train_samples_sha256"]
+    )
+    selected = select_overfit_rows(train_rows, args.diagnostic_count, args.seed,
+                                   args.diagnostic_max_gloss_tokens)
+    videos, targets, target_lengths, vocab = _load_cached_video_rows(
+        selected, cache_root, args.frames, args.image_size, torch.device("cuda")
+    )
+    validate_ctc_capacity(selected, args.frames)
+    output_arg = Path(args.output).absolute()
+    if output_arg.is_symlink():
+        raise ValueError("Diagnostic output cannot be a symlink")
+    output = output_arg.resolve()
+    if output.exists() and any(output.iterdir()):
+        raise FileExistsError(f"Diagnostic output must be new and empty: {output}")
+    output.mkdir(parents=True, exist_ok=True)
+    model = VideoGlossModel(len(vocab), args.diagnostic_width, blank_logit_bias=0.0).cuda()
+    optimizer = torch.optim.AdamW(model.parameters(), lr=args.diagnostic_learning_rate,
+                                  weight_decay=0.0)
+    loss_fn = nn.CTCLoss(blank=0, zero_infinity=False)
+    input_lengths = torch.full((len(selected),), args.frames, dtype=torch.long)
+    initial_metrics, _ = _diagnostic_predictions(model, videos, targets, target_lengths, selected, vocab)
+    progress = [{"step": 0, "loss": None, "metrics": initial_metrics,
+                 "gradient_norm": None, "finite_gradients": None}]
+    finite_gradients = True
+    max_gradient_norm = 0.0
+    first_step_components = None
+    optimizer_steps = 0
+    component_parameters = {
+        component: [(name, value.detach().clone()) for name, value in model.named_parameters()
+                    if name.split(".", 1)[0] == component]
+        for component in ("spatial", "temporal", "head")
+    }
+    for step in range(1, args.diagnostic_steps + 1):
+        model.train()
+        optimizer.zero_grad(set_to_none=True)
+        log_probs = model(videos)
+        loss = loss_fn(log_probs, targets, input_lengths, target_lengths)
+        if not bool(torch.isfinite(loss)):
+            raise FloatingPointError(f"Non-finite overfit diagnostic loss at step {step}")
+        loss.backward()
+        norms = [parameter.grad.detach().norm() for parameter in model.parameters()
+                 if parameter.grad is not None]
+        if not norms or any(not bool(torch.isfinite(norm)) for norm in norms):
+            finite_gradients = False
+            raise FloatingPointError(f"Missing or non-finite gradient at diagnostic step {step}")
+        if step == 1:
+            first_step_components = gradient_component_diagnostics(model.named_parameters())
+        gradient_norm = float(torch.stack(norms).norm().detach().cpu())
+        max_gradient_norm = max(max_gradient_norm, gradient_norm)
+        optimizer.step()
+        optimizer_steps += 1
+        if step % args.diagnostic_eval_interval == 0 or step == args.diagnostic_steps:
+            metrics, _ = _diagnostic_predictions(model, videos, targets, target_lengths, selected, vocab)
+            record = {"step": step, "loss": float(loss.detach().cpu()),
+                      "metrics": metrics, "gradient_norm": gradient_norm,
+                      "finite_gradients": True}
+            progress.append(record)
+            with (output / "progress.jsonl").open("a", encoding="utf-8") as stream:
+                stream.write(json.dumps(record, ensure_ascii=False) + "\n")
+    final_metrics, predictions = _diagnostic_predictions(model, videos, targets, target_lengths, selected, vocab)
+    parameter_delta = math.sqrt(sum(float((value.detach() - before[name]).pow(2).sum().cpu())
+                                    for name, value in model.named_parameters()))
+    final_parameters = dict(model.named_parameters())
+    component_deltas = {
+        component: math.sqrt(sum(float((final_parameters[name].detach() - initial).pow(2).sum().cpu())
+                                 for name, initial in parameters))
+        for component, parameters in component_parameters.items()
+    }
+    checkpoint = {"schema": "signbridge-video-gloss-overfit-diagnostic-v1",
+                  "model": model.state_dict(), "vocab": vocab, "config": vars(args),
+                  "diagnostic_only": True, "training_ready": False}
+    torch.save(checkpoint, output / "diagnostic-checkpoint.pt")
+    (output / "predictions.jsonl").write_text(
+        "".join(json.dumps(row, ensure_ascii=False) + "\n" for row in predictions), encoding="utf-8"
+    )
+    report = {
+        "schema": "signbridge-video-gloss-overfit-diagnostic-report-v1",
+        "created_at_utc": datetime.now(timezone.utc).isoformat(),
+        "status": "memorization_pass" if final_metrics["exact_match"] >= 0.95 else "memorization_failed",
+        "purpose": "diagnose whether the train-only video-to-Gloss pipeline can memorize a tiny fixed subset",
+        "input_package": package_info,
+        "cache": cache_info,
+        "duplicate_video_groups_quarantined": duplicate_groups,
+        "selection": {"rows": len(selected), "ids": [row["id"] for row in selected],
+                      "source_codes": sorted({row["source_code"] for row in selected}),
+                      "max_gloss_tokens": args.diagnostic_max_gloss_tokens,
+                      "all_rows_from_gradient_train_partition": True},
+        "config": {key: str(value) if isinstance(value, Path) else value for key, value in vars(args).items()},
+        "initial_metrics": initial_metrics,
+        "final_metrics": final_metrics,
+        "progress": progress,
+        "finite_gradients": finite_gradients,
+        "first_step_gradient_components": first_step_components,
+        "optimizer_steps": optimizer_steps,
+        "max_gradient_norm": max_gradient_norm,
+        "parameter_l2_delta": parameter_delta,
+        "parameter_l2_delta_by_component": component_deltas,
+        "test_read": False,
+        "dev_read": False,
+        "official_selection_metrics_used": False,
+        "human_approved": False,
+        "training_ready": False,
+        "model_training_ready": False,
+        "deployment_ready": False,
+        "demo_integration": False,
+        "limitations": [
+            "This is a train-subset memorization diagnostic, not a generalization evaluation.",
+            "The selected train videos are sampled from existing source-code gradient-train rows only.",
+            "No official dev/test labels or videos are opened.",
+        ],
+    }
+    _write_json(output / "report.json", report)
+    _write_manifest(output)
+    return report
 
 
 def validate_ctc_capacity(rows: Sequence[dict], frames: int) -> dict:
@@ -639,6 +868,8 @@ def _write_tree_manifest(root: Path, destination: Path) -> str:
 
 
 def train(args) -> dict:
+    if args.diagnostic_overfit:
+        return diagnose_overfit(args)
     _require_runtime()
     if not torch.cuda.is_available():
         raise RuntimeError("GPU-only training requested, but CUDA is unavailable")
@@ -677,7 +908,7 @@ def train(args) -> dict:
         cache_root = Path(args.reuse_frame_cache).resolve()
         cache_info = verify_cached_frames(
             rows, cache_root, args.reuse_frame_cache_manifest, args.reuse_frame_cache_report,
-            args.frames, args.image_size
+            args.frames, args.image_size, package_info["train_samples_sha256"]
         )
         (output / "frame-cache.SHA256SUMS").write_bytes(Path(args.reuse_frame_cache_manifest).read_bytes())
     else:
@@ -867,6 +1098,13 @@ def main() -> None:
     parser.add_argument("--reuse-frame-cache", type=Path)
     parser.add_argument("--reuse-frame-cache-manifest", type=Path)
     parser.add_argument("--reuse-frame-cache-report", type=Path)
+    parser.add_argument("--diagnostic-overfit", action="store_true")
+    parser.add_argument("--diagnostic-count", type=int, default=8)
+    parser.add_argument("--diagnostic-max-gloss-tokens", type=int, default=6)
+    parser.add_argument("--diagnostic-steps", type=int, default=200)
+    parser.add_argument("--diagnostic-eval-interval", type=int, default=10)
+    parser.add_argument("--diagnostic-width", type=int, default=16)
+    parser.add_argument("--diagnostic-learning-rate", type=float, default=1e-3)
     amp = parser.add_mutually_exclusive_group()
     amp.add_argument("--amp", dest="amp", action="store_true")
     amp.add_argument("--no-amp", dest="amp", action="store_false")
