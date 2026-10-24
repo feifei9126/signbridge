@@ -150,6 +150,28 @@ class VideoGlossTests(unittest.TestCase):
         self.assertEqual({row['id'] for row in final_holdout}, {'f'})
         self.assertEqual({row['id'] for row in excluded}, {'h'})
 
+    def test_overfit_sample_selection_is_deterministic_and_bounded_to_training_rows(self):
+        m = module()
+        rows = [
+            {'id': f'train-{index}', 'source_code': 'A', 'gloss_sequence': ['词', str(index)]}
+            for index in range(5)
+        ]
+        rows.extend([
+            {'id': 'too-long', 'source_code': 'B', 'gloss_sequence': ['词'] * 9},
+            {'id': 'dev-leak', 'source_code': 'G', 'gloss_sequence': ['词']},
+        ])
+        selected = m.select_overfit_rows(rows[:5], count=3, seed=17, max_gloss_tokens=4)
+        selected_again = m.select_overfit_rows(rows[:5], count=3, seed=17, max_gloss_tokens=4)
+        self.assertEqual([row['id'] for row in selected], [row['id'] for row in selected_again])
+        self.assertEqual(len(selected), 3)
+        self.assertTrue({row['id'] for row in selected} <= {row['id'] for row in rows[:5]})
+
+    def test_overfit_sample_selection_fails_when_too_few_short_train_rows_exist(self):
+        m = module()
+        rows = [{'id': 'long', 'source_code': 'A', 'gloss_sequence': ['词'] * 5}]
+        with self.assertRaisesRegex(ValueError, 'eligible train samples'):
+            m.select_overfit_rows(rows, count=2, seed=1, max_gloss_tokens=4)
+
     def test_cached_frames_require_matching_provenance_and_exact_hash_manifest(self):
         m = module()
         with tempfile.TemporaryDirectory() as tmp:
@@ -159,19 +181,39 @@ class VideoGlossTests(unittest.TestCase):
             digest = hashlib.sha256(artifact.read_bytes()).hexdigest()
             manifest.write_text(f'{digest}  a.npy\n')
             source_report = root / 'source-report.json'
-            source_report.write_text(json.dumps({'counts': {'eligible_after_duplicate_quarantine': 1},
+            source_report.write_text(json.dumps({'package': {'train_samples_sha256': 'a' * 64},
+                'counts': {'eligible_after_duplicate_quarantine': 1},
                 'frame_cache': {'cached_video_count': 1, 'frames': 32, 'image_size': 64,
                     'location': str(cache), 'sha256_manifest': hashlib.sha256(manifest.read_bytes()).hexdigest()}}))
             rows = [{'id': 'a', 'video_relative_path': 'video/train/A/a.mp4'}]
-            result = m.verify_cached_frames(rows, cache, manifest, source_report, frames=32, image_size=64)
+            result = m.verify_cached_frames(rows, cache, manifest, source_report, frames=32, image_size=64,
+                                            expected_train_samples_sha256='a' * 64)
             self.assertTrue(result['all_cache_hashes_match'])
             stray = cache / 'stray.npy'; stray.write_bytes(b'extra')
             with self.assertRaisesRegex(ValueError, 'unexpected'):
-                m.verify_cached_frames(rows, cache, manifest, source_report, frames=32, image_size=64)
+                m.verify_cached_frames(rows, cache, manifest, source_report, frames=32, image_size=64,
+                                       expected_train_samples_sha256='a' * 64)
             stray.unlink()
             artifact.write_bytes(b'tampered')
             with self.assertRaisesRegex(ValueError, 'cache digest'):
-                m.verify_cached_frames(rows, cache, manifest, source_report, frames=32, image_size=64)
+                m.verify_cached_frames(rows, cache, manifest, source_report, frames=32, image_size=64,
+                                       expected_train_samples_sha256='a' * 64)
+
+    def test_cached_frames_reject_a_different_train_manifest(self):
+        m = module()
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve(); cache = root / 'cache'; cache.mkdir()
+            artifact = cache / 'a.npy'; artifact.write_bytes(b'cached-frame-payload')
+            manifest = root / 'cache.SHA256SUMS'
+            digest = hashlib.sha256(artifact.read_bytes()).hexdigest()
+            manifest.write_text(f'{digest}  a.npy\n')
+            source_report = root / 'source-report.json'
+            source_report.write_text(json.dumps({'package': {'train_samples_sha256': 'a' * 64},
+                'frame_cache': {'cached_video_count': 1, 'frames': 32, 'image_size': 64,
+                    'location': str(cache), 'sha256_manifest': hashlib.sha256(manifest.read_bytes()).hexdigest()}}))
+            with self.assertRaisesRegex(ValueError, 'train sample digest'):
+                m.verify_cached_frames([{'id': 'a'}], cache, manifest, source_report,
+                                       frames=32, image_size=64, expected_train_samples_sha256='b' * 64)
 
     def test_ctc_diagnostics_detect_blank_collapse(self):
         m = module()
