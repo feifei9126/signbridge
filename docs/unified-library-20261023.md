@@ -79,3 +79,11 @@ Gloss 或角色分项退化不得被训练 loss 或其他分项的高分掩盖�
 - 本轮停止继续训练，不把 0% 识别结果接入 Demo，不把它称为中国手语理解模型。后续若要继续，必须改变监督/模型目标（例如可靠词级边界或不同的视频识别架构）并建立新的独立实验；不能只重复增加 epoch。
 
 最终状态仍为：`test_read=false`、`dev_read=false`、`training_ready=false`、`model_training_ready=false`、`deployment_ready=false`；动作库、T08 checkpoint 和公开 Demo 未修改。
+
+## 小样本训练链路诊断（2026-10-24）
+
+- 已实现 train-only 缓存过拟合诊断入口：从当前梯度训练来源中按固定 seed 确定性选择 8 条、Gloss 长度不超过 6 的片段，复用 V1 已验证 32×128×128 帧缓存；诊断前要求缓存清单摘要、train samples SHA-256、源报告视频完整性通过且缓存 ID 集精确匹配。
+- 诊断只训练这 8 条，最多 200 步，每 10 步记录 train 子集 GER/exact、CTC blank/空预测、CNN/GRU/head 梯度范数和参数变化。它不做泛化评估，不读取 G/F/H 视频用于评估，不接入 Demo，也不改变任何现有 checkpoint。
+- 固定本地配置和脚本快照：`local-data/ce-csl-video-gloss-overfit-diagnostic-20261024-v1/`。抽样 ID 固定保存在 provenance 中；再次运行须使用新的输出目录。
+- 2026-10-24 检查授权 GPU 主机时，SSH 端口 37077 返回 `Connection refused`，因此诊断尚未启动；没有改为 CPU 或其他服务器。恢复运行的门槛是 8 条训练片段达到至少 95% exact match，且 CNN、GRU、输出头梯度均有限、非零、参数发生更新。未达到门槛则只根据诊断证据修训练链路，不开始全量训练。
+- 此诊断门槛只证明可以记忆小型训练子集，不代表 CSL 识别或泛化准确率。官方 dev/test 与模型晋升状态继续保持不变。
