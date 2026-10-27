@@ -73,6 +73,8 @@ public-motion-demo 拒绝私有动作环境变量；输入清单 SHA-256 锁定�
 
 首次 GitHub 自动验证中，构建、Lint 和 JavaScript 测试通过，Python 测试因 `ModuleNotFoundError: No module named 'numpy'` 终止。原因是 `verify:release` 已递归执行 Python 测试，而工作流将 Python 依赖安装排在该命令之后。现将 Python 环境和原有依赖安装提前，并加入顺序回归检查；动作资产和下载 ZIP 字节保持不变。云端自动验证结论以对应提交的 GitHub Actions 记录为准，不能将成功上传等同于 CI 通过。
 
+复跑还发现公共 runner 缺少 Matplotlib、FFmpeg／ffprobe，现补齐这些测试依赖。一项依赖本机私有审核证据的历史集成测试，在缺少私有目录时明确标记为未执行；本机目录存在时仍完整运行。不会为了公共 CI 上传或伪造私有审核材料。公开动作的 100 个 ID、摘要和播放检查仍独立执行，不使用该跳过替代公开包验收。
+
 ## 能力、授权与许可边界
 
 公开 JSON 可被读取和提取；此版本不承诺防复制。现有显示层平滑继续存在，原始姿态不改写，也不把平滑当作手语含义正确的证据。training_ready、model_training_ready、deployment_ready 均为 false；未启用新训练或 Demo 语义自动生成。

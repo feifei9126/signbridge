@@ -14,6 +14,8 @@ ASSET = ROOT / 'local-data/demo-20261012/t08-candidates.json'
 
 class ReviewedCandidateExportTest(unittest.TestCase):
     def test_only_the_three_user_reviewed_motion_candidates_enter_export(self):
+        if not SOURCE.exists():
+            self.skipTest('Private motion-review evidence is not distributed with the public checkout')
         rows, decision = candidate_export.load_reviewed_candidates(SOURCE)
         self.assertEqual([row['segment_id'] for row in rows], [
             'new-fe2208d9680580cd-0087',

@@ -34,3 +34,21 @@ test("CI installs Python and NumPy before the release verifier invokes Python te
     "verify:release runs test:python, so its Python dependencies must already be installed",
   );
 });
+
+test("CI prepares plotting and video tools before running research regressions", () => {
+  const workflow = readFileSync(
+    join(root, "../.github/workflows/verify.yml"),
+    "utf8",
+  );
+  const verifyRelease = workflow.indexOf("run: npm run verify:release");
+  const plotting = workflow.search(/python -m pip install[^\n]*matplotlib/);
+  const video = workflow.search(/apt-get install[^\n]*ffmpeg/);
+  assert.ok(
+    plotting >= 0 && plotting < verifyRelease,
+    "Matplotlib is required by the audit report tests",
+  );
+  assert.ok(
+    video >= 0 && video < verifyRelease,
+    "FFmpeg and ffprobe are required by the media tests",
+  );
+});
