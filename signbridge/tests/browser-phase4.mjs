@@ -77,7 +77,12 @@ try {
   );
   await editor.locator("#motion-preview").click();
   await editor.waitForTimeout(1100);
-  await editor.locator("#motion-enable").click();
+  editor.removeAllListeners("dialog");
+  const approvalDialog = editor.waitForEvent("dialog").then(async (dialog) => {
+    assert.equal(dialog.type(), "confirm");
+    await dialog.accept();
+  });
+  await Promise.all([approvalDialog, editor.locator("#motion-enable").click()]);
   await eventually(
     async () => Object.values(await saved())[0].enabled,
     "original approved",
