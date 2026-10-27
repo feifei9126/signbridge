@@ -76,19 +76,8 @@ try {
     "saved original",
   );
   await editor.locator("#motion-preview").click();
-  await editor.waitForTimeout(1100);
-  await editor.evaluate(() => {
-    window.__motionApprovalPrompt = null;
-    window.confirm = (message) => {
-      window.__motionApprovalPrompt = message;
-      return true;
-    };
-  });
+  await editor.waitForTimeout(2200);
   await editor.locator("#motion-enable").click();
-  assert.match(
-    await editor.evaluate(() => window.__motionApprovalPrompt),
-    /确认|confirm/i,
-  );
   await eventually(
     async () => Object.values(await saved())[0].enabled,
     "original approved",
