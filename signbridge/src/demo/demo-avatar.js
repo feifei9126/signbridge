@@ -13,6 +13,7 @@ import {
   MOTION_SMOOTHING_PROFILE,
   ADAPTIVE_SMOOTHING_PROFILE,
 } from "./motion-stabilization.js";
+import { resolveMotionDisplayPolicy } from "./motion-policy.js";
 import {
   validateExperimentalIndex,
   createExperimentalLoader,
@@ -26,6 +27,7 @@ let renderer,
   scene,
   bundle,
   candidateBundle,
+  motionLibraryEntries = new Map(),
   experimentalIndex,
   experimentalLoader,
   experimentalRetarget,
@@ -46,14 +48,23 @@ let running = false,
   duration = 0,
   requestId = 0;
 const cache = createMotionCache();
-function selectedProfile(clip) {
+function selectedProfile(clip, source) {
   return profileOverride === "adaptive"
     ? ADAPTIVE_SMOOTHING_PROFILE
-    : clip.display_stabilization_profile || MOTION_SMOOTHING_PROFILE;
+    : resolveMotionDisplayPolicy(
+        clip,
+        source,
+        motionLibraryEntries.get(clip.id),
+      ).profile || MOTION_SMOOTHING_PROFILE;
 }
 function compiledSamples(clip, source) {
-  const stabilize = clip.experimental === true && stabilization;
-  const profile = selectedProfile(clip);
+  const policy = resolveMotionDisplayPolicy(
+    clip,
+    source,
+    motionLibraryEntries.get(clip.id),
+  );
+  const stabilize = policy.enabled && stabilization;
+  const profile = selectedProfile(clip, source);
   // The cache lives inside one verified rig/bundle lifetime; source prevents ID collisions.
   const key = `${source}:${clip.id}:${stabilize ? profile : "raw"}`;
   return cache.get(key, () =>
@@ -134,9 +145,21 @@ async function nextItem() {
       },
       fps: clip.fps,
       clip,
-      stabilized: clip.experimental === true && stabilization,
-      stabilizationProfile: selectedProfile(clip),
-      stabilizationEnabled: stabilization,
+      stabilized:
+        stabilization &&
+        resolveMotionDisplayPolicy(
+          clip,
+          item.source,
+          motionLibraryEntries.get(clip.id),
+        ).enabled,
+      stabilizationProfile: selectedProfile(clip, item.source),
+      stabilizationEnabled:
+        stabilization &&
+        resolveMotionDisplayPolicy(
+          clip,
+          item.source,
+          motionLibraryEntries.get(clip.id),
+        ).enabled,
     };
     duration = clip.frames / clip.fps;
   } else {
@@ -145,7 +168,7 @@ async function nextItem() {
       (item.id.startsWith("char_") && CHARS[item.id.slice(5)]
         ? { frames: CHARS[item.id.slice(5)] }
         : null);
-    if (item.source !== "dictionary" || !sign)
+    if (!["dictionary", "semantic"].includes(item.source) || !sign)
       throw new Error("demoInvalidAsset");
     track = builtInTrack(sign);
     duration = track.duration;
@@ -251,6 +274,21 @@ async function init() {
     scene.add(modelRoot);
     rig = createHumanoidRig(modelRoot);
     if (!rig.isSigningReady) throw new Error("demoMissingBone");
+    try {
+      const response = await fetch("motion-library-v2.json");
+      if (response.ok) {
+        const index = await response.json();
+        if (
+          index?.schema === "signbridge-motion-library-v2" &&
+          Array.isArray(index.entries)
+        )
+          motionLibraryEntries = new Map(
+            index.entries.map((entry) => [entry.id, entry]),
+          );
+      }
+    } catch {
+      motionLibraryEntries = new Map();
+    }
     try {
       const response = await fetch("t08-motion.json");
       if (!response.ok) throw new Error("demoInvalidAsset");
@@ -361,15 +399,15 @@ window.addEventListener("message", (ev) => {
         clipId: track?.clip?.id || null,
         experimentalClip: track?.clip?.experimental === true,
       });
-      if (track?.clip?.experimental) {
-        const compiled = compiledSamples(track.clip, "experimental");
+      if (track?.clip && track.kind !== "dictionary") {
+        const compiled = compiledSamples(track.clip, track.kind);
         track.samples = compiled.frames;
         track.performance = {
           cacheHit: compiled.cacheHit,
           compileMs: compiled.compileMs,
           ...cache.stats(),
         };
-        track.stabilizationProfile = selectedProfile(track.clip);
+        track.stabilizationProfile = selectedProfile(track.clip, track.kind);
         applyAt(itemTime);
         lastTime = performance.now();
         notify("PRESENTATION", {
@@ -386,7 +424,7 @@ window.addEventListener("message", (ev) => {
         throw new Error("demoInvalidMode");
       if (stabilization === ev.data.enabled) return;
       stabilization = ev.data.enabled;
-      if (track?.clip?.experimental) {
+      if (track?.clip && track.kind !== "dictionary") {
         const compiled = compiledSamples(track.clip, track.kind);
         track.samples = compiled.frames;
         track.performance = {
@@ -394,7 +432,7 @@ window.addEventListener("message", (ev) => {
           compileMs: compiled.compileMs,
           ...cache.stats(),
         };
-        track.stabilizationProfile = selectedProfile(track.clip);
+        track.stabilizationProfile = selectedProfile(track.clip, track.kind);
         track.stabilized = stabilization;
         applyAt(itemTime);
         lastTime = performance.now();

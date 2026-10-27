@@ -318,6 +318,8 @@ const SEMANTIC_ZH = {
   cslMode: "中文意思分析（规则研究）",
   cslAnalysisOnly:
     "仅分析中文意思：未完成中国手语词级对齐与语言复核，不播放动作。",
+  cslDemoPreviewReady:
+    "Demo已完成有限语义路由并播放词条组合；这不是已核准的中国手语语法。",
   cslTitle: "意思分析与表达草案",
   cslScope:
     "有限规则原型：先分析意思，再检查动作。不是已训练的中国手语理解模型；词序、手型、空间关系和表情仍需核对。",
@@ -358,6 +360,8 @@ const SEMANTIC_ZH = {
     motion_evidence_missing: "部分概念没有可靠的独立动作资产。",
     nonmanual_question_unavailable: "疑问需要的面部或头部表达尚未实现。",
     spatial_agreement_unavailable: "帮助的方向、人物空间指代尚未核验。",
+    directional_agreement_approximated:
+      "人物方向暂用 Demo 近似处理，尚未完成中国手语空间指代核验。",
     modal_interpretation_unreviewed: "情态含义不能直接用一个词库动作替代。",
     input_limit: "超过500字，尾部保留并停止组合。",
   },
@@ -366,6 +370,8 @@ const SEMANTIC_EN = {
   cslMode: "Chinese meaning analysis (rules)",
   cslAnalysisOnly:
     "Chinese analysis only: CSL alignment and language review are incomplete. Motion playback is disabled.",
+  cslDemoPreviewReady:
+    "The demo routed a bounded semantic template and is playing dictionary units; this is not validated CSL grammar.",
   cslTitle: "Meaning and expression draft",
   cslScope:
     "Bounded rule prototype: analyze meaning, then check motion evidence. This is not a trained CSL understanding model. Order, handshape, spatial agreement and nonmanuals remain unverified.",
@@ -413,6 +419,8 @@ const SEMANTIC_EN = {
       "Question-related facial and head expressions are unavailable.",
     spatial_agreement_unavailable:
       "Direction and spatial reference for help remain unverified.",
+    directional_agreement_approximated:
+      "Participant direction uses a demo approximation; CSL spatial reference is unverified.",
     modal_interpretation_unreviewed:
       "Modal meaning cannot be replaced by one dictionary motion.",
     input_limit:
@@ -584,6 +592,8 @@ const DEMO_ZH = {
   demoNoMatch: "暂未匹配到可用动作，请从下方选择一个例子。",
   demoUnknown: "暂不支持：{text}",
   demoAllMatched: "已覆盖全部输入内容。",
+  demoSemanticPreview:
+    "已按人物、动作和关系组织动作；这是 Demo 语义近似，尚未核准中国手语语法。",
   demoCount: "{count} 个动作",
   demoPlaying: "正在播放 {index}/{count}：{text}",
   demoPaused: "已暂停，可继续或停止。",
@@ -593,6 +603,7 @@ const DEMO_ZH = {
   demoTokenEmpty: "播放一段 T08 参考短句后，可查看三路编码。",
   demoDictionaryToken: "当前播放内置词库动作，不使用 T08 token。",
   demoSourceT08: "T08 · 参考动作重建",
+  demoSourceSemantic: "语义路由 · 词条组合（Demo近似）",
   demoSourceDictionary: "词库 · 内置动作",
   demoSourceFallback: "词库回退 · 参考动作加载失败",
   demoSourceComposition: "词库组合 · 逐词播放，非句级训练",
@@ -748,6 +759,8 @@ const DEMO_EN = {
   demoNoMatch: "No motion matched. Choose an example below.",
   demoUnknown: "Not supported: {text}",
   demoAllMatched: "All input text is covered.",
+  demoSemanticPreview:
+    "Motion was organized by person, action and relation; this is an unverified demo approximation, not validated CSL grammar.",
   demoCount: "{count} motions",
   demoPlaying: "Playing {index}/{count}: {text}",
   demoPaused: "Paused. Resume or stop.",
@@ -759,6 +772,8 @@ const DEMO_EN = {
   demoDictionaryToken:
     "The last played dictionary motion does not use T08 tokens.",
   demoSourceT08: "T08 · Reference reconstruction",
+  demoSourceSemantic:
+    "Semantic route · dictionary composition (demo approximation)",
   demoSourceDictionary: "Dictionary · Built-in motion",
   demoSourceFallback: "Dictionary fallback · Reference unavailable",
   demoSourceComposition:

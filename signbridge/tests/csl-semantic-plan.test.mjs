@@ -1,6 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { analyzeCslText, planCslText } from "../src/demo/csl-semantic-plan.js";
+import {
+  analyzeCslText,
+  planCslText,
+  planDemoSemanticText,
+} from "../src/demo/csl-semantic-plan.js";
 
 const roles = (text) => analyzeCslText(text).meaning;
 test("semantic roles change when actor and recipient are exchanged", () => {
@@ -12,6 +16,40 @@ test("semantic roles change when actor and recipient are exchanged", () => {
     analyzeCslText("我帮你").meaningKey,
     analyzeCslText("你帮我").meaningKey,
   );
+});
+
+test("bounded demo semantic routing preserves pronoun direction", () => {
+  const iHelpYou = planDemoSemanticText("我帮你");
+  const youHelpMe = planDemoSemanticText("你帮我");
+  assert.equal(iHelpYou.route, "bounded_demo_semantic");
+  assert.equal(iHelpYou.canPreview, true);
+  assert.deepEqual(
+    iHelpYou.items.map((item) => item.id),
+    ["csl_me", "csl_help", "csl_you"],
+  );
+  assert.deepEqual(
+    youHelpMe.items.map((item) => item.id),
+    ["csl_you", "csl_help", "csl_me"],
+  );
+  assert.notEqual(iHelpYou.meaningKey, youHelpMe.meaningKey);
+  assert.equal(iHelpYou.semanticStatus, "demo_approximation_unverified");
+});
+
+test("bounded demo semantic routing supports basic pronouns, negation and time", () => {
+  for (const text of ["我去", "你去", "他去", "我们去", "我不去", "你今天去"]) {
+    const plan = planDemoSemanticText(text);
+    assert.equal(plan.route, "bounded_demo_semantic", text);
+    assert.equal(plan.canPreview, true, text);
+    assert.ok(plan.items.length >= 2, text);
+  }
+});
+
+test("bounded demo semantic routing refuses unresolved questions and unknown clauses", () => {
+  for (const text of ["你去吗", "我明天去", "如果下雨我不去", "我喜欢你"]) {
+    const plan = planDemoSemanticText(text);
+    assert.equal(plan.canPreview, false, text);
+    assert.equal(plan.items.length, 0, text);
+  }
 });
 test("equivalent time placement produces the same explicit meaning", () => {
   assert.equal(

@@ -244,6 +244,7 @@ test("full-page Demo ships its iframe, local assets and popup entry under the ex
     "t08-motion.json",
     "t08-candidates.json",
     "experimental-index.json",
+    "motion-library-v2.json",
     "research.json",
   ])
     assert.ok(existsSync(join(dist, "demo", file)), file);
@@ -259,6 +260,11 @@ test("full-page Demo ships its iframe, local assets and popup entry under the ex
   const data = JSON.parse(
     readFileSync(join(dist, "demo/t08-motion.json"), "utf8"),
   );
+  const library = JSON.parse(
+    readFileSync(join(dist, "demo/motion-library-v2.json"), "utf8"),
+  );
+  assert.equal(library.schema, "signbridge-motion-library-v2");
+  assert.equal(library.entries.length, data.unavailable ? 0 : 100);
   if (!data.unavailable) {
     assert.equal(data.clips.length, 14);
     assert.equal(data.text_to_sign_trained, false);
@@ -337,6 +343,16 @@ test("build profile explicitly controls research assets and records all packaged
     assert.equal(report.research_assets_included, false);
     assert.equal(index.unavailable, true);
     assert.equal(report.research_asset_manifest_sha256, null);
+  } else if (report.profile === "public-motion-demo") {
+    assert.equal(report.research_assets_included, true);
+    assert.match(report.research_asset_manifest_sha256, /^[a-f0-9]{64}$/);
+    assert.equal(index.unavailable, undefined);
+    assert.equal(
+      JSON.parse(
+        readFileSync(join(dist, "demo/motion-library-v2.json"), "utf8"),
+      ).entries.length,
+      100,
+    );
   } else {
     assert.equal(report.profile, "local-research");
     assert.equal(report.research_assets_included, true);

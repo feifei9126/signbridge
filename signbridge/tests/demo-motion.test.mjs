@@ -34,6 +34,22 @@ test("dictionary mode retains source provenance and unknown input does not play 
   assert.equal(p.items.length, 0);
   assert.ok(p.unmatched);
 });
+
+test("auto mode uses bounded semantic routing for simple role-bearing sentences", () => {
+  const iHelpYou = planDemoText("我帮你", "auto");
+  const youHelpMe = planDemoText("你帮我", "auto");
+  assert.equal(iHelpYou.route, "bounded_demo_semantic");
+  assert.equal(iHelpYou.canPreview, true);
+  assert.deepEqual(
+    iHelpYou.items.map((item) => item.id),
+    ["csl_me", "csl_help", "csl_you"],
+  );
+  assert.deepEqual(
+    youHelpMe.items.map((item) => item.id),
+    ["csl_you", "csl_help", "csl_me"],
+  );
+  assert.ok(iHelpYou.items.every((item) => item.source === "semantic"));
+});
 test("invalid model asset is rejected", () => {
   assert.throws(() =>
     validateT08Bundle({ schema: "signbridge-t08-demo-v1", clips: [] }),

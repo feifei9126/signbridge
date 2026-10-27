@@ -27,6 +27,7 @@ import {
 } from "../demo/experimental-motion.js";
 import { planRealtimeText } from "./runtime-motion-plan.js";
 import { MOTION_SMOOTHING_PROFILE } from "../demo/motion-stabilization.js";
+import { resolveMotionDisplayPolicy } from "../demo/motion-policy.js";
 
 let renderer, scene, camera;
 let rig = null;
@@ -49,6 +50,7 @@ let t08Retarget = null;
 let t08CandidateRetarget = null;
 let experimentalLoader = null;
 let experimentalRetarget = null;
+let motionLibraryEntries = new Map();
 const t08TrackCache = createMotionCache({ maxEntries: 12, maxValues: 500000 });
 let translationQueue = Promise.resolve();
 let translationGeneration = 0;
@@ -90,6 +92,24 @@ async function loadT08ReferenceIndex() {
   }
   try {
     const response = await fetch(
+      chrome.runtime.getURL("demo/motion-library-v2.json"),
+    );
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const library = await response.json();
+    if (
+      library?.schema !== "signbridge-motion-library-v2" ||
+      !Array.isArray(library.entries)
+    )
+      throw new Error("Invalid motion library index");
+    motionLibraryEntries = new Map(
+      library.entries.map((entry) => [entry.id, entry]),
+    );
+  } catch (error) {
+    motionLibraryEntries = new Map();
+    console.warn("[SB] Motion library index unavailable:", error);
+  }
+  try {
+    const response = await fetch(
       chrome.runtime.getURL("demo/experimental-index.json"),
     );
     if (!response.ok) throw new Error("Experimental index unavailable");
@@ -112,6 +132,14 @@ async function loadT08ReferenceIndex() {
       error,
     );
   }
+}
+
+function motionDisplayPolicy(source, clip) {
+  return resolveMotionDisplayPolicy(
+    clip,
+    source,
+    motionLibraryEntries.get(clip.id),
+  );
 }
 
 function loadT08MotionBundle() {
@@ -206,6 +234,12 @@ function textToAnimation(text, manual = false) {
     translationGeneration++;
     translationQueue = Promise.resolve();
     motionPlayer?.stop({ reset: true });
+  } else {
+    // Realtime subtitles are state updates, not a playlist. Invalidate every
+    // older load and keep the current pose until the newest motion is ready.
+    translationGeneration++;
+    translationQueue = Promise.resolve();
+    motionPlayer?.stop({ reset: false });
   }
   const generation = translationGeneration;
   const plan = planRealtimeText(text, t08ReferenceClips, translationMatchers);
@@ -239,13 +273,19 @@ function textToAnimation(text, manual = false) {
             : motionBundle.clips.find((candidate) => candidate.id === item.id);
         if (!modelReady || generation !== translationGeneration) return;
         if (!clip) throw new Error("T08 clip is missing from its motion asset");
-        const compiled = t08TrackCache.get(`${sourceType}:${clip.id}`, () =>
-          (sourceType === "experimental"
-            ? experimentalRetarget
-            : sourceType === "candidate"
-              ? t08CandidateRetarget
-              : t08Retarget
-          ).compile(clip),
+        const policy = motionDisplayPolicy(sourceType, clip);
+        const compiled = t08TrackCache.get(
+          `${sourceType}:${clip.id}:${policy.profile}`,
+          () =>
+            (sourceType === "experimental"
+              ? experimentalRetarget
+              : sourceType === "candidate"
+                ? t08CandidateRetarget
+                : t08Retarget
+            ).compile(clip, {
+              stabilize: policy.enabled,
+              stabilizationProfile: policy.profile,
+            }),
         );
         motions.push({
           type: "quaternion-track",
@@ -256,10 +296,12 @@ function textToAnimation(text, manual = false) {
             sourceType,
             referenceId: clip.id,
             modelOutput: clip.model_output,
-            presentation: clip.experimental
-              ? clip.display_stabilization_profile || MOTION_SMOOTHING_PROFILE
+            presentation: policy.enabled
+              ? policy.profile || MOTION_SMOOTHING_PROFILE
               : "raw",
             frames: clip.frames,
+            stabilized: policy.enabled,
+            stabilizationEnabled: policy.enabled,
             performance: {
               cacheHit: compiled.cacheHit,
               compileMs: compiled.compileMs,
@@ -298,7 +340,9 @@ function textToAnimation(text, manual = false) {
     const motion = { type: "motion-sequence", motions };
     if (manual) motionPlayer?.play(motion);
     else
-      motionPlayer?.enqueue(motion, { key: normalizeText(text).toLowerCase() });
+      motionPlayer?.replace(motion, {
+        key: normalizeText(text).toLowerCase(),
+      });
   };
   const next = translationQueue.then(route, route);
   translationQueue = next.catch((error) => {

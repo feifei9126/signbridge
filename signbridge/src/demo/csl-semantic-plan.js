@@ -39,8 +39,8 @@ words("negation", "nonoccurrence", ["没", "没有"]);
 words("negation", "prohibition", ["别", "不要"]);
 words("modal", "desire", ["想"], "csl_want");
 words("modal", "obligation", ["必须", "应该"]);
-words("modal", "ability", ["能", "能够"]);
-words("modal", "permission_or_ability", ["可以"]);
+words("modal", "ability", ["能", "能够"], "csl_can");
+words("modal", "permission_or_ability", ["可以"], "csl_can");
 words("modal", "want_or_obligation", ["要"]);
 words("degree", "high", ["很", "非常"], "csl_very");
 words("question", "yes_no", ["吗", "么", "是否"]);
@@ -304,5 +304,80 @@ export function planCslText(input, clips = []) {
     modelTrainingReady: false,
     weightsUpdated: false,
     nonmanualsGenerated: false,
+  };
+}
+
+// Demo-only semantic routing. This reuses authored dictionary units and never
+// claims that a composed sequence is verified CSL grammar.
+export function planDemoSemanticText(input) {
+  const analysis = analyzeCslText(input);
+  const meaning = analysis.meaning;
+  const sourceDraft = [
+    meaning.time,
+    meaning.politeness,
+    meaning.actor,
+    meaning.modality,
+    meaning.negation,
+    meaning.degree,
+    meaning.predicate,
+    meaning.patient,
+    meaning.goal,
+  ].filter(Boolean);
+  const draft = sourceDraft.map((slot) => ({
+    id: slot.motionId || null,
+    surface: slot.surface,
+    concept: slot.concept || slot.kind,
+    role: slot.kind,
+    start: slot.start ?? null,
+    end: slot.end ?? null,
+  }));
+  const blockers = [...analysis.issues];
+  const warnings = [];
+  if (meaning.question) blockers.push("nonmanual_question_unavailable");
+  if (meaning.goal && !meaning.goal.motionId)
+    blockers.push("motion_evidence_missing");
+  if (draft.some((item) => !item.id)) blockers.push("motion_evidence_missing");
+  if (meaning.predicate?.concept === "help" && meaning.patient)
+    warnings.push("directional_agreement_approximated");
+  if (
+    [meaning.actor, meaning.patient].some(
+      (person) =>
+        person && ["male_third", "female_third"].includes(person.concept),
+    )
+  )
+    warnings.push("directional_agreement_approximated");
+  const uniqueBlockers = unique(blockers);
+  const gaps = draft.filter((item) => !item.id);
+  const canPreview = uniqueBlockers.length === 0 && draft.length >= 2;
+  return {
+    schema: "signbridge-csl-demo-semantic-plan-v1",
+    route: "bounded_demo_semantic",
+    analysis,
+    meaningKey: analysis.meaningKey,
+    items: canPreview
+      ? draft.map((item) => ({
+          id: item.id,
+          source: "semantic",
+          label: item.surface,
+          matchedText: item.surface,
+          semanticRole: item.role,
+          concept: item.concept,
+          start: item.start,
+          end: item.end,
+        }))
+      : [],
+    draft,
+    gaps,
+    blockers: uniqueBlockers,
+    warnings: unique(warnings),
+    unmatched: canPreview ? "" : analysis.text,
+    matchedCount: canPreview ? draft.length : 0,
+    canPreview,
+    semanticStatus: "demo_approximation_unverified",
+    humanApproved: false,
+    cslTranslationVerified: false,
+    trainingReady: false,
+    modelTrainingReady: false,
+    weightsUpdated: false,
   };
 }

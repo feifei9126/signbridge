@@ -141,6 +141,16 @@ test("stop cancels queued work and explicit play can replace a preview", () => {
   assert.deepEqual(visited.slice(2), ["preview", "replacement"]);
 });
 
+test("latest replacement cancels pending realtime subtitles immediately", () => {
+  const { player, advance, visited } = playerHarness();
+  player.enqueue(motion("current", "never"), { key: "old-current" });
+  player.enqueue(motion("pending"), { key: "old-pending" });
+  assert.equal(player.replace(motion("latest"), { key: "latest" }), true);
+  advance(1200);
+  assert.deepEqual(visited, ["current", "latest"]);
+  assert.equal(player.isPlaying, false);
+});
+
 test("completion fires once after the whole clip but not on cancellation", () => {
   let completed = 0;
   const { player, advance } = playerHarness({
@@ -182,6 +192,37 @@ test("T08 quaternion tracks interpolate sampled poses on the live player timelin
   );
   advance(400);
   assert.equal(player.isPlaying, false);
+});
+
+test("quaternion tracks blend from the current rig pose at a replacement boundary", () => {
+  let captureCount = 0;
+  const calls = [];
+  const callbacks = new Map();
+  let nextId = 0;
+  let clock = 0;
+  const rig = {
+    capture: () => ({ pose: captureCount++ === 0 ? "current" : "target" }),
+    interpolate: (from, to, amount) => calls.push({ from, to, amount }),
+    reset: () => {},
+  };
+  const player = createMotionPlayer(rig, {
+    requestFrame: (callback) => {
+      const id = ++nextId;
+      callbacks.set(id, callback);
+      return id;
+    },
+    cancelFrame: (id) => callbacks.delete(id),
+    setTimer: () => 0,
+    clearTimer: () => {},
+    now: () => clock,
+  });
+  player.replace({
+    type: "quaternion-track",
+    samples: [{ frame: 0 }, { frame: 1 }],
+    fps: 25,
+    duration: 0.2,
+  });
+  assert.ok(calls.some((call) => call.from.pose === "current"));
 });
 
 test("stopping a T08 track cancels its animation frame", () => {

@@ -1,5 +1,5 @@
 import { scanDictionaryText } from "../avatar/sign-language-data.js";
-import { planCslText } from "./csl-semantic-plan.js";
+import { planCslText, planDemoSemanticText } from "./csl-semantic-plan.js";
 import { planReferenceText } from "../avatar/reference-motion-plan.js";
 export {
   T08_CHECKPOINT_SHA256,
@@ -17,6 +17,11 @@ export function planDemoText(input, mode = "auto", clips = []) {
   const chars = full.slice(0, 500);
   const refs =
     mode === "dictionary" ? [] : planReferenceText(chars.join(""), clips).items;
+  if (mode === "auto" && refs.length === 0) {
+    const semantic = planDemoSemanticText(chars.join(""));
+    if (semantic.canPreview) return semantic;
+    if (semantic.analysis.meaning.predicate) return semantic;
+  }
   const items = [],
     unknown = [];
   let cursor = 0,

@@ -109,9 +109,11 @@ function refreshPlan() {
       ? t("cslAnalysisOnly")
       : currentPlan.unmatched
         ? t("demoUnknown", { text: currentPlan.unmatched })
-        : input.value.trim()
-          ? t("demoAllMatched")
-          : "";
+        : currentPlan.route === "bounded_demo_semantic"
+          ? t("demoSemanticPreview")
+          : input.value.trim()
+            ? t("demoAllMatched")
+            : "";
   if (currentPlan.truncated) setStatus("demoTooLong");
   else if (currentPlan.items.length === 40) setStatus("demoLimit");
   playButton.disabled =
@@ -119,10 +121,14 @@ function refreshPlan() {
 }
 function renderSemanticPlan() {
   const panel = document.querySelector("#semantic-panel");
-  panel.hidden = mode !== "semantic";
+  panel.hidden =
+    mode !== "semantic" && currentPlan.route !== "bounded_demo_semantic";
   if (panel.hidden) return;
   const plan = currentPlan;
-  document.querySelector("#semantic-status").textContent = t("cslAnalysisOnly");
+  document.querySelector("#semantic-status").textContent =
+    plan.route === "bounded_demo_semantic" && plan.canPreview
+      ? t("cslDemoPreviewReady")
+      : t("cslAnalysisOnly");
   const list = document.querySelector("#semantic-roles");
   list.replaceChildren();
   for (const [role, key] of Object.entries({
@@ -160,6 +166,8 @@ function renderSemanticPlan() {
   blockers.replaceChildren();
   for (const blocker of plan.blockers)
     blockers.append(element("li", t(`cslIssues.${blocker}`)));
+  for (const warning of plan.warnings || [])
+    blockers.append(element("li", t(`cslIssues.${warning}`)));
   document.querySelector("#semantic-json").textContent = JSON.stringify(
     plan,
     null,
@@ -190,6 +198,7 @@ function sourceLabel(source, clip, stabilized, presentation) {
               ? "demoExperimentalWarningBadge"
               : "demoExperimentalBadge",
     );
+  if (source === "semantic") return t("demoSourceSemantic");
   return t(
     source === "t08"
       ? "demoSourceT08"

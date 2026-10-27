@@ -21,6 +21,7 @@ import {
   readPublicMotionAssets,
   PUBLIC_MOTION_ROOT,
 } from "./public-motion-assets.mjs";
+import { buildMotionLibrary } from "../src/tools/motion-library-audit.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, "..");
@@ -392,6 +393,36 @@ async function buildDemo() {
     research_only: true,
     clips: [],
   };
+  const motionLibrary = researchInputs
+    ? buildMotionLibrary({
+        motion: researchInputs.motion,
+        candidates: researchInputs.candidates,
+        experimental: researchInputs.experimental,
+        experimentalFiles: researchInputs.fileBytes.experimental,
+      })
+    : {
+        schema: "signbridge-motion-library-v2",
+        version: 2,
+        representation:
+          "source-specific-axis-angle-with-display-quaternion-policy",
+        entries: [],
+        summary: {
+          total: 0,
+          bySource: { t08: 0, candidate: 0, experimental: 0 },
+          byStability: { stable: 0, needs_review: 0, reject: 0 },
+        },
+        semantic_status: "unverified",
+        training_ready: false,
+        model_training_ready: false,
+        deployment_ready: false,
+      };
+  writeFileSync(
+    dp("demo/motion-library-v2.json"),
+    JSON.stringify(motionLibrary),
+  );
+  const motionById = new Map(
+    motionLibrary.entries.map((entry) => [entry.id, entry]),
+  );
   if (researchInputs) {
     writeFileSync(
       dp("demo/t08-motion.json"),
@@ -401,14 +432,20 @@ async function buildDemo() {
     runtimeIndex = {
       schema: "signbridge-t08-runtime-index-v1",
       checkpoint_sha256: source.checkpoint_sha256,
-      clips: source.clips.map(({ id, text, aliases, fps, frames }) => ({
-        id,
-        text,
-        aliases,
-        fps,
-        frames,
-        runtime_candidate: false,
-      })),
+      clips: source.clips.map(({ id, text, aliases, fps, frames }) => {
+        const entry = motionById.get(id);
+        return {
+          id,
+          text,
+          aliases,
+          fps,
+          frames,
+          runtime_candidate: false,
+          stability: entry?.stability || "stable",
+          display_stabilization_profile:
+            entry?.display_stabilization_profile || "quaternion-temporal-v1",
+        };
+      }),
     };
     console.log("  ✓ demo/T08 local reference motions");
   } else {
@@ -435,6 +472,10 @@ async function buildDemo() {
           fps,
           frames,
           runtime_candidate,
+          stability: motionById.get(id)?.stability || "stable",
+          display_stabilization_profile:
+            motionById.get(id)?.display_stabilization_profile ||
+            "quaternion-temporal-v1",
         }),
       ),
     );

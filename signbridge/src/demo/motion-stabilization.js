@@ -1,5 +1,6 @@
 // Display-only temporal filtering. Source fits and checkpoint outputs stay intact.
 export const MOTION_SMOOTHING_PROFILE = "quaternion-temporal-v1";
+export const RECOVERY_SMOOTHING_PROFILE = "quaternion-temporal-recovery-v1";
 export const ADAPTIVE_SMOOTHING_PROFILE = "quaternion-temporal-adaptive-v1";
 export const MOTION_STABILIZATION_PROFILES = Object.freeze({
   [ADAPTIVE_SMOOTHING_PROFILE]: Object.freeze({
@@ -13,7 +14,7 @@ export const MOTION_STABILIZATION_PROFILES = Object.freeze({
     armWindowMs: 45,
     fingerWindowMs: 30,
   }),
-  "quaternion-temporal-recovery-v1": Object.freeze({
+  [RECOVERY_SMOOTHING_PROFILE]: Object.freeze({
     armWindowMs: 100,
     fingerWindowMs: 30,
   }),

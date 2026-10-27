@@ -102,6 +102,8 @@ function createMotionPlayer(
     const frame = queue.shift();
     if (frame.sourceInfo) onMotionStart(frame.sourceInfo);
     if (frame.track) {
+      const from = rig.capture();
+      const blendMs = Math.max(0, Math.min(frame.duration * 1000 * 0.2, 120));
       const startedAt = now();
       function animateTrack() {
         if (!playing) return;
@@ -112,11 +114,18 @@ function createMotionPlayer(
         );
         const fromIndex = Math.floor(framePosition);
         const toIndex = Math.min(fromIndex + 1, frame.track.length - 1);
-        rig.interpolate(
-          frame.track[fromIndex],
-          frame.track[toIndex],
-          framePosition - fromIndex,
-        );
+        const amount = framePosition - fromIndex;
+        if (blendMs > 0 && elapsed * 1000 < blendMs) {
+          rig.interpolate(frame.track[fromIndex], frame.track[toIndex], amount);
+          const target = rig.capture();
+          rig.interpolate(
+            from,
+            target,
+            easeInOut(Math.min(elapsed * 1000, blendMs) / blendMs),
+          );
+        } else {
+          rig.interpolate(frame.track[fromIndex], frame.track[toIndex], amount);
+        }
         if (elapsed >= frame.duration) {
           frameId = null;
           playNext();
@@ -145,14 +154,19 @@ function createMotionPlayer(
     timerId = setTimer(playNext, durationMs);
   }
 
-  function play(motion) {
+  function replace(motion, { key = null } = {}) {
     const frames = normalizeMotionFrames(motion);
     if (frames.length === 0) return false;
     stop();
     queue = frames;
+    currentKey = key;
     playing = true;
     playNext();
     return true;
+  }
+
+  function play(motion) {
+    return replace(motion);
   }
 
   function enqueue(motion, { key = null } = {}) {
@@ -181,6 +195,7 @@ function createMotionPlayer(
 
   return {
     play,
+    replace,
     enqueue,
     stop,
     get isPlaying() {

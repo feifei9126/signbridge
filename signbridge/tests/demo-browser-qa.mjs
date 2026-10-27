@@ -25,6 +25,9 @@ const candidateClips = candidateData.clips || [];
 const experimentalData = JSON.parse(
   await readFile(join(root, "dist/demo/experimental-index.json"), "utf8"),
 );
+const researchData = JSON.parse(
+  await readFile(join(root, "dist/demo/research.json"), "utf8"),
+);
 const catalog = buildDemoPhraseCatalog([
   ...data.clips,
   ...candidateClips,
@@ -84,6 +87,7 @@ async function ready() {
 }
 async function played(text) {
   await page.locator("#input").fill(text);
+  await page.waitForFunction(() => !document.querySelector("#play").disabled);
   await page.locator("#play").click();
   await page.waitForFunction(
     () => document.querySelector("#status").textContent.startsWith("正在播放"),
@@ -128,6 +132,9 @@ try {
     "已就绪，输入文字或选择片段。",
   );
   await page.locator('[data-mode="auto"]').click();
+  await page.waitForFunction(() =>
+    document.querySelector("#status").textContent.includes("已就绪"),
+  );
   report.checks.push(
     "immediate play / mode switch ignores superseded iframe events",
   );
@@ -136,9 +143,10 @@ try {
   assert.equal(await page.locator('[data-source="composition"]').count(), 1);
   await page.locator('[data-source="composition"]').click();
   assert.equal(await page.locator("#input").inputValue(), "我可以帮助你");
+  await page.waitForFunction(() => !document.querySelector("#play").disabled);
   await page.locator("#play").click();
   await page.waitForFunction(() =>
-    document.querySelector("#source-badge").textContent.includes("词库"),
+    document.querySelector("#source-badge").textContent.includes("语义路由"),
   );
   await page.waitForFunction(
     () => document.querySelector("#status").textContent === "本次播放完成。",
@@ -150,7 +158,7 @@ try {
   );
   await page.locator("#search").fill("");
   report.checks.push(
-    "composed phrase plays dictionary motions and is not routed as trained T08",
+    "composed phrase uses bounded semantic routing and is not routed as trained T08",
   );
   await played("工作忙吗？谢谢🚀");
   await page.waitForFunction(
@@ -297,7 +305,7 @@ try {
   assert.equal(session.checkpointSha256, data.checkpoint_sha256);
   report.checks.push("session JSON download and provenance");
   const research = await page.locator("#research-list button").count();
-  assert.equal(research, 6);
+  assert.equal(research, researchData.length);
   for (let i = 0; i < research; i++) {
     await page.locator("#research-list button").nth(i).click();
     await page.waitForFunction(() => {
@@ -307,7 +315,7 @@ try {
     await page.locator("#close-preview").click();
     assert.equal(await page.locator("#research-preview").isVisible(), false);
   }
-  report.checks.push("six read-only keyframe comparison images");
+  report.checks.push(`${research} read-only keyframe comparison images`);
   await page.locator("[data-mode=auto]").click();
   await page.locator("[data-catalog-view=phrases]").click();
   await page.locator("#input").fill("工作忙吗？谢谢");
