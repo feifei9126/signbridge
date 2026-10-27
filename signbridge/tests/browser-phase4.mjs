@@ -77,12 +77,18 @@ try {
   );
   await editor.locator("#motion-preview").click();
   await editor.waitForTimeout(1100);
-  editor.removeAllListeners("dialog");
-  const approvalDialog = editor.waitForEvent("dialog").then(async (dialog) => {
-    assert.equal(dialog.type(), "confirm");
-    await dialog.accept();
+  await editor.evaluate(() => {
+    window.__motionApprovalPrompt = null;
+    window.confirm = (message) => {
+      window.__motionApprovalPrompt = message;
+      return true;
+    };
   });
-  await Promise.all([approvalDialog, editor.locator("#motion-enable").click()]);
+  await editor.locator("#motion-enable").click();
+  assert.match(
+    await editor.evaluate(() => window.__motionApprovalPrompt),
+    /确认|confirm/i,
+  );
   await eventually(
     async () => Object.values(await saved())[0].enabled,
     "original approved",
