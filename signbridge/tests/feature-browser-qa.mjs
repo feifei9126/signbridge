@@ -1,6 +1,7 @@
 // Actual extension navigation, settings, research access and motion preview.
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
+import { existsSync } from "node:fs";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -395,7 +396,7 @@ try {
   report.checks.push(
     "ordinary motion preview works; research preserves all four tools, hides technical controls by default and restores automatic routing on close",
   );
-  // In-progress playback must leave with the motion task. Analysis never starts a model call on navigation.
+  // The trained-meaning task is intentionally absent from the public workspace.
   await page.locator("#input").fill("你好，谢谢");
   await page.locator("#play").click();
   await page.waitForFunction(() =>
@@ -405,13 +406,15 @@ try {
   page.on("request", (request) => {
     if (request.url().includes("/v1/understand")) inferenceRequests++;
   });
-  await page.locator("#meaning-task").click();
-  await page.waitForURL(`${origin}/private/index.html?scope=1`);
-  assert.equal(await page.locator("#token").inputValue(), "");
-  assert.equal(await page.locator("#analysis-fields").isVisible(), false);
-  assert.equal(await page.locator("#output").textContent(), "");
+  assert.equal(await page.locator("#meaning-task").count(), 0);
+  assert.equal(
+    await page.locator('[href="../private/index.html?scope=1"]').count(),
+    0,
+  );
+  assert.equal(existsSync(join(extension, "private/index.html")), false);
   assert.equal(inferenceRequests, 0);
-  assert.equal(await page.locator("iframe").count(), 0);
+  await page.locator("#stop").click();
+  await page.waitForFunction(() => document.querySelector("#stop").disabled);
   await page.setViewportSize({ width: 390, height: 844 });
   assert.equal(
     await page.evaluate(
@@ -423,8 +426,6 @@ try {
     path: join(output, "meaning-mobile.png"),
     fullPage: true,
   });
-  await page.locator('[data-workbench] a[href="../demo/index.html"]').click();
-  await page.waitForFunction(() => document.querySelector("#stop").disabled);
   assert.equal(
     await page.locator("#research-details").getAttribute("open"),
     null,
@@ -440,7 +441,7 @@ try {
     fullPage: true,
   });
   report.checks.push(
-    "trained-model task shares the client, makes no automatic request, clears playback on navigation and fits mobile screens",
+    "trained-meaning page is absent from the public workspace; motion demo remains responsive on mobile",
   );
   report.profile = JSON.parse(
     await readFile(join(extension, "BUILD.json"), "utf8"),

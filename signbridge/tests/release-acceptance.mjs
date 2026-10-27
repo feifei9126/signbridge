@@ -187,6 +187,13 @@ try {
     id: "feature-simplification-browser",
     status: "passed",
   });
+  const privateClientDir = join(reportDir, "private-client-build");
+  await run(
+    process.platform === "win32" ? "npm.cmd" : "npm",
+    ["run", "build:private"],
+    { ...process.env, SIGNBRIDGE_PRIVATE_BUILD_DIR: privateClientDir },
+  );
+  browserEnv.SIGNBRIDGE_PRIVATE_CLIENT_DIR = privateClientDir;
   await run(
     process.execPath,
     ["tests/private-handoff-browser-qa.mjs"],

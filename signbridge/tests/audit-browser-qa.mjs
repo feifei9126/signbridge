@@ -167,26 +167,19 @@ try {
     path: join(output, "analysis-only.png"),
     fullPage: true,
   });
-  await page.locator("#meaning-task").click();
-  assert.equal(await page.locator("[data-workbench]").isVisible(), true);
-  assert.equal(
-    await page.locator("#endpoint").inputValue(),
-    "http://127.0.0.1:8770",
-  );
-  assert.equal(await page.locator("#open-local-service").isVisible(), true);
   let calls = 0;
   page.on("request", (request) => {
     if (request.url().includes("/v1/understand")) calls++;
   });
-  assert.equal(await page.locator("#analysis-fields").isVisible(), false);
-  assert.equal(calls, 0);
-  assert.equal(await page.locator("#output").textContent(), "");
-  assert.match(
-    await page.locator("#status").textContent(),
-    /检查服务是否已启动/,
+  assert.equal(await page.locator("#meaning-task").count(), 0);
+  assert.equal(
+    await page.locator('[href="../private/index.html?scope=1"]').count(),
+    0,
   );
+  assert.equal(existsSync(join(dist, "private/index.html")), false);
+  assert.equal(calls, 0);
   report.checks.push(
-    "local HTTP workspace uses an explicit same-origin service handoff without leaking a token or attempting a forbidden cross-origin inference",
+    "public extension omits the trained-meaning page and contains no automatic inference route",
   );
   assert.deepEqual(report.errors, []);
   report.status = "passed";

@@ -43,11 +43,11 @@ SignBridge 是一个面向视频无障碍场景的开源 Chrome 扩展。我们�
 
 ## 版本记录
 
-### 2026-10-27：T08 + 83 条动作公开版 1.0.6
+### 2026-10-27：T08 + 83 条动作公开版 1.0.7
 
 经用户明确授权，**14 条 T08 参考、3 条 T08 候选和 83 条已获动作质量批准的 SMPL-X 拟合动作**现以可读 JSON 纳入仓库，共 100 个动作片段；不是 100 个独立词条或已认证手语句子。动作播放器、原始姿态、索引、SHA-256 和既有批准记录一起提供。T08 是冻结 tokenizer 的预计算解码，83 条是视频拟合，两者不混称为新训练的文字理解模型。
 
-- **[下载 1.0.6 公开动作 Demo ZIP](docs/assets/signbridge-chrome-extension-1.0.6-public-motion-20261027.zip)** · [SHA-256](docs/assets/signbridge-chrome-extension-1.0.6-public-motion-20261027.zip.sha256) · [逐文件清单](docs/assets/signbridge-chrome-extension-1.0.6-public-motion-20261027.zip.contents.json)
+- **[下载 1.0.7 公开动作 Demo ZIP](docs/assets/signbridge-chrome-extension-1.0.7-public-motion-20261027.zip)** · [SHA-256](docs/assets/signbridge-chrome-extension-1.0.7-public-motion-20261027.zip.sha256) · [逐文件清单](docs/assets/signbridge-chrome-extension-1.0.7-public-motion-20261027.zip.contents.json)
 - **[公开动作源码与固定清单](signbridge/assets/public-motion-v1/)** · [安装、复现、发布边界与验收](docs/public-motion-release-20261027.md)
 - 从源码构建含动作版：`cd signbridge && npm ci && npm run build:motion`。默认 `npm run build` 仍是词库版，不能据此判断动作漏传。
 - 公开版不含原视频、研究图片、训练权重或 CE-CSL 数据。**未来新动作库默认私有**；本次授权只绑定固定 100 段快照。第三方来源条款仍须遵循，公开分发不自动将其重新许可为 MIT。
@@ -57,7 +57,7 @@ training_ready、model_training_ready、deployment_ready 均为 false；能播�
 
 ### 2026-10-19：功能精简 1.0.4
 
-插件弹窗只保留日常操作，显示和声音设置统一；工作台分为动作演示与训练模型意思分析，制作、验收、规则对照和技术数据集中到可展开的研究区域。原工具和动作资产保留，普通构建仍不含本地研究资产。入口、启动与本机服务说明见[功能精简记录](docs/feature-simplification-20261019.md)。本地提交不自动更新旧公开安装包。
+插件弹窗只保留日常操作，显示和声音设置统一；当前公开工作台专注于动作演示，制作、验收、规则对照和技术数据集中到可展开的研究区域。公开构建不再包含“意思分析（训练模型）”页面或客户端 bundle；模型代码与需显式运行 `npm run build:private` 的独立私有客户端保留，普通公开包不包含私有模型或研究资产。
 
 ### 2026-10-19：现有资源优化 1.0.5
 
@@ -69,7 +69,7 @@ training_ready、model_training_ready、deployment_ready 均为 false；能播�
 
 ## 本地 T08 展示工作台（2026-10-12，历史）
 
-以下为历史能力记录。1.0.6 起，可用 `npm run build:motion` 直接构建已公开的固定 T08 + 83 条动作；未公开研究资产仍按[审计整改说明](docs/audit-remediation-20261019.md)显式构建 local-research；普通 public-demo 构建只含公开词典。
+以下为历史能力记录。1.0.6 起，可用 `npm run build:motion` 直接构建已公开的固定 T08 + 83 条动作；1.0.7 起公开工作台不再打包训练模型意思分析页面。未公开研究资产仍按[审计整改说明](docs/audit-remediation-20261019.md)显式构建 local-research；普通 public-demo 构建只含公开词典。
 
 已增加独立 Demo 和实时字幕路由：14 段真实 T08 token 解码动作与 52 个内置动作共用当前 Godette 虚拟人。实时字幕完整匹配 14 条 T08 参考句时优先播放 T08 动作，其它文字仍走原有词库/自定义动作。独立 Demo 另支持文字最长匹配、未知内容提示、播放控制、三视角、实际 token 查看和来源报告下载。本地授权资产准备完成后，无需 GPU 即可演示。
 
@@ -352,7 +352,7 @@ MIT 适用于项目代码；第三方模型、纹理、依赖和外部素材仍�
 
 ## 黑客松演示网页
 
-在线演示：<https://feifei9126.github.io/signbridge/>。展示页提供 1.0.6 公开动作包：14 条 T08 参考 + 3 条候选 + 83 条 SMPL-X 拟合动作。83 条的动作质量已人工审核，但不代表中文含义、词界或中国手语表达准确性已认证。包内姿态可提取，原视频和训练检查点不包含。静态页面源码、更新方法见 [docs/README.md](docs/README.md)；实时手语功能需在 Chrome 中安装扩展。
+在线演示：<https://feifei9126.github.io/signbridge/>。展示页提供 1.0.7 公开动作包：14 条 T08 参考 + 3 条候选 + 83 条 SMPL-X 拟合动作。83 条的动作质量已人工审核，但不代表中文含义、词界或中国手语表达准确性已认证。包内姿态可提取，原视频和训练检查点不包含；训练模型意思分析页面不包含在公开包内。静态页面源码、更新方法见 [docs/README.md](docs/README.md)；实时手语功能需在 Chrome 中安装扩展。
 
 ## 中国手语理解研究与私有交付
 

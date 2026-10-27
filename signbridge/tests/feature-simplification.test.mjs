@@ -28,15 +28,19 @@ test("ordinary popup exposes one settings and workbench entry, without productio
     assert.ok(!html.includes(`id="${id}"`), id);
 });
 
-test("workbench keeps research controls behind native details and exposes the real learned-model client", () => {
+test("public workbench omits the trained-meaning page while preserving the standalone private client", () => {
   const html = source("demo/index.html");
-  assert.match(html, /href="\.\.\/private\/index\.html\?scope=1"/);
+  assert.doesNotMatch(
+    html,
+    /meaning-task|workbenchMeaning|private\/index\.html/,
+  );
   assert.match(html, /id="research-tools"/);
   assert.match(html, /<details[^>]*id="research-details"/);
   assert.doesNotMatch(html, /<strong>T08 · VQ-VAE<\/strong>/);
   const client = source("private/index.html");
   assert.match(client, /data-workbench hidden/);
   assert.match(client, /href="\.\.\/demo\/index\.html"/);
+  assert.match(source("../scripts/build-private.mjs"), /src\/private/);
 });
 
 test("configuration defaults only describe controls with implemented behavior", () => {

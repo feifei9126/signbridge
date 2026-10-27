@@ -8,7 +8,7 @@ const WORKBENCH_ZH = {
   workbenchCatalogCount:
     "当前可选 {count} 条。匹配表示有动作数据，不代表手语含义已核准。",
   workbenchScope:
-    "研究演示：当前播放已有动作。未覆盖内容会提示，意思分析与动作播放分别运行。",
+    "研究演示：当前播放已有动作。未覆盖内容会提示；动作播放不代表文字已被理解。",
   workbenchServiceHandoff:
     "意思分析由本机服务提供。按钮会先检查服务是否已启动；跳转不携带口令或输入文字。",
   workbenchOpenService: "打开本机服务分析页",
@@ -49,10 +49,10 @@ const WORKBENCH_ZH = {
   workbenchModeDictionaryDescription:
     "内置词库：仅使用已收录的词条动作。当前已切到词条目录，不调用 T08 参考句。",
   workbenchModeSemanticDescription:
-    "中文意思分析：当前规则研究只显示解析草案，不播放动作；训练角色模型请打开上方独立分析任务。",
+    "规则研究仅显示中文解析草案，不播放动作，也不调用训练角色模型。",
   workbenchPresentation: "视角与显示处理",
   workbenchRuleOnly:
-    "当前为规则分析对照，只输出草案。使用上方“意思分析（训练模型）”可连接已有本机角色模型。",
+    "当前为规则分析对照，只输出草案；不连接训练模型，也不播放动作。",
   workbenchForcedSource: "当前限定了动作来源。关闭研究区域即可恢复自动匹配。",
   workbenchStart: "开始字幕辅助",
   workbenchStop: "停止辅助",
@@ -109,10 +109,10 @@ const WORKBENCH_EN = {
   workbenchModeDictionaryDescription:
     "Built-in dictionary: use recorded word motions only. The catalog switches to word entries and excludes T08 phrase references.",
   workbenchModeSemanticDescription:
-    "Chinese meaning analysis: this rules experiment shows a draft and never plays motion. Open the separate meaning task for the trained role model.",
+    "Rule research shows a Chinese analysis draft only; it does not play motion or call the trained role model.",
   workbenchPresentation: "View and display processing",
   workbenchRuleOnly:
-    "Rule comparison produces a draft only. Use Meaning analysis (trained model) above to connect to the existing local role model.",
+    "Rule comparison produces a draft only. It does not connect to the trained model or play motion.",
   workbenchForcedSource:
     "Motion sources are restricted. Close research details to restore automatic matching.",
   workbenchStart: "Start subtitle assistance",
@@ -170,10 +170,10 @@ const WORKBENCH_JA = {
   workbenchModeDictionaryDescription:
     "内蔵辞書：登録済み単語動作のみを使います。カタログを単語一覧に切り替え、T08文全体の参考動作は除外します。",
   workbenchModeSemanticDescription:
-    "中国語の意味分析：規則研究の案だけを表示し、動作は再生しません。学習済み役割モデルは上部の別タスクで開きます。",
+    "規則研究は中国語の解析案を表示するだけです。動作を再生せず、学習済み役割モデルも呼び出しません。",
   workbenchPresentation: "視点と表示処理",
   workbenchRuleOnly:
-    "Rule comparison produces a draft only. Use Meaning analysis (trained model) above to connect to the existing local role model.",
+    "Rule comparison produces a draft only. It does not connect to the trained model or play motion.",
   workbenchForcedSource:
     "Motion sources are restricted. Close research details to restore automatic matching.",
   workbenchStart: "字幕支援を開始",

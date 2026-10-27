@@ -63,6 +63,21 @@ test("build creates every runtime asset", () => {
   }
 });
 
+test("public extension build does not ship the trained-meaning task page", () => {
+  const demo = readFileSync(join(dist, "demo/index.html"), "utf8");
+  assert.doesNotMatch(
+    demo,
+    /meaning-task|workbenchMeaning|private\/index\.html/,
+  );
+  for (const path of [
+    "private/index.html",
+    "private/client.css",
+    "private/client.js",
+  ]) {
+    assert.equal(existsSync(join(dist, path)), false, path);
+  }
+});
+
 test("build excludes obsolete development assets", () => {
   const obsolete = [
     "avatar/animations/wave.fbx",

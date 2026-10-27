@@ -93,7 +93,7 @@ test("unchanged manifest cannot hide changed motion bytes", async () => {
 
 test("public download bytes and all landing links bind the shipped motion release", () => {
   const assets = new URL("../../docs/assets/", import.meta.url);
-  const name = "signbridge-chrome-extension-1.0.6-public-motion-20261027.zip";
+  const name = "signbridge-chrome-extension-1.0.7-public-motion-20261027.zip";
   const bytes = readFileSync(new URL(name, assets));
   const digest = createHash("sha256").update(bytes).digest("hex");
   const inventory = JSON.parse(

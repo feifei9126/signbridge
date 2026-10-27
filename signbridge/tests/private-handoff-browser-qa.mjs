@@ -9,7 +9,7 @@ const { chromium } = await import(
 );
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const dist = resolve(
-  process.env.SIGNBRIDGE_DEMO_BUILD_DIR || join(root, "dist"),
+  process.env.SIGNBRIDGE_PRIVATE_CLIENT_DIR || join(root, "dist-private"),
 );
 const output = resolve(
   process.env.SIGNBRIDGE_PRIVATE_HANDOFF_QA_DIR ||
@@ -50,10 +50,13 @@ function makeServer({ healthOrigin = null, servicePage = false } = {}) {
         return;
       }
       let body = await readFile(file);
-      if (servicePage && pathname === "/private/index.html")
+      if (pathname === "/private/index.html") {
         body = body
           .toString()
-          .replace("<html", '<html data-signbridge-service="true"');
+          .replace("data-workbench hidden", "data-workbench");
+        if (servicePage)
+          body = body.replace("<html", '<html data-signbridge-service="true"');
+      }
       response.writeHead(200, {
         "Cache-Control": "no-store",
         "Content-Type": types[extname(file)] || "application/octet-stream",

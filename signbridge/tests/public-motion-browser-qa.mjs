@@ -71,6 +71,18 @@ await page.addInitScript(() => {
 });
 try {
   await page.goto(`http://127.0.0.1:${server.address().port}/demo/index.html`);
+  assert.equal(await page.locator("#meaning-task").count(), 0);
+  assert.equal(
+    (
+      await page.request.get(
+        `http://127.0.0.1:${server.address().port}/private/index.html`,
+      )
+    ).status(),
+    404,
+  );
+  report.checks.push(
+    "public motion package excludes the trained-meaning page and private client",
+  );
   await page.waitForFunction(
     () =>
       !document.querySelector("#play").disabled &&

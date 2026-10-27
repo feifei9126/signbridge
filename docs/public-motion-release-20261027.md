@@ -1,4 +1,4 @@
-# 1.0.6 公开动作 Demo：T08 + 83 条拟合动作
+# 1.0.7 公开动作 Demo：T08 + 83 条拟合动作
 
 ## 公开范围
 
@@ -15,19 +15,19 @@
 
 ## 下载与安装
 
-- [Chrome 扩展与离线 Demo ZIP](assets/signbridge-chrome-extension-1.0.6-public-motion-20261027.zip)
-- [SHA-256](assets/signbridge-chrome-extension-1.0.6-public-motion-20261027.zip.sha256)
-- [ZIP 逐文件清单](assets/signbridge-chrome-extension-1.0.6-public-motion-20261027.zip.contents.json)
+- [Chrome 扩展与离线 Demo ZIP](assets/signbridge-chrome-extension-1.0.7-public-motion-20261027.zip)
+- [SHA-256](assets/signbridge-chrome-extension-1.0.7-public-motion-20261027.zip.sha256)
+- [ZIP 逐文件清单](assets/signbridge-chrome-extension-1.0.7-public-motion-20261027.zip.contents.json)
 - [可读动作 JSON 与输入清单](../signbridge/assets/public-motion-v1/)
 
-ZIP 大小 **39,694,867 字节（约 39.7 MB / 37.9 MiB）**，包含 141 个文件。SHA-256：
+ZIP 大小 **39,643,991 字节（约 39.6 MB / 37.8 MiB）**，包含 138 个文件，不含训练模型意思分析页或私有客户端 bundle。旧 1.0.6 ZIP 保留作历史下载，但仍含该页；当前下载入口指向 1.0.7。SHA-256：
 
 ```text
-a983b2ed854e1ec1cf7566d3d1bf78ffe9e38800c1d33589343103f90e6b1652
+3b9f7a84d01632841ffe42bdad61492c46febe4e2bea66a81ad452109b058a6d
 ```
 
-1. 下载 ZIP 及 .sha256，在下载目录运行 `shasum -a 256 -c signbridge-chrome-extension-1.0.6-public-motion-20261027.zip.sha256`。
-2. 解压，打开 Chrome 的 `chrome://extensions`，开启开发者模式，停用旧 SignBridge，加载含 manifest.json 的解压目录。插件弹窗应显示 **v1.0.6**。
+1. 下载 ZIP 及 .sha256，在下载目录运行 `shasum -a 256 -c signbridge-chrome-extension-1.0.7-public-motion-20261027.zip.sha256`。
+2. 解压，打开 Chrome 的 `chrome://extensions`，开启开发者模式，停用旧 SignBridge，加载含 manifest.json 的解压目录。插件弹窗应显示 **v1.0.7**。
 3. 打开视频页面或插件演示工作台：输入“工作忙吗？”应显示 T08；输入“认识你很高兴”应显示 SMPL-X 实验重建。后者没有 T08 token；“你好”“谢谢”等仍来自内置词库，不是动作漏传。
 4. 独立 Demo 可双击 `start-demo.command`，或在解压目录运行 `python3 start-demo.py`，访问终端打印的 127.0.0.1 地址，保持终端开启。不要用 file:// 直接打开 Demo。
 
@@ -53,19 +53,21 @@ npm run package:motion -- --build dist --output /absolute/new/signbridge-motion.
 | 命令／profile | 动作来源 | 用途 |
 | --- | --- | --- |
 | npm run build / public-demo | 内置公开词库，研究动作占位为空 | 原有默认构建，不应误称含 T08 |
-| npm run build:motion / public-motion-demo | 仓库内固定 14 + 3 + 83 快照 | 本次公开下载版 |
+| npm run build:motion / public-motion-demo | 仓库内固定 14 + 3 + 83 快照，不含 trained-meaning 页面 | 1.0.7 公开下载版 |
 | npm run build:research / local-research | 显式本地路径和 SHA 清单 | 未公开后续研究，不能自动分发 |
 
 public-motion-demo 拒绝私有动作环境变量；输入清单 SHA-256 锁定为 `243e4345dd07d33af6f16b0e2cec300f731e3feae5ed48da779b95c2585ba946`。88 个 JSON 输入逐一校验，批准记录和姿态摘要再验证；清单或动作变化会失败，不静默回退成“看似带动作”的包。构建生成 avatar/t08-index.json，运行时按来源加载。
 
 ## 本轮验证结果
 
-- `npm run verify`：构建、Lint、格式检查通过；253 项 JavaScript 测试通过，571 项 Python 测试运行，其中 12 项按原有条件跳过。跳过不等于通过 GPU 训练验收。
+- `npm run verify`：构建、Lint、格式检查通过；256 项 JavaScript 测试通过，571 项 Python 测试运行，其中 12 项按原有条件跳过。跳过不等于通过 GPU 训练验收。
 - 新增公共发布测试：固定数量与唯一 ID、私有路径拒绝、清单篡改拒绝、确定性 ZIP、逐文件摘要、额外未列文件拒绝、路径穿越／软链接／错误 profile／训练就绪升级拒绝。
 - **从新 ZIP 解压后独立验收 100/100 动作**：每条实际来源和 ID 正确，无词库回退；100 个画面非空且有运动；14+3 条 T08 的 token 精确一致；无页面错误和缺失资源。此测试是短时播放与渲染检查，不是逐帧语言学或抖动重新认证。
 - 完整 Chrome for Testing 的真实扩展路由 **8 项通过**：版本、T08 参考加载、词库与参考／拟合的混合字幕顺序、实际字幕 DOM、音频转写交付路由、故障局部回退、取消旧请求。ASR 本身未重新执行。
 - 初次使用默认无头 shell 因不支持扩展后台而超时，保留失败报告；指定已有完整 Chrome for Testing 后通过，不修改产品逻辑来掩盖失败。
-- ZIP 外部哈希与内部 141 个文件哈希全部核对。公开包不含源视频、研究 JPEG、训练权重、CE-CSL 数据、私有服务令牌或未授权未来动作。
+- ZIP 外部哈希与内部 138 个文件哈希全部核对。公开包不含训练模型意思分析页、私有客户端 bundle、源视频、研究 JPEG、训练权重、CE-CSL 数据、私有服务令牌或未授权未来动作。
+
+本轮页面精简验收：默认构建不存在 `private/index.html`；工作台不含该页的导航或链接。用户主动运行 `npm run build:private` 仍可单独生成原私有客户端，不随公开扩展自动分发。
 
 本机完整证据位于 local-data/public-motion-release-20261027-v1，失败及通过记录均保留。
 
