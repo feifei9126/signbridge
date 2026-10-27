@@ -32,14 +32,14 @@ jobs:
         run: npm ci
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
-      - name: Verify and browser acceptance
-        run: npm run verify:release
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
       - name: Install test dependencies
         run: python -m pip install numpy==1.26.4 scipy pillow opencv-python-headless
+      - name: Verify and browser acceptance
+        run: npm run verify:release
       - name: Python regression suite
         run: npm run test:python
       - name: Build and verify public motion ZIP
