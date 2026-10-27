@@ -17,6 +17,10 @@ import {
   resolveBuildProfile,
 } from "./build-contract.mjs";
 import { readResearchAssets } from "./research-assets.mjs";
+import {
+  readPublicMotionAssets,
+  PUBLIC_MOTION_ROOT,
+} from "./public-motion-assets.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, "..");
@@ -29,7 +33,10 @@ const profile = resolveBuildProfile({
   ...process.env,
   ...(requestedProfile ? { SIGNBRIDGE_BUILD_PROFILE: requestedProfile } : {}),
 });
-const researchInputs = readResearchAssets(profile);
+const researchInputs =
+  profile.name === "public-motion-demo"
+    ? readPublicMotionAssets()
+    : readResearchAssets(profile);
 
 function dp(...parts) {
   const p = join(DIST, ...parts);
@@ -117,7 +124,12 @@ async function build() {
   prepareBuildDirectory(
     ROOT,
     DIST,
-    [profile.assets, profile.experimental, profile.manifest].filter(Boolean),
+    [
+      profile.assets,
+      profile.experimental,
+      profile.manifest,
+      PUBLIC_MOTION_ROOT,
+    ].filter(Boolean),
   );
 
   copyFileSync(join(ROOT, "manifest.json"), dp("manifest.json"));
@@ -284,6 +296,17 @@ async function build() {
     console.log("  ✓ avatar/help.html");
   }
 
+  if (researchInputs?.publication) {
+    writeFileSync(
+      dp("PUBLIC-MOTION.json"),
+      JSON.stringify(researchInputs.publication, null, 2) + "\n",
+    );
+    copyFileSync(
+      join(PUBLIC_MOTION_ROOT, "README.md"),
+      dp("MOTION-LIBRARY.md"),
+    );
+    copyFileSync(join(ROOT, "../LICENSE"), dp("LICENSE.txt"));
+  }
   const files = {};
   function collect(dir) {
     for (const name of readdirSync(dir)) {
@@ -327,7 +350,10 @@ async function build() {
         authored_dictionary_included: true,
         research_assets_included: Boolean(researchInputs),
         research_asset_manifest_sha256: researchInputs?.manifestSha256 || null,
+        public_motion_release: researchInputs?.publication?.release || null,
         training_ready: false,
+        model_training_ready: false,
+        deployment_ready: false,
         csl_translation_trained: false,
         files,
       },
@@ -432,7 +458,7 @@ async function buildDemo() {
     for (const [name, bytes] of researchInputs.fileBytes.experimental)
       writeFileSync(dp("demo", name), bytes);
     console.log(
-      `  ✓ ${researchInputs.experimental.clips.length} experimental fitted motions (explicit local assets)`,
+      `  ✓ ${researchInputs.experimental.clips.length} fitted motions (${profile.name})`,
     );
   } else {
     writeFileSync(

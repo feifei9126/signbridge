@@ -315,18 +315,23 @@
               想亲自试试？<br /><span>三步就能开始。</span>
             </h2>
             <p>
-              提供包含 83 条 SMPL-X 拟合演示动作的 Chrome 扩展包。动作质量已人工
-              审核；中文含义、词界、镜像方向和惯用手尚未认证。解压后可直接加载。
+              1.0.6 公开版包含 14 条 T08 参考、3 条候选和 83 条已批准拟合动作。
+              共 100 段，不是 100 个已认证手语词句；中文含义、词界、镜像方向和惯用手仍未认证。
             </p>
             <a
               class="button button-primary download-button"
-              href="assets/signbridge-chrome-extension-motion-demo-20261022.zip"
+              href="assets/signbridge-chrome-extension-1.0.6-public-motion-20261027.zip"
               download
-              >下载含 83 条动作的扩展 ZIP <span aria-hidden="true">↓</span></a
+              >下载 T08 + 83 条动作公开版 <span aria-hidden="true">↓</span></a
             >
             <span class="download-meta"
-              >Chrome 116+ · 83 条动作 · ZIP 约 40 MB · 本地加载</span
+              >Chrome 116+ · 100 个动作片段 · ZIP 约 40 MB · 本地加载</span
             >
+            <p>
+              <a href="assets/signbridge-chrome-extension-1.0.6-public-motion-20261027.zip.sha256">SHA-256 校验</a>
+              · <a href="https://github.com/feifei9126/signbridge/tree/codex/t08-avatar-demo/signbridge/assets/public-motion-v1">动作 JSON 与清单</a>
+              · <a href="public-motion-release-20261027.md">安装和发布说明</a>
+            </p>
           </div>
           <ol class="install-steps">
             <li>
@@ -356,8 +361,8 @@
                 <h3>打开视频试一试</h3>
                 <p>
                   进入视频网站，点击 SignBridge
-                  图标。先手动输入“你好”或“谢谢”；需要语音识别时再按提示配置本地
-                  Whisper。
+                  图标，用“工作忙吗？”验证 T08，用“认识你很高兴”验证拟合动作；
+                  来源标签会区分内置词库、T08 和 SMPL-X。需要语音识别时再配置 Whisper。
                 </p>
               </div>
             </li>

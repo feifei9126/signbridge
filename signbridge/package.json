@@ -1,6 +1,6 @@
 {
   "name": "signbridge",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "description": "Chrome extension that turns video subtitles and tab audio into real-time 3D Chinese Sign Language with local Whisper.",
   "private": true,
   "type": "module",
@@ -35,7 +35,9 @@
     "verify": "npm run build && npm run lint && npm run test:js && npm run test:python && npx prettier --check src/ scripts/*.mjs tools/editor-full-entry.js tools/pose-editor.html tools/record-mode.html tests/ eslint.config.mjs package.json",
     "verify:release": "node tests/release-acceptance.mjs",
     "build:private": "node scripts/build-private.mjs",
-    "build:research": "node scripts/build.mjs --profile=local-research"
+    "build:research": "node scripts/build.mjs --profile=local-research",
+    "build:motion": "node scripts/build.mjs --profile=public-motion-demo",
+    "package:motion": "python3 src/tools/sign-public-motion-package.py"
   },
   "dependencies": {
     "@huggingface/transformers": "^3.7.6",

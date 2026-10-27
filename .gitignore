@@ -21,6 +21,7 @@ signbridge_backup_*/
 !docs/assets/signbridge-chrome-extension.zip
 !docs/assets/signbridge-chrome-extension-motion-demo-20261022.zip
 !docs/assets/signbridge-chrome-extension-motion-demo-20261022.zip.sha256
+!docs/assets/signbridge-chrome-extension-1.0.6-public-motion-20261027.zip
 
 # Local authorized sign videos and derived dataset artifacts
 /local-data/

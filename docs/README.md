@@ -1,5 +1,11 @@
 # 黑客松展示页
 
+## 当前公开下载：1.0.6（2026-10-27）
+
+当前默认分支为 `codex/t08-avatar-demo`，不再是下文历史记录中的 main。Pages 若使用分支发布，选择当前默认分支的 `/docs`。下载入口现使用版本化 T08 + 83 条动作公开包，JSON、授权范围和复现步骤见[发布记录](public-motion-release-20261027.md)。旧 ZIP 与日期记录保留，不能替代当前版本。
+
+含动作包使用 `cd signbridge && npm ci && npm run build:motion`；再用 `npm run package:motion -- --build dist --output /absolute/new/demo.zip` 生成确定性 ZIP、SHA-256 和逐文件清单。不要把普通词库构建当作含动作发布包，也不要从 local-data 自动复制后续私有库。
+
 > 2026-10-19更新：当前构建配置、词边界和语义禁播行为以[审计整改说明](audit-remediation-20261019.md)为准；下文按日期保留历史记录。普通构建不再自动读取本地T08／拟合动作。
 
 ## 手语模型训练工程总报告

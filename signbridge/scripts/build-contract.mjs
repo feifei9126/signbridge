@@ -98,12 +98,12 @@ export function prepareBuildDirectory(root, destination, protectedInputs = []) {
 }
 export function resolveBuildProfile(env) {
   const name = env.SIGNBRIDGE_BUILD_PROFILE || "public-demo";
-  if (!["public-demo", "local-research"].includes(name))
+  if (!["public-demo", "public-motion-demo", "local-research"].includes(name))
     throw new Error("Unknown build profile");
   const assets = env.SIGNBRIDGE_DEMO_ASSET_DIR;
   const experimental = env.SIGNBRIDGE_DEMO_EXPERIMENTAL_DIR;
   const manifest = env.SIGNBRIDGE_RESEARCH_ASSET_MANIFEST;
-  if (name === "public-demo" && (assets || experimental || manifest))
+  if (name !== "local-research" && (assets || experimental || manifest))
     throw new Error("Research asset paths require local-research profile");
   if (
     name === "local-research" &&
