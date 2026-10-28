@@ -1,6 +1,7 @@
 """Run SMPLer-X input chunks serially and pause before the reserved disk margin."""
 import argparse
 from datetime import datetime, timezone
+import fcntl
 import hashlib
 import json
 import os
@@ -97,7 +98,7 @@ def validate_chunk_index(index_path, chunk_root):
     return index, chunks
 
 
-def validate_completed_attempt(chunk, package, attempt):
+def validate_completed_attempt(chunk, package, attempt, quarantine_missing_detections=False):
     package = Path(package).resolve(strict=True)
     attempt = Path(attempt).resolve(strict=True)
     report_path = attempt / 'report.json'
@@ -109,36 +110,89 @@ def validate_completed_attempt(chunk, package, attempt):
             report.get('status') != 'smplerx_sequences_completed_pending_quality_review' or
             report.get('training_started') is not False or report.get('training_ready') is not False or
             report.get('human_approved') is not False or
+            report.get('model_training_ready', False) is not False or
             report.get('input_manifest_sha256') != sha(package / 'manifest.json') or
             report.get('sequence_count') != len(cases) or report.get('completed_sequences') != len(cases) or
             report.get('frames_expected') != manifest['frames'] or report.get('completed_frames') != manifest['frames'] or
+            sum(row['frames'] for row in cases) != manifest['frames'] or
+            not cases or len({row['annotation_id'] for row in cases}) != len(cases) or
             [row.get('annotation_id') for row in records] != [row['annotation_id'] for row in cases]):
         raise ValueError('Fit report or completed sequence set differs: ' + chunk['path'])
-    frame_total = parameter_total = render_total = 0
+    attempt_manifest = verified_manifest(attempt)
+    identifiers = {case['annotation_id'] for case in cases}
+    if {path.name for path in (attempt / 'fits').iterdir() if path.is_dir()} != identifiers:
+        raise ValueError('Fit candidate directory set differs from input package')
+    input_root = attempt / 'input-frames'
+    if ((quarantine_missing_detections or input_root.exists()) and
+            {path.name for path in input_root.glob('*') if path.is_dir()} != identifiers):
+        raise ValueError('Input candidate directory set differs from input package')
+    frame_total = parameter_total = render_total = complete_count = 0
+    quarantined = []
     for case, record in zip(cases, records):
         count = case['frames']
+        identifier = case['annotation_id']
+        if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_-]{0,79}', identifier):
+            raise ValueError('Invalid candidate identifier')
         parameter_count = record.get('parameters', record.get('smplx_parameter_files'))
         render_count = record.get('renders', record.get('render_frames'))
-        if (record.get('frames_expected') != count or parameter_count != count or
-                render_count != count or record.get('smplx_missing_detection_frames') or
-                record.get('mano_keyframes_missing_smplx_fit')):
-            raise ValueError('Incomplete fit or missing detection frames: ' + case['annotation_id'])
+        missing = record.get('smplx_missing_detection_frames', [])
+        if (not isinstance(missing, list) or any(type(n) is not int or not 1 <= n <= count for n in missing) or
+                missing != sorted(set(missing)) or type(parameter_count) is not int or
+                record.get('frames_expected') != count or parameter_count != count - len(missing) or
+                render_count != count or record.get('text_verified', '') != '' or
+                record.get('human_approved', False) is not False or
+                record.get('training_ready', False) is not False or
+                record.get('model_training_ready', False) is not False or
+                any(key in record and record[key] != parameter_count for key in ('parameters', 'smplx_parameter_files')) or
+                any(key in record and record[key] != render_count for key in ('renders', 'render_frames'))):
+            raise ValueError('Fit counts, missing frames or candidate flags differ: ' + identifier)
+        expected_mano_missing = sorted(link['frame_1based'] for link in case.get('mano_keyframes', [])
+                                       if link['frame_1based'] in missing)
+        if record.get('mano_keyframes_missing_smplx_fit', []) != expected_mano_missing:
+            raise ValueError('MANO missing-frame report differs: ' + identifier)
+        for key in ('source_id', 'source_sha256', 'label_candidate'):
+            if key in case and record.get(key) != case[key]:
+                raise ValueError('Candidate source mapping differs: ' + identifier)
         log = attempt / 'logs' / (case['annotation_id'] + '.log')
         if not log.is_file() or sha(log) != record.get('log_sha256'):
             raise ValueError('Per-sequence log hash differs: ' + case['annotation_id'])
         fit = attempt / 'fits' / case['annotation_id']
-        if ({path.name for path in (fit / 'smplx').glob('*.npz')} != {f'{i:05d}_0.npz' for i in range(1, count + 1)} or
-                {path.name for path in (fit / 'meta').glob('*.json')} != {f'{i:05d}_0.json' for i in range(1, count + 1)} or
+        present = set(range(1, count + 1)) - set(missing)
+        if ({path.name for path in (fit / 'smplx').glob('*.npz')} != {f'{i:05d}_0.npz' for i in present} or
+                {path.name for path in (fit / 'meta').glob('*.json')} != {f'{i:05d}_0.json' for i in present} or
                 {path.name for path in (fit / 'img').glob('*.jpg')} != {f'{i:06d}.jpg' for i in range(1, count + 1)}):
             raise ValueError('Native/meta/render exact frame sets differ: ' + case['annotation_id'])
-        frame_total += count; parameter_total += count; render_total += count
-    attempt_manifest = verified_manifest(attempt)
-    return {'status': report['status'], 'report_sha256': sha(report_path),
+        inputs = attempt / 'input-frames' / identifier
+        if ((quarantine_missing_detections or inputs.exists()) and
+                {path.name for path in inputs.glob('*.jpg')} != {f'{i:06d}.jpg' for i in range(1, count + 1)}):
+            raise ValueError('Input exact frame set differs: ' + identifier)
+        if missing:
+            if not quarantine_missing_detections:
+                raise ValueError('Incomplete fit or missing detection frames: ' + identifier)
+            quarantined.append({'annotation_id': identifier, 'source_id': case.get('source_id'),
+                'source_sha256': case.get('source_sha256'), 'label_candidate': case.get('label_candidate'),
+                'reason': 'missing_person_detections', 'missing_frames_1based': missing,
+                'frames_expected': count, 'native_frames_present': parameter_count,
+                'feature_extraction_allowed': False, 'missing_frames_filled': False,
+                'text_verified': '', 'human_approved': False, 'training_ready': False,
+                'model_training_ready': False, 'log_sha256': record['log_sha256']})
+        else:
+            complete_count += 1
+            frame_total += count
+        parameter_total += parameter_count; render_total += count
+    report_sha = sha(report_path)
+    for item in quarantined:
+        item.update(chunk=chunk['path'], attempt=attempt.name, report_sha256=report_sha,
+                    attempt_manifest_sha256=attempt_manifest['manifest_sha256'])
+    return {'status': ('smplerx_sequences_accounted_with_quarantined_candidates' if quarantined else report['status']),
+            'runner_report_status': report['status'], 'report_sha256': report_sha,
             'attempt_manifest_sha256': attempt_manifest['manifest_sha256'],
-            'attempt_bytes': attempt_manifest['bytes'], 'sequences': len(cases),
+            'attempt_bytes': attempt_manifest['bytes'], 'sequences': complete_count,
+            'sequences_accounted': len(cases), 'frames_expected': manifest['frames'],
+            'quarantined_candidates': quarantined,
             'frames': frame_total, 'parameter_files': parameter_total,
             'render_frames': render_total, 'training_started': False,
-            'training_ready': False, 'human_approved': False}
+            'training_ready': False, 'model_training_ready': False, 'human_approved': False}
 
 
 def required_free_bytes(frames, reserve_gib=6):
@@ -148,12 +202,47 @@ def required_free_bytes(frames, reserve_gib=6):
 
 
 def active_inference_processes():
-    result = subprocess.run(['ps', '-eo', 'args='], capture_output=True, text=True, check=True)
-    return [line.strip() for line in result.stdout.splitlines()
-            if '/inference.py --num_gpus' in line or 'sign-source-catchup-smplx.py run' in line]
+    result = subprocess.run(['ps', '-eo', 'pid=,args='], capture_output=True, text=True, check=True)
+    active = []
+    for line in result.stdout.splitlines():
+        fields = line.strip().split(None, 1)
+        if len(fields) != 2 or int(fields[0]) == os.getpid():
+            continue
+        if any(name in fields[1] for name in ('inference.py --num_gpus',
+                'sign-source-catchup-smplx.py run', 'sign-smplx-chunk-queue.py')):
+            active.append(line.strip())
+    return active
+
+
+def save_progress(queue_root, state, completed):
+    state['completed'] = [completed[k] for k in sorted(completed)]
+    candidates = [row for item in state['completed'] for row in item['quarantined_candidates']]
+    state.update(chunks_accounted=len(completed),
+                 complete_sequences=sum(row['sequences'] for row in completed.values()),
+                 accounted_sequences=sum(row['sequences_accounted'] for row in completed.values()),
+                 quarantined_sequences=len(candidates),
+                 complete_frames=sum(row['frames'] for row in completed.values()),
+                 native_parameter_frames=sum(row['parameter_files'] for row in completed.values()))
+    write_json(queue_root / 'quarantined-candidates.json', {
+        'schema': 'signbridge-smplx-quarantined-candidates-v1', 'updated_at': now(),
+        'chunk_index_sha256': state['chunk_index_sha256'], 'queue_provenance': state['queue_provenance'],
+        'candidates': candidates, 'training_ready': False, 'model_training_ready': False,
+        'human_approved': False})
+    write_json(queue_root / 'queue-state.json', state)
 
 
 def run_queue(args):
+    output_root = args.output_root.resolve()
+    output_root.mkdir(parents=True, exist_ok=True)
+    with (output_root / '.queue.lock').open('a+') as lock:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError as error:
+            raise ValueError('Another queue owns the output-root lock') from error
+        return run_locked_queue(args)
+
+
+def run_locked_queue(args):
     chunk_root = args.chunk_root.resolve(strict=True)
     index_path = args.chunk_index.resolve(strict=True)
     index, chunks = validate_chunk_index(index_path, chunk_root)
@@ -163,21 +252,26 @@ def run_queue(args):
     output_root = args.output_root.resolve(); queue_root = args.queue_root.resolve()
     queue_root.mkdir(parents=True, exist_ok=True); output_root.mkdir(parents=True, exist_ok=True)
     state_path = queue_root / 'queue-state.json'
+    allow_missing = getattr(args, 'quarantine_missing_detections', False)
+    provenance = {'quarantine_missing_detections': allow_missing,
+                  'queue_tool_sha256': sha(Path(__file__)), 'runner_sha256': sha(runner),
+                  'smplerx_root': str(smplerx), 'python': str(python),
+                  'expected_commit': args.expected_commit, 'reserve_gib': args.reserve_gib}
     if state_path.exists():
         state = read_json(state_path)
-        if state.get('chunk_index_sha256') != sha(index_path) or state.get('model') != args.model:
-            raise ValueError('Queue state is pinned to different chunk/model provenance')
+        if (state.get('schema') != 'signbridge-smplx-candidate-queue-v2' or
+                state.get('chunk_index_sha256') != sha(index_path) or state.get('model') != args.model or
+                state.get('queue_provenance') != provenance):
+            raise ValueError('Queue state is pinned to different chunk/model/policy provenance; use a new queue directory')
     else:
-        state = {'schema': 'signbridge-smplx-candidate-queue-v1', 'created_at': now(),
+        state = {'schema': 'signbridge-smplx-candidate-queue-v2', 'created_at': now(),
                  'chunk_index_sha256': sha(index_path), 'parent_package_sha256': index['parent_package_manifest_sha256'],
                  'chunks_total': len(chunks), 'sequences_total': index['sequence_count'],
                  'frames_total': index['frame_count'], 'model': args.model,
                  'smplerx_commit_expected': args.expected_commit, 'status': 'queued', 'completed': [],
-                 'blocked': None, 'training_started': False, 'training_ready': False, 'human_approved': False}
+                 'blocked': None, 'training_started': False, 'training_ready': False,
+                 'model_training_ready': False, 'human_approved': False, 'queue_provenance': provenance}
         write_json(state_path, state)
-    if state.get('status') == 'completed':
-        print(json.dumps({'status': 'completed', 'chunks': len(state['completed'])}), flush=True)
-        return 0
     if active_inference_processes():
         raise ValueError('Another SMPLer-X inference process is active; queue refuses duplicate launch')
     revision = subprocess.run(['git', 'rev-parse', 'HEAD'], cwd=smplerx,
@@ -187,21 +281,34 @@ def run_queue(args):
     if not (smplerx / 'main/inference.py').is_file():
         raise ValueError('Pinned SMPLer-X inference entry point missing')
     completed = {item['chunk_index_1based']: item for item in state['completed']}
+    if len(completed) != len(state['completed']):
+        raise ValueError('Queue state contains duplicate completed chunks')
     queue_log = queue_root / 'queue-driver.log'
+
+    def audit_attempt(chunk, package, attempt):
+        try:
+            return validate_completed_attempt(chunk, package, attempt, allow_missing)
+        except Exception as error:
+            state.update(status='paused_audit_failure', failed_at=now(), current_chunk=None,
+                         blocked={'chunk': chunk['path'], 'attempt': str(attempt),
+                                  'error': str(error), 'attempt_preserved': True})
+            save_progress(queue_root, state, completed)
+            raise
+
     for chunk in chunks:
         number = chunk['chunk_index_1based']; package = chunk_root / chunk['path']
         attempt = output_root / f"{chunk['path']}-attempt-1"
         if attempt.exists():
-            result = validate_completed_attempt(chunk, package, attempt)
+            result = audit_attempt(chunk, package, attempt)
             old = completed.get(number)
-            if old and old.get('report_sha256') != result['report_sha256']:
+            if old and (old.get('report_sha256') != result['report_sha256'] or
+                        old.get('attempt_manifest_sha256') != result['attempt_manifest_sha256']):
                 raise ValueError('Previously recorded chunk output changed: ' + chunk['path'])
             if not old:
                 completed[number] = {'chunk_index_1based': number, 'chunk': chunk['path'],
                                      'attempt': attempt.name, **result, 'adopted_existing_verified_output': True}
-                state['completed'] = [completed[k] for k in sorted(completed)]
-                state.update(status='running', current_chunk=None)
-                write_json(state_path, state)
+                state.update(status='running', current_chunk=None, blocked=None)
+                save_progress(queue_root, state, completed)
             continue
         if number in completed:
             raise ValueError('Queue state says completed but attempt directory is missing: ' + chunk['path'])
@@ -214,15 +321,13 @@ def run_queue(args):
             state.update(status='paused_low_disk', paused_at=now(), current_chunk=None,
                          blocked={'chunk': chunk['path'], 'free_bytes': free,
                                   'required_free_bytes': reserve, 'attempt_started': False})
-            state['completed'] = [completed[k] for k in sorted(completed)]
-            write_json(state_path, state)
+            save_progress(queue_root, state, completed)
             print(json.dumps({'status': state['status'], 'completed_chunks': len(completed),
                               'blocked': state['blocked']}, ensure_ascii=False), flush=True)
             return 75
         state.update(status='running', current_chunk=chunk['path'],
                      current_chunk_started_at=now(), free_bytes_before_chunk=free, blocked=None)
-        state['completed'] = [completed[k] for k in sorted(completed)]
-        write_json(state_path, state)
+        save_progress(queue_root, state, completed)
         command = [str(python), str(runner), 'run', '--package', str(package),
                    '--smplerx-root', str(smplerx), '--python', str(python),
                    '--model', args.model, '--output', str(attempt)]
@@ -238,29 +343,24 @@ def run_queue(args):
             state.update(status='paused_fit_failure', failed_at=now(), current_chunk=None,
                          blocked={'chunk': chunk['path'], 'attempt': str(attempt),
                                   'exit_code': result_code, 'attempt_preserved': attempt.exists()})
-            write_json(state_path, state)
+            save_progress(queue_root, state, completed)
             print(json.dumps({'status': state['status'], 'blocked': state['blocked']}, ensure_ascii=False), flush=True)
             return result_code
-        try:
-            result = validate_completed_attempt(chunk, package, attempt)
-        except Exception as error:
-            state.update(status='paused_audit_failure', failed_at=now(), current_chunk=None,
-                         blocked={'chunk': chunk['path'], 'attempt': str(attempt),
-                                  'error': str(error), 'attempt_preserved': True})
-            write_json(state_path, state)
-            raise
+        result = audit_attempt(chunk, package, attempt)
         completed[number] = {'chunk_index_1based': number, 'chunk': chunk['path'],
                              'attempt': attempt.name, **result, 'adopted_existing_verified_output': False}
-        state['completed'] = [completed[k] for k in sorted(completed)]
         state.update(status='running', current_chunk=None, last_chunk_completed_at=now())
-        write_json(state_path, state)
+        save_progress(queue_root, state, completed)
         print(json.dumps({'event': 'chunk_verified', 'chunk': chunk['path'],
                           'chunks_completed': len(completed), **result}, ensure_ascii=False), flush=True)
-    state.update(status='completed', finished_at=now(), current_chunk=None, blocked=None,
-                 completed=[completed[k] for k in sorted(completed)])
-    write_json(state_path, state)
-    print(json.dumps({'status': 'completed', 'chunks': len(completed),
+    state.update(status=('completed_with_quarantined_candidates'
+                         if any(row['quarantined_candidates'] for row in completed.values()) else 'completed'),
+                 finished_at=now(), current_chunk=None, blocked=None)
+    save_progress(queue_root, state, completed)
+    print(json.dumps({'status': state['status'], 'chunks': len(completed),
                       'sequences': sum(r['sequences'] for r in completed.values()),
+                      'accounted_sequences': state['accounted_sequences'],
+                      'quarantined_sequences': state['quarantined_sequences'],
                       'frames': sum(r['frames'] for r in completed.values()),
                       'training_started': False, 'training_ready': False}, ensure_ascii=False), flush=True)
     return 0
@@ -273,6 +373,8 @@ def main():
     parser.add_argument('--model', choices=['smpler_x_s32', 'smpler_x_b32', 'smpler_x_l32', 'smpler_x_h32'], default='smpler_x_h32')
     parser.add_argument('--expected-commit', default='064baef0e4ab5277a3297691bc1d46ea5412586f')
     parser.add_argument('--reserve-gib', type=int, default=6)
+    parser.add_argument('--quarantine-missing-detections', action='store_true',
+                        help='Account for verified missing detections separately; never fill or use incomplete motion')
     args = parser.parse_args()
     return run_queue(args)
 

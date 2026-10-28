@@ -145,6 +145,34 @@
 
 本地队列工具 `sign-smplx-chunk-queue.py` 可在 GPU 服务器按 `chunk-index.json` 串行处理各批。默认保留6 GiB系统盘空间，并按帧数增加估算余量；空间不足时在批次边界写入 `paused_low_disk`，不会启动下一批。完成批次要先回传本机并审计，确认副本可恢复后，才清理服务器上的对应新输出以继续腾空间。
 
-当前队列已在 GPU 服务器启动：chunk-001已完成并取回审计，chunk-002正在运行。全队列状态位于远端 `queue/queue-state.json`，每批运行日志追加到 `queue/queue-driver.log`；首批本地独立审计见拟合包 `fitted-results/chunk-001-audit-v2/`。
+V1 队列于北京时间 2026-10-29 00:14 在 chunk-002 审核时暂停：前 48 个候选中，47 个结构完整，“狐狸”候选缺第 48、49 帧。输入对照显示此处淡出并切换演示者，不能用插值补齐，也不应原样重复拟合。旧状态保留在远端 `queue/queue-state.json`，旧日志和两批原生输出不改写。首批本地独立审计见拟合包 `fitted-results/chunk-001-audit-v2/`；第二批归档、完整哈希核验和逐条审核位于 `fitted-results/chunk-002-evidence-20261029T061145+0800/`。
 
 精确重复内容只合并拟合工作，别名表保留不同字幕标签。抽取窗口完全相同却有不同候选标签的片段不能自动选一个语义，也不能丢弃另一文字候选。骨骼结果仍是重建候选，不因拟合成功而语义正确或可进入 Demo。建议每批完成人工动作质量审阅后再决定是否集成。
+
+## V2：显式隔离漏检并续跑（2026-10-29）
+
+`sign-smplx-chunk-queue.py` 默认仍为严格模式。显式添加 `--quarantine-missing-detections` 后，只有报告列出的缺失帧与实际原生参数/元数据缺口完全一致、完整输入和渲染帧集合存在、来源映射及日志/内部哈希一致时，才可将该候选记入独立隔离清单并继续其他批次。它不把不完整序列算作完整动作。
+
+- 缺帧、完整序列数与已处理序列数分别记录。原生参数总数包含保留的部分结果，`complete_frames` 只统计完整序列。
+- 文件损坏、报告计数矛盾、额外人物轨迹、未知候选目录、来源不符、非零运行退出码或低磁盘空间仍会停止调度，不作为漏检放行。
+- 隔离候选逐条记录缺失帧、源视频 SHA256、原报告 SHA256、原生输出清单 SHA256 和日志 SHA256；`feature_extraction_allowed=false`，词义与训练/人工批准状态保持未核准。
+- 新队列使用独立目录，保存 `queue-state.json`、`quarantined-candidates.json` 和日志。状态绑定输入索引、工具/原运行器哈希、模型、解释器、冻结提交和隔离策略；策略改变须用新目录。
+- 相同输出根通过文件锁阻止重复启动，并额外检查其他队列/推理进程。恢复时重新验证已有输出，保持既有结果和失败证据，不自动重试、删除或覆盖它们。
+- 全部批次处理完但仍有隔离候选时，终态为 `completed_with_quarantined_candidates`；这不是所有动作已成功、已核准或可训练。
+
+本次恢复使用新工具位置 `tools/queue-v2/sign-smplx-chunk-queue.py` 和新状态目录 `queue-v2/`，继续使用原 `attempts/`；原 `tools/sign-smplx-chunk-queue.py` 与 `queue/` 留作证据。恢复前再次验证 3 个公共模型/检测资产、9 个身体资产、307 个代码/配置哈希、解释器和依赖版本、CUDA、冻结输入和磁盘。实际预检、启动和运行状态保存到本地 `local-data/word-motion-expansion-20261028-v1/queue-recovery-20261029-v2/` 并另交付桌面副本。
+
+```sh
+/root/autodl-tmp/signbridge/envs/driver/bin/python \
+  /root/signbridge-runs/word-motion-expansion-20261028-v1/tools/queue-v2/sign-smplx-chunk-queue.py \
+  --chunk-root /root/signbridge-runs/word-motion-expansion-20261028-v1/chunks \
+  --chunk-index /root/signbridge-runs/word-motion-expansion-20261028-v1/chunks/chunk-index.json \
+  --runner /root/signbridge-runs/word-motion-expansion-20261028-v1/tools/sign-source-catchup-smplx.py \
+  --smplerx-root /root/autodl-tmp/signbridge/sign-language-gpu-stage-v2/SMPLer-X \
+  --python /root/autodl-tmp/signbridge/envs/smplerx/bin/python \
+  --output-root /root/signbridge-runs/word-motion-expansion-20261028-v1/attempts \
+  --queue-root /root/signbridge-runs/word-motion-expansion-20261028-v1/queue-v2 \
+  --model smpler_x_h32 --reserve-gib 6 --quarantine-missing-detections
+```
+
+该命令仅供核对已授权恢复过程，执行前必须确认没有旧进程，并确保新工具/状态目录的来源符合本次恢复记录；不能在活动队列旁重复执行。独立本机回传与质量审阅仍需另做，调度器不会自动下载或清理。重建不同于语言模型训练，本轮不修改 T08 检查点或接入 Demo。
