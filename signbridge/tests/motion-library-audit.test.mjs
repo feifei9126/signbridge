@@ -70,6 +70,15 @@ test("public motion library contains 14 references, 3 candidates and 83 approved
     library.entries.every((entry) => entry.model_training_ready === false),
   );
   assert.ok(library.entries.every((entry) => entry.metrics.frame_count > 1));
+  assert.equal(
+    library.entries.filter(
+      (entry) =>
+        entry.display_stabilization_profile.includes("recovery-") &&
+        entry.display_stabilization_profile !==
+          "quaternion-temporal-recovery-v1",
+    ).length,
+    5,
+  );
 });
 
 test("motion audit uses shortest rotation arcs for repeated equivalent poses", () => {

@@ -2,7 +2,30 @@
 export const MOTION_SMOOTHING_PROFILE = "quaternion-temporal-v1";
 export const RECOVERY_SMOOTHING_PROFILE = "quaternion-temporal-recovery-v1";
 export const ADAPTIVE_SMOOTHING_PROFILE = "quaternion-temporal-adaptive-v1";
+export const MOTION_DISPLAY_PROFILES = Object.freeze({
+  "quaternion-temporal-recovery-45-10-v1": Object.freeze({
+    armWindowMs: 45,
+    fingerWindowMs: 10,
+  }),
+  "quaternion-temporal-recovery-55-10-v1": Object.freeze({
+    armWindowMs: 55,
+    fingerWindowMs: 10,
+  }),
+  "quaternion-temporal-recovery-65-10-v1": Object.freeze({
+    armWindowMs: 65,
+    fingerWindowMs: 10,
+  }),
+  "quaternion-temporal-recovery-75-10-v1": Object.freeze({
+    armWindowMs: 75,
+    fingerWindowMs: 10,
+  }),
+  "quaternion-temporal-recovery-85-10-v1": Object.freeze({
+    armWindowMs: 85,
+    fingerWindowMs: 10,
+  }),
+});
 export const MOTION_STABILIZATION_PROFILES = Object.freeze({
+  ...MOTION_DISPLAY_PROFILES,
   [ADAPTIVE_SMOOTHING_PROFILE]: Object.freeze({
     strategy: "isolated-spike",
     minimumResidualDegrees: 2,

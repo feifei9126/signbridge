@@ -19,6 +19,12 @@ The result is a display policy, not a semantic approval:
 - `needs_review` uses the stronger `quaternion-temporal-recovery-v1` display policy;
 - `reject` remains unavailable to the runtime until the source is repaired.
 
+Five of the ten `needs_review` fitted clips use narrowly tuned, evidence-backed
+display profiles from the offline window sweep. The other five retain the
+existing recovery profile because no tested window met the fixed wrist/range/
+finger screening gates. This is a runtime display choice only; it does not
+rewrite source poses or create a new human approval.
+
 Smoothing is display-only. It does not fill missing frames, overwrite native fits, or convert motion-quality approval into Chinese Sign Language semantic approval.
 
 ## Build

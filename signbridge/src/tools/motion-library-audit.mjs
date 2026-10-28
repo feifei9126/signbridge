@@ -7,6 +7,31 @@ export const MOTION_STABILITY = Object.freeze({
   REJECT: "reject",
 });
 
+// These five display-only overrides came from the bounded 35-profile offline
+// sweep in local-data/motion-library-quality-review-20261028-v1/window-sweep.json.
+// They are not semantic approvals, source-pose edits, or new human approvals.
+export const MOTION_DISPLAY_OVERRIDES = Object.freeze({
+  "new-2940f3252f6cf6c2-cap-0021": "quaternion-temporal-recovery-85-10-v1",
+  "new-2f7f92954492c2b6-cap-0034": "quaternion-temporal-recovery-45-10-v1",
+  "new-cb8ac953180a2b6e-cap-0025": "quaternion-temporal-recovery-75-10-v1",
+  "new-d437b3c3b3857c1a-cap-0016": "quaternion-temporal-recovery-65-10-v1",
+  "new-fdefdb3258332397-cap-0048": "quaternion-temporal-recovery-55-10-v1",
+});
+
+export function displayProfileForEntry(clip, source, stability) {
+  if (
+    source === "experimental" &&
+    stability === MOTION_STABILITY.NEEDS_REVIEW
+  ) {
+    return (
+      MOTION_DISPLAY_OVERRIDES[clip?.id] || "quaternion-temporal-recovery-v1"
+    );
+  }
+  return stability === MOTION_STABILITY.NEEDS_REVIEW
+    ? "quaternion-temporal-recovery-v1"
+    : "quaternion-temporal-v1";
+}
+
 const SPIKE_THRESHOLD_DEGREES = 8;
 const REVIEW_P95_ADJACENT_DEGREES = 20;
 const REVIEW_MAX_ADJACENT_DEGREES = 120;
@@ -173,10 +198,11 @@ export function analyzeMotionClip(clip, source) {
     frames: clip.frames,
     duration: clip.duration ?? clip.frames / clip.fps,
     stability,
-    display_stabilization_profile:
-      stability === MOTION_STABILITY.NEEDS_REVIEW
-        ? "quaternion-temporal-recovery-v1"
-        : "quaternion-temporal-v1",
+    display_stabilization_profile: displayProfileForEntry(
+      clip,
+      source,
+      stability,
+    ),
     metrics,
     issues,
     training_data_member: clip.training_data_member === true,
