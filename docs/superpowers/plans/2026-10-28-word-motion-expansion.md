@@ -30,3 +30,11 @@ The stage is complete when every available source is accounted for, all identifi
 - Offline UI now separates unconfirmed CSL, regional and fingerspelling scopes. Actual corpus browser QA and synthetic security fixtures remain distinct.
 - Additional CPU visual sidecar accounts for all 2,132 candidates / 6,396 keyframes, preserves uncertain visibility and all approval gates, and retains black-background/face-detector limitations.
 - Final local delivery and source commit follow the last whole-project verification; no GitHub push or model training in this stage.
+
+## Follow-up: exact-content de-duplication and SMPL-X queue
+
+- Added `sign-word-motion-dedupe.py` with tests. 2,132 unique candidate IDs were checked against clip SHA-256; exact duplicate MP4 content is 2,112 fit jobs plus 20 aliases across 16 groups. All labels, source hashes and nominal source windows remain in `aliases.jsonl`; near-duplicates are not automatically discarded.
+- Built and independently validated a master sequence package (2,112 sequences / 265,686 frames) and 88 small packages of at most 24 unique sequences. All 2,112 sequence IDs and 2,132 alias IDs occur exactly once across the chunks. The existing SMPLer-X package validator accepted every chunk.
+- Compared the 16 existing upper-body display-projection arrays by their exact float32 array content; found no byte-identical arrays. This is not a near-motion or semantic comparison.
+- Fit readiness is blocked: the local macOS M4 has no CUDA and the installed fitting Python lacks NumPy; the previously authorized GPU ports 37077 and 26919 both refused connections during this run. A real runner invocation stopped at Python import/preflight before creating output. No fitting or training started.
+- Desktop handoff bundle includes the fit packages, exact tool dependencies and bundle-wide checksums at `/Users/mac/Desktop/手语/SignBridge-骨骼去重拟合包-20261028-v1`. When the authorized GPU server returns, run one new attempt per chunk and verify fit outputs before proceeding.

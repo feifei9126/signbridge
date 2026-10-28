@@ -118,3 +118,29 @@
 ```
 
 浏览器验收覆盖全部 89 页、精确代词检索、三种来源范围、原片首/中/末视频的实际播放、移动端宽度及原生 JSON 访问。数据技术有效、播放可用与手语含义正确是三个分别检验的结论。
+
+## 后续连续骨骼拟合输入
+
+2026-10-28 的全局骨骼拟合运行还没有完成：本机 SMPLer-X 运行器的预检显示 CUDA 不可用、Python 推理依赖缺失；此前已授权的 GPU 服务两个 SSH 端口当前都返回 `connection refused`。因此本轮没有在本机模拟 CUDA、没有安装大模型依赖，也没有声称 2,132 条已经成为骨骼动作。
+
+已用字节级 MP4 SHA-256 将 20 个重复编码片段合并为一次拟合任务，形成 2,112 个独立内容任务，同时保留全部 2,132 个候选标签/来源/原时间窗别名；拟合包共 265,686 帧。未发现既有 16 个上身姿态数组之间的逐值完全重复；相似动作不自动删除。
+
+完整传输包位于 `/Users/mac/Desktop/手语/SignBridge-骨骼去重拟合包-20261028-v1/`，总共 4,774 个已校验文件；用 `BUNDLE-SHA256SUMS` 校验包内所有其它文件。主唯一视频输入位于 `fit-input/`，88 个逐批输入位于 `chunks/`，每批含自己的 SHA256 清单。
+
+输入分为 88 个小批次，每批最多 24 个唯一视频、2,487–3,410 帧，均通过 SMPLer-X 连续帧输入契约校验。已有 200 帧序列实测输出约 16.9 MB，按旧样本比例粗估 3,410 帧批次的拟合渲染/参数约 288 MB；实际大小依分辨率和签者而变，应在 GPU 服务器上确认空闲磁盘并一次只跑一个批次。
+
+服务器恢复后，在 GPU 环境的项目目录按批次运行，例如：
+
+```sh
+/root/autodl-tmp/signbridge/envs/smplerx/bin/python \
+  /root/signbridge-runs/word-motion-expansion-20261028-v1/sign-source-catchup-smplx.py run \
+  --package /root/signbridge-runs/word-motion-expansion-20261028-v1/chunks/chunk-001 \
+  --smplerx-root /root/autodl-tmp/signbridge/sign-language-gpu-stage-v2/SMPLer-X \
+  --python /root/autodl-tmp/signbridge/envs/smplerx/bin/python \
+  --model smpler_x_h32 \
+  --output /root/signbridge-runs/word-motion-expansion-20261028-v1/attempts/chunk-001-attempt-1
+```
+
+每批都应使用独立新输出目录，完成后先核实 `report.json`、原生参数/元数据/渲染、连续帧映射和 `SHA256SUMS`，再取回本机独立目录审计。失败批次保留证据；不要悄悄重跑覆盖。全部批次的完整原生输出预计约 20+ GB（只是按旧片段体积估算，不是实测全量输出），须先确认 GPU 主机的系统盘空间。本机 1.6 TB 空余磁盘不提供 NVIDIA CUDA 运行能力。
+
+精确重复内容只合并拟合工作，别名表保留不同字幕标签。抽取窗口完全相同却有不同候选标签的片段不能自动选一个语义，也不能丢弃另一文字候选。骨骼结果仍是重建候选，不因拟合成功而语义正确或可进入 Demo。建议每批完成人工动作质量审阅后再决定是否集成。
