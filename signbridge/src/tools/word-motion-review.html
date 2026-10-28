@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'self' file:; style-src 'self' file:; img-src 'self' file:; media-src 'self' file:; connect-src 'none'; base-uri 'none'; object-src 'none'; form-action 'none'"
+    />
+    <title data-i18n="wordMotionTitle"></title>
+    <link rel="stylesheet" href="review.css" />
+  </head>
+  <body>
+    <!-- Artifact assembly: copy this file as index.html and this tool's CSS as
+         review.css; bundle word-motion-review.js as an IIFE named review.js.
+         review-data.js must assign globalThis.SIGNBRIDGE_WORD_MOTIONS before it.
+         Keep referenced media beneath the artifact directory. No server needed. -->
+    <main>
+      <header class="page-header">
+        <div>
+          <p class="eyebrow" data-i18n="wordMotionBrand"></p>
+          <h1 data-i18n="wordMotionTitle"></h1>
+          <p class="intro" data-i18n="wordMotionIntro"></p>
+        </div>
+        <div class="language-field">
+          <label
+            for="word-motion-language"
+            data-i18n="wordMotionLanguage"
+          ></label>
+          <select id="word-motion-language">
+            <option value="zh-CN" data-i18n="wordMotionChinese"></option>
+            <option value="en" data-i18n="wordMotionEnglish"></option>
+            <option value="ja" data-i18n="wordMotionJapanese"></option>
+          </select>
+        </div>
+      </header>
+
+      <aside class="notice" aria-labelledby="word-motion-limit-title">
+        <h2 id="word-motion-limit-title" data-i18n="wordMotionUnverified"></h2>
+        <p data-i18n="wordMotionLimits"></p>
+      </aside>
+      <p id="word-motion-data-status" role="status" aria-live="polite"></p>
+
+      <section aria-labelledby="word-motion-summary-title">
+        <h2 id="word-motion-summary-title" data-i18n="wordMotionSummary"></h2>
+        <dl id="word-motion-summary" class="summary-grid"></dl>
+        <p id="word-motion-summary-note" class="muted"></p>
+      </section>
+
+      <section aria-labelledby="word-motion-candidate-title">
+        <h2
+          id="word-motion-candidate-title"
+          data-i18n="wordMotionCandidates"
+        ></h2>
+        <div class="filters">
+          <div class="search-field">
+            <label
+              for="word-motion-search"
+              data-i18n="wordMotionSearch"
+            ></label>
+            <input id="word-motion-search" type="search" autocomplete="off" />
+          </div>
+          <div>
+            <label for="word-motion-kind" data-i18n="wordMotionKind"></label>
+            <select id="word-motion-kind">
+              <option value="all" data-i18n="wordMotionAllEvidence"></option>
+              <option
+                value="native"
+                data-i18n="wordMotionNativeFilter"
+              ></option>
+              <option value="2d" data-i18n="wordMotion2dFilter"></option>
+            </select>
+          </div>
+          <div>
+            <label for="word-motion-batch" data-i18n="wordMotionBatch"></label>
+            <select id="word-motion-batch"></select>
+          </div>
+          <div>
+            <label for="word-motion-scope" data-i18n="wordMotionScope"></label>
+            <select id="word-motion-scope">
+              <option value="all" data-i18n="wordMotionAllScopes"></option>
+              <option
+                value="csl"
+                data-i18n="wordMotionScopeCslUnconfirmed"
+              ></option>
+              <option
+                value="regional"
+                data-i18n="wordMotionScopeRegional"
+              ></option>
+              <option
+                value="fingerspelling"
+                data-i18n="wordMotionScopeFingerspelling"
+              ></option>
+            </select>
+          </div>
+        </div>
+        <fieldset class="focus-words">
+          <legend data-i18n="wordMotionFocus"></legend>
+          <div id="word-motion-focus" class="actions"></div>
+        </fieldset>
+        <p
+          id="word-motion-count"
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+        ></p>
+        <p
+          id="word-motion-empty"
+          class="empty"
+          data-i18n="wordMotionEmpty"
+          hidden
+        ></p>
+        <div id="word-motion-candidates" class="candidate-grid"></div>
+        <nav class="pagination" aria-labelledby="word-motion-candidate-title">
+          <button
+            id="word-motion-previous"
+            type="button"
+            data-i18n="wordMotionPrevious"
+            disabled
+          ></button>
+          <button
+            id="word-motion-next"
+            type="button"
+            data-i18n="wordMotionNext"
+            disabled
+          ></button>
+        </nav>
+      </section>
+
+      <details class="coverage">
+        <summary data-i18n="wordMotionCoverage"></summary>
+        <p data-i18n="wordMotionCoverageHelp"></p>
+        <p
+          id="word-motion-coverage-count"
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+        ></p>
+        <div class="table-scroll">
+          <table>
+            <caption data-i18n="wordMotionCoverageCaption"></caption>
+            <thead>
+              <tr>
+                <th scope="col" data-i18n="wordMotionSourceId"></th>
+                <th scope="col" data-i18n="wordMotionBatch"></th>
+                <th scope="col" data-i18n="wordMotionOriginalPath"></th>
+                <th scope="col" data-i18n="wordMotionSourceStatus"></th>
+                <th scope="col" data-i18n="wordMotionCandidateCount"></th>
+              </tr>
+            </thead>
+            <tbody id="word-motion-coverage-body"></tbody>
+          </table>
+        </div>
+        <div class="pagination">
+          <button
+            id="word-motion-coverage-previous"
+            type="button"
+            data-i18n="wordMotionPrevious"
+            disabled
+          ></button>
+          <button
+            id="word-motion-coverage-next"
+            type="button"
+            data-i18n="wordMotionNext"
+            disabled
+          ></button>
+        </div>
+      </details>
+      <footer data-i18n="wordMotionOffline"></footer>
+    </main>
+    <script src="review-data.js"></script>
+    <script src="review.js"></script>
+  </body>
+</html>
