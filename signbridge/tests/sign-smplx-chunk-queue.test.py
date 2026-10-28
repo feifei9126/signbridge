@@ -116,6 +116,24 @@ class SmplxChunkQueueTests(unittest.TestCase):
             self.assertEqual(queue.sha(attempt / 'SHA256SUMS'), before)
             self.assertFalse((attempt / 'fits/fit-one/smplx/00002_0.npz').exists())
 
+    def test_hash_verified_runner_runtime_evidence_is_not_an_extra_candidate(self):
+        queue = module()
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder); package = root / 'package'; attempt = root / 'attempt'
+            chunk, _ = fixture(queue, package, attempt, missing=(2,))
+            runtime = attempt / 'fits/runtime/fit-one_20261029_060000'
+            runtime.mkdir(parents=True)
+            (runtime / 'config.py').write_text('frozen runtime configuration\n')
+            seal(attempt)
+            result = queue.validate_completed_attempt(
+                chunk, package, attempt, quarantine_missing_detections=True)
+            self.assertEqual(result['sequences_accounted'], 1)
+            self.assertEqual(len(result['quarantined_candidates']), 1)
+            (runtime / 'config.py').write_text('corrupt runtime configuration')
+            with self.assertRaisesRegex(ValueError, 'SHA256'):
+                queue.validate_completed_attempt(
+                    chunk, package, attempt, quarantine_missing_detections=True)
+
     def test_quarantine_never_excuses_hash_or_frame_set_damage(self):
         queue = module()
         mutations = ['hash', 'render', 'input', 'metadata', 'extra_person', 'unreported_gap', 'log']

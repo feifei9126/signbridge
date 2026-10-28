@@ -120,7 +120,9 @@ def validate_completed_attempt(chunk, package, attempt, quarantine_missing_detec
         raise ValueError('Fit report or completed sequence set differs: ' + chunk['path'])
     attempt_manifest = verified_manifest(attempt)
     identifiers = {case['annotation_id'] for case in cases}
-    if {path.name for path in (attempt / 'fits').iterdir() if path.is_dir()} != identifiers:
+    # SMPLer-X also writes manifest-covered configuration/log snapshots here.
+    if {path.name for path in (attempt / 'fits').iterdir()
+            if path.is_dir() and path.name != 'runtime'} != identifiers:
         raise ValueError('Fit candidate directory set differs from input package')
     input_root = attempt / 'input-frames'
     if ((quarantine_missing_detections or input_root.exists()) and
