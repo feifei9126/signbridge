@@ -28,6 +28,7 @@ signbridge_backup_*/
 
 # Local authorized sign videos and derived dataset artifacts
 /local-data/
+.codegraph/
 .venv-sign-data/
 __pycache__/
 
