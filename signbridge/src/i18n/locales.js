@@ -796,6 +796,210 @@ const DEMO_EN = {
   demoWebGL: "3D rendering context unavailable",
 };
 
+const POST_FIT_ZH = {
+  postFitBrand: "SignBridge · 手语研究",
+  postFitTitle: "重建后候选离线复核",
+  postFitIntro:
+    "逐条查看原始片段、精确输入 JPEG 与原生 SMPL-X 渲染。标签与质量标记均仅为候选资料。",
+  postFitLanguage: "界面语言",
+  postFitChinese: "简体中文",
+  postFitEnglish: "English",
+  postFitJapanese: "日本語",
+  postFitCandidateStatus: "仅候选 · 质量待复核",
+  postFitCandidateOnly:
+    "仅候选与质量标记。未经人工、语义或训练批准；不具备训练或模型训练就绪状态。",
+  postFitLimits:
+    "结构与原始旋转筛查不代表人工视觉批准。碰撞、语义质量及人工视觉质量均未评估。缺失检测保留实际渲染图像并隔离，不填充姿势、不插值、不自动批准。",
+  postFitSummary: "候选媒体构建汇总",
+  postFitCandidates: "全部候选",
+  postFitSearch: "搜索候选标签、ID 或来源",
+  postFitQuality: "审计质量标记",
+  postFitAllQuality: "全部质量标记",
+  postFitUnknown: "未知",
+  postFitNoneReported: "审计未报告",
+  postFitQuarantined: "隔离候选 · 仍需复核",
+  postFitReviewFrames: "联系表帧号（从 1 开始，按所列顺序）",
+  postFitMissingDetections: "缺失检测帧号",
+  postFitMetrics: "原始旋转指标（非语义或视觉批准）",
+  postFitMediaLegend:
+    "左：原始输入；右：原生 SMPL-X 渲染。联系表按所列帧顺序；对照视频左侧为原始片段。",
+  postFitContactAlt: "{label} 的候选原始输入与原生渲染联系表",
+  postFitOpenContact: "打开候选联系表",
+  postFitMediaUnavailable:
+    "未提供可安全打开的候选联系表。请查看媒体构建失败记录。",
+  postFitMediaError: "本地候选媒体读取失败。请查看报告与文件完整性。",
+  postFitShowOriginal: "按需打开原始片段（原字节副本）",
+  postFitShowComparison: "按需打开完整并排对照",
+  postFitHideMedia: "关闭此视频",
+  postFitProvenance: "来源、质量标记与媒体失败记录",
+  postFitAnnotation: "标注 ID",
+  postFitChunk: "分块",
+  postFitSource: "来源 ID",
+  postFitSourceHash: "来源 SHA-256（可能不是此片段哈希）",
+  postFitAuditStatus: "审计记录状态",
+  postFitFps: "提供的帧率",
+  postFitExpectedFrames: "预期帧数",
+  postFitProcessedFrames: "已验证对照帧数",
+  postFitClipPath: "原始片段路径",
+  postFitInputDirectory: "原始输入目录",
+  postFitRenderDirectory: "原生渲染目录",
+  postFitFitDirectory: "拟合目录",
+  postFitTechnicalErrors: "审计技术错误",
+  postFitFailures: "媒体构建失败记录",
+  postFitMediaHashes: "媒体 SHA-256",
+  postFitPageCount:
+    "第 {start}–{end} 条，共 {count} 条候选 · 第 {page}/{pages} 页",
+  postFitPrevious: "上一页",
+  postFitNext: "下一页",
+  postFitEmpty: "没有符合当前搜索与质量筛选条件的候选。",
+  postFitTotalCandidates: "审计总候选数",
+  postFitSuccessfulMedia: "已验证媒体文件数",
+  postFitFailedCandidates: "媒体未齐全的候选数",
+  postFitFailureCount: "失败记录数",
+  postFitMissingData:
+    "缺少本地候选数据。请将生成的 review-data.js 保留在此页旁。",
+  postFitOffline:
+    "离线候选复核 · 每页最多 24 条 · 视频仅按需打开 · 不连接网络或写入批准状态。",
+  postFitUnassessedQuality: "碰撞、语义质量、人工视觉质量：均未评估。",
+};
+
+const POST_FIT_EN = {
+  postFitBrand: "SignBridge · Sign language research",
+  postFitTitle: "Post-reconstruction candidate review",
+  postFitIntro:
+    "Inspect every original clip, exact input JPEG and native SMPL-X render offline. Labels and quality flags remain candidate evidence.",
+  postFitLanguage: "Interface language",
+  postFitChinese: "Simplified Chinese",
+  postFitEnglish: "English",
+  postFitJapanese: "Japanese",
+  postFitCandidateStatus: "Candidate only · quality review pending",
+  postFitCandidateOnly:
+    "Candidate and quality flags only. No human, semantic or training approval; neither training-ready nor model-training-ready.",
+  postFitLimits:
+    "Structural and raw rotational screening is not human visual approval. Collision, semantic quality and human visual quality are unassessed. Missing detections retain actual render images in quarantine; no pose filling, interpolation or automatic approval.",
+  postFitSummary: "Candidate media build summary",
+  postFitCandidates: "All candidates",
+  postFitSearch: "Search candidate labels, IDs or sources",
+  postFitQuality: "Audit quality flag",
+  postFitAllQuality: "All quality flags",
+  postFitUnknown: "Unknown",
+  postFitNoneReported: "None reported by the audit",
+  postFitQuarantined: "Quarantined candidate · review pending",
+  postFitReviewFrames: "Contact frame indices (one-based, in listed order)",
+  postFitMissingDetections: "Missing detection frame indices",
+  postFitMetrics: "Raw rotation metrics (not semantic or visual approval)",
+  postFitMediaLegend:
+    "Left: original input. Right: native SMPL-X render. Contact rows follow the listed indices; the comparison video uses the original clip on the left.",
+  postFitContactAlt:
+    "Candidate original input versus native render contact sheet for {label}",
+  postFitOpenContact: "Open candidate contact sheet",
+  postFitMediaUnavailable:
+    "No safe candidate contact sheet is available. Inspect media build failures.",
+  postFitMediaError:
+    "Local candidate media could not load. Check the report and file integrity.",
+  postFitShowOriginal: "Open original clip on demand (byte-for-byte copy)",
+  postFitShowComparison: "Open full side-by-side comparison on demand",
+  postFitHideMedia: "Close this video",
+  postFitProvenance: "Provenance, quality flags and media failures",
+  postFitAnnotation: "Annotation ID",
+  postFitChunk: "Chunk",
+  postFitSource: "Source ID",
+  postFitSourceHash: "Source SHA-256 (may differ from the clip hash)",
+  postFitAuditStatus: "Audit record status",
+  postFitFps: "Provided frame rate",
+  postFitExpectedFrames: "Expected frames",
+  postFitProcessedFrames: "Verified comparison frames",
+  postFitClipPath: "Original clip path",
+  postFitInputDirectory: "Original input directory",
+  postFitRenderDirectory: "Native render directory",
+  postFitFitDirectory: "Fit directory",
+  postFitTechnicalErrors: "Audit technical errors",
+  postFitFailures: "Media build failures",
+  postFitMediaHashes: "Media SHA-256",
+  postFitPageCount: "Candidates {start}–{end} of {count} · page {page}/{pages}",
+  postFitPrevious: "Previous",
+  postFitNext: "Next",
+  postFitEmpty: "No candidates match the current search and quality filter.",
+  postFitTotalCandidates: "Total audit candidates",
+  postFitSuccessfulMedia: "Verified media files",
+  postFitFailedCandidates: "Candidates with incomplete media",
+  postFitFailureCount: "Failure records",
+  postFitMissingData:
+    "Local candidate data is missing. Keep the generated review-data.js beside this page.",
+  postFitOffline:
+    "Offline candidate review · at most 24 per page · videos open on demand · no network or approval-state writes.",
+  postFitUnassessedQuality:
+    "Collision, semantic quality and human visual quality: all unassessed.",
+};
+
+const POST_FIT_JA = {
+  postFitBrand: "SignBridge · 手話研究",
+  postFitTitle: "再構築後の候補のオフライン確認",
+  postFitIntro:
+    "各候補の元動画、正確な入力 JPEG、ネイティブ SMPL-X 描画を確認します。ラベルと品質フラグは候補資料です。",
+  postFitLanguage: "表示言語",
+  postFitChinese: "簡体字中国語",
+  postFitEnglish: "English",
+  postFitJapanese: "日本語",
+  postFitCandidateStatus: "候補のみ · 品質確認待ち",
+  postFitCandidateOnly:
+    "候補と品質フラグのみです。人による確認・意味・学習の承認はなく、学習およびモデル学習の準備完了を示しません。",
+  postFitLimits:
+    "構造と生の回転値の検査は目視による承認ではありません。衝突・意味の品質・人による視覚品質は未評価です。検出欠落は実際の描画画像のまま隔離し、姿勢補完・補間・自動承認は行いません。",
+  postFitSummary: "候補メディア生成の集計",
+  postFitCandidates: "すべての候補",
+  postFitSearch: "候補ラベル・ID・出典を検索",
+  postFitQuality: "監査品質フラグ",
+  postFitAllQuality: "すべての品質フラグ",
+  postFitUnknown: "不明",
+  postFitNoneReported: "監査では報告なし",
+  postFitQuarantined: "隔離候補 · 確認待ち",
+  postFitReviewFrames: "一覧のフレーム番号（1 始まり、記載順）",
+  postFitMissingDetections: "検出欠落フレーム番号",
+  postFitMetrics: "生の回転指標（意味や目視の承認ではありません）",
+  postFitMediaLegend:
+    "左：元の入力。右：ネイティブ SMPL-X 描画。一覧は記載されたフレーム順です。比較動画の左側は元動画です。",
+  postFitContactAlt: "{label} の元入力とネイティブ描画の候補コンタクトシート",
+  postFitOpenContact: "候補コンタクトシートを開く",
+  postFitMediaUnavailable:
+    "安全に開ける候補コンタクトシートがありません。生成失敗の記録を確認してください。",
+  postFitMediaError:
+    "候補メディアを読み込めません。レポートとファイルの整合性を確認してください。",
+  postFitShowOriginal: "元動画を必要時に開く（バイト単位のコピー）",
+  postFitShowComparison: "全フレームの並列比較を必要時に開く",
+  postFitHideMedia: "この動画を閉じる",
+  postFitProvenance: "出典・品質フラグ・メディア生成失敗",
+  postFitAnnotation: "注釈 ID",
+  postFitChunk: "チャンク",
+  postFitSource: "出典 ID",
+  postFitSourceHash: "出典 SHA-256（動画ハッシュと異なる場合があります）",
+  postFitAuditStatus: "監査記録の状態",
+  postFitFps: "指定フレームレート",
+  postFitExpectedFrames: "想定フレーム数",
+  postFitProcessedFrames: "検証済み比較フレーム数",
+  postFitClipPath: "元動画のパス",
+  postFitInputDirectory: "元入力ディレクトリ",
+  postFitRenderDirectory: "ネイティブ描画ディレクトリ",
+  postFitFitDirectory: "フィットディレクトリ",
+  postFitTechnicalErrors: "監査の技術エラー",
+  postFitFailures: "メディア生成失敗",
+  postFitMediaHashes: "メディア SHA-256",
+  postFitPageCount: "候補 {start}–{end} / {count} 件 · {page}/{pages} ページ",
+  postFitPrevious: "前へ",
+  postFitNext: "次へ",
+  postFitEmpty: "現在の検索・品質条件に一致する候補はありません。",
+  postFitTotalCandidates: "監査候補の総数",
+  postFitSuccessfulMedia: "検証済みメディア数",
+  postFitFailedCandidates: "メディア未完備の候補数",
+  postFitFailureCount: "失敗記録数",
+  postFitMissingData:
+    "候補データがありません。生成された review-data.js をこのページと同じ場所に置いてください。",
+  postFitOffline:
+    "オフライン候補確認 · 1 ページ最大 24 件 · 動画は必要時のみ · 通信や承認状態の書き込みはありません。",
+  postFitUnassessedQuality:
+    "衝突・意味の品質・人による視覚品質：すべて未評価。",
+};
+
 const WORD_MOTION_ZH = {
   wordMotionBrand: "SignBridge · 手语动作研究",
   wordMotionTitle: "词语动作候选审阅",
@@ -1073,6 +1277,7 @@ const WORD_MOTION_JA = {
  */
 const LOCALES = {
   "zh-CN": {
+    ...POST_FIT_ZH,
     ...WORD_MOTION_ZH,
     ...DEMO_ZH,
     ...SEMANTIC_ZH,
@@ -1485,6 +1690,7 @@ const LOCALES = {
     },
   },
   en: {
+    ...POST_FIT_EN,
     ...WORD_MOTION_EN,
     ...DEMO_EN,
     ...SEMANTIC_EN,
@@ -1928,6 +2134,7 @@ const LOCALES = {
     },
   },
   ja: {
+    ...POST_FIT_JA,
     ...WORD_MOTION_JA,
     ...DEMO_EN,
     ...SEMANTIC_JA,
