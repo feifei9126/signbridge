@@ -375,8 +375,13 @@ def audit_case(case, chunk, package, attempt, report, record, origins, evidence,
     if attempt is None:
         errors.append("Missing or unsafe attempt")
         return row
+    pre_image_errors = list(errors)
+    input_error_start = len(errors)
     input_dir = image_directory(evidence, attempt, "input-frames/" + str(sid), n, errors)
+    input_errors = errors[input_error_start:]
+    render_error_start = len(errors)
     render_dir = image_directory(evidence, attempt, "fits/" + str(sid) + "/img", n, errors)
+    render_errors = errors[render_error_start:]
     fit = checked(errors, "fit_directory", lambda: contained(attempt, "fits/" + str(sid), directory=True))
     row.update(input_directory=str(input_dir) if input_dir else None,
                render_directory=str(render_dir) if render_dir else None,
@@ -411,8 +416,14 @@ def audit_case(case, chunk, package, attempt, report, record, origins, evidence,
     else:
         source_directory = report.get("_source_root", "") + "/input-frames/" + str(sid)
     params, tracks, native_stems, metadata_stems = {}, {}, set(), set()
-    native_dir = checked(errors, "native_directory", lambda: contained(fit, "smplx", directory=True)) if fit else None
-    meta_dir = checked(errors, "metadata_directory", lambda: contained(fit, "meta", directory=True)) if fit else None
+    native_path = fit / "smplx" if fit else None
+    meta_path = fit / "meta" if fit else None
+    native_missing = native_path is not None and not native_path.exists()
+    meta_missing = meta_path is not None and not meta_path.exists()
+    native_dir = (checked(errors, "native_directory", lambda: contained(fit, "smplx", directory=True))
+                  if fit and not native_missing else None)
+    meta_dir = (checked(errors, "metadata_directory", lambda: contained(fit, "meta", directory=True))
+                if fit and not meta_missing else None)
     if native_dir:
         for file in sorted(native_dir.iterdir()):
             match = re.fullmatch(r"(\d{5})_(\d+)\.npz", file.name)
@@ -445,6 +456,19 @@ def audit_case(case, chunk, package, attempt, report, record, origins, evidence,
     missing = sorted(set(range(1, n + 1)) - set(tracks))
     row["missing_detection_frames"] = missing
     row["native_parameter_files"] = len(native_stems)
+    full_missing_quarantine = (
+        native_missing and meta_missing and missing == list(range(1, n + 1)) and
+        record is not None and record.get("smplx_missing_detection_frames") == missing and
+        not pre_image_errors and
+        input_dir is not None and render_dir is not None and not input_errors and not render_errors and
+        {p.name for p in input_dir.iterdir()} == {f"{i:06d}.jpg" for i in range(1, n + 1)} and
+        {p.name for p in render_dir.iterdir()} == {f"{i:06d}.jpg" for i in range(1, n + 1)}
+    )
+    if not full_missing_quarantine:
+        if native_missing:
+            errors.append("native_directory: missing native SMPL-X directory")
+        if meta_missing:
+            errors.append("metadata_directory: missing metadata directory")
     if any(people != [0] for people in tracks.values()):
         errors.append("Ambiguous multi-person native track")
     if record is None:
@@ -463,6 +487,19 @@ def audit_case(case, chunk, package, attempt, report, record, origins, evidence,
                               ("smplx_missing_detection_frames", missing)):
             if record.get(key) != expected or (type(expected) is int and type(record.get(key)) is not int):
                 errors.append("report_" + key + " differs from physical inventory")
+    # A complete input/render sequence with no native/meta directories and an
+    # exact all-frame missing-detection report is a quarantined full-sequence
+    # miss, not archive corruption. Keep it out of features and promotion, but
+    # do not misclassify the absent native directories as a separate error.
+    full_sequence_missing = (
+        missing == list(range(1, n + 1)) and input_dir is not None and
+        render_dir is not None and native_dir is None and meta_dir is None and
+        not any(error.startswith(("input_", "clip_", "JPEG", "report_", "metadata", "log_"))
+                for error in errors)
+    )
+    if full_sequence_missing:
+        errors[:] = [error for error in errors if not error.startswith((
+            "native_directory:", "metadata_directory:"))]
     if not errors and not missing:
         for name, key, joints in (("body", "smplx_body_pose", 21), ("left_hand", "smplx_lhand_pose", 15),
                                   ("right_hand", "smplx_rhand_pose", 15)):

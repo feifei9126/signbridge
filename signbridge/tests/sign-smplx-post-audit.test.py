@@ -260,6 +260,48 @@ class PostAuditTests(unittest.TestCase):
         self.assertEqual(row["raw_rotation_metrics"], {})
         self.assertFalse((bundle.attempt / "fits/fit_case0/smplx/00002_0.npz").exists())
 
+    def test_full_sequence_missing_detection_without_native_dirs_is_quarantine(self):
+        bundle = Bundle(self.root, missing=(1, 2, 3, 4))
+        fit = bundle.attempt / "fits/fit_case0"
+        shutil.rmtree(fit / "smplx")
+        shutil.rmtree(fit / "meta")
+        bundle.refresh()
+        result, report = bundle.run()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        row = report["records"][0]
+        self.assertEqual(row["quality_tier"], "missing_detections_quarantine")
+        self.assertEqual(row["technical_errors"], [])
+        self.assertEqual(row["missing_detection_frames"], [1, 2, 3, 4])
+        self.assertEqual(row["raw_rotation_metrics"], {})
+        self.assertFalse(row["feature_extraction_allowed"])
+        self.assertFalse(row["missing_frames_filled"])
+
+    def test_full_sequence_missing_detection_still_requires_complete_images(self):
+        bundle = Bundle(self.root, missing=(1, 2, 3, 4))
+        fit = bundle.attempt / "fits/fit_case0"
+        shutil.rmtree(fit / "smplx")
+        shutil.rmtree(fit / "meta")
+        (bundle.attempt / "input-frames/fit_case0/000004.jpg").write_bytes(b"broken")
+        bundle.refresh()
+        result, report = bundle.run()
+        self.assertEqual(result.returncode, 2, result.stderr)
+        self.assertEqual(report["records"][0]["quality_tier"], "technical_error")
+        self.assertIn("JPEG", json.dumps(report["records"][0]["technical_errors"]))
+
+    def test_full_sequence_missing_detection_does_not_hide_clip_hash_errors(self):
+        bundle = Bundle(self.root, missing=(1, 2, 3, 4))
+        fit = bundle.attempt / "fits/fit_case0"
+        shutil.rmtree(fit / "smplx")
+        shutil.rmtree(fit / "meta")
+        bundle.cases[0]["clip_sha256"] = "0" * 64
+        bundle.aliases[0]["candidate_clip_sha256"] = "0" * 64
+        bundle.refresh()
+        result, report = bundle.run()
+        self.assertEqual(result.returncode, 2, result.stderr)
+        row = report["records"][0]
+        self.assertEqual(row["quality_tier"], "technical_error")
+        self.assertIn("clip_sha256", json.dumps(row["technical_errors"]))
+
     def test_false_missing_detection_report_is_technical_error(self):
         bundle = Bundle(self.root, missing=(2,))
         bundle.records[0]["smplx_missing_detection_frames"] = []
