@@ -10,7 +10,7 @@ import json
 from pathlib import Path
 
 
-def snapshot(demo, experimental, output):
+def snapshot(demo, experimental, output, native=None):
     demo, experimental, output = Path(demo).resolve(), Path(experimental).resolve(), Path(output)
     if output.exists():
         raise FileExistsError('Preserve the previous manifest; use a new output')
@@ -23,8 +23,13 @@ def snapshot(demo, experimental, output):
         experimental_paths.append(index['motion_approval']['asset'])
     paths = {'demo': names + [item['image'] for item in research],
              'experimental': experimental_paths}
+    if native is not None:
+        native = Path(native).resolve()
+        native_index = json.loads((native / 'native-index.json').read_text())
+        groups['native'] = {}
+        paths['native'] = ['native-index.json', *[c['asset'] for c in native_index['clips']]]
     for group, files in paths.items():
-        root = demo if group == 'demo' else experimental
+        root = demo if group == 'demo' else native if group == 'native' else experimental
         for name in files:
             path = root / name
             if Path(name).is_absolute() or '..' in Path(name).parts or '\\' in name or path.is_symlink() or not path.resolve().is_relative_to(root):
@@ -46,6 +51,7 @@ if __name__ == '__main__':
     parser.add_argument('--demo', type=Path, required=True)
     parser.add_argument('--experimental', type=Path, required=True)
     parser.add_argument('--output', type=Path, required=True)
+    parser.add_argument('--native', type=Path)
     args = parser.parse_args()
-    value = snapshot(args.demo, args.experimental, args.output)
+    value = snapshot(args.demo, args.experimental, args.output, args.native)
     print(json.dumps({'demo_files': len(value['demo']), 'experimental_files': len(value['experimental']), 'training_ready': False}))

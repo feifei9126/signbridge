@@ -103,7 +103,11 @@ export function resolveBuildProfile(env) {
   const assets = env.SIGNBRIDGE_DEMO_ASSET_DIR;
   const experimental = env.SIGNBRIDGE_DEMO_EXPERIMENTAL_DIR;
   const manifest = env.SIGNBRIDGE_RESEARCH_ASSET_MANIFEST;
-  if (name !== "local-research" && (assets || experimental || manifest))
+  const native = env.SIGNBRIDGE_NATIVE_ASSET_DIR;
+  if (
+    name !== "local-research" &&
+    (assets || experimental || manifest || native)
+  )
     throw new Error("Research asset paths require local-research profile");
   if (
     name === "local-research" &&
@@ -117,10 +121,13 @@ export function resolveBuildProfile(env) {
     throw new Error(
       "local-research requires explicit absolute SIGNBRIDGE_DEMO_ASSET_DIR and SIGNBRIDGE_DEMO_EXPERIMENTAL_DIR and SIGNBRIDGE_RESEARCH_ASSET_MANIFEST",
     );
+  if (native && !isAbsolute(native))
+    throw new Error("Native asset directory must be absolute");
   return {
     name,
     assets: assets || null,
     experimental: experimental || null,
     manifest: manifest || null,
+    native: native || null,
   };
 }

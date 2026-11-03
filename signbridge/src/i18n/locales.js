@@ -1,4 +1,18 @@
 const WORKBENCH_ZH = {
+  nativeMode: "新骨骼候选展示",
+  nativeCatalog:
+    "本轮 {count} 段技术候选；同名动作保留不同版本。候选标签尚未核准。",
+  nativeExactNote: "匹配到完整视频候选；这是标签检索，尚未核准词义。",
+  nativeUnitSources:
+    "组合仅为 Demo 草案，各单元来源：{sources}。新候选与内置单元均未获得本轮语义批准。",
+  nativeModeDescription:
+    "仅使用技术筛选通过的新骨骼候选；基本角色句可混合明确标注的内置单元。词义、词界及中国手语语法未核准。",
+  nativeCount: "新骨骼候选",
+  nativeSource: "原视频拟合 · 技术候选（未核准词义）",
+  nativeWarning:
+    "新库通过人物骨骼数值筛查，仍不保证零抖动或语义正确。候选需主动选择；他/我们等没有新动作时明确使用内置单元。",
+  nativeInvalidAsset: "新骨骼候选资源校验失败",
+  nativeToken: "原视频 SMPL-X 拟合并预编译为人物四元数；未经过新模型训练。",
   optimizationAdaptiveWarning:
     "自适应过滤仅为研究对照：六批95条动作未有片段同时通过抖动、手腕与动作范围数值门槛；不会自动应用。逐条复核前请保留原方案或原始显示。",
   optimizationDisplayProfile: "显示过滤对照",
@@ -59,6 +73,22 @@ const WORKBENCH_ZH = {
   workbenchRunning: "字幕辅助中",
 };
 const WORKBENCH_EN = {
+  nativeMode: "New skeleton candidates",
+  nativeCatalog:
+    "{count} technical candidates; same-label variants retained. Candidate meanings are unverified.",
+  nativeExactNote:
+    "Complete video candidate matched by label; meaning remains unverified.",
+  nativeUnitSources:
+    "Demo draft unit sources: {sources}. No new semantic approval is inferred.",
+  nativeModeDescription:
+    "Technical candidates with bounded role drafts. Authored fallback units are labeled. Meaning, boundaries and CSL grammar remain unverified.",
+  nativeCount: "New skeleton candidates",
+  nativeSource: "Video fit · Technical candidate (meaning unverified)",
+  nativeWarning:
+    "Target-rig numeric checks do not guarantee jitter-free or semantically correct motion. Select candidates explicitly; missing he/we motions use labeled authored units.",
+  nativeInvalidAsset: "Native candidate asset verification failed",
+  nativeToken:
+    "Video SMPL-X fit precompiled to avatar quaternions; no new model training.",
   optimizationAdaptiveWarning:
     "Adaptive filtering is comparison-only: 0 of 95 motions met the combined jitter, wrist and range gate. It is never applied automatically.",
   optimizationDisplayProfile: "Display filter comparison",
@@ -120,6 +150,20 @@ const WORKBENCH_EN = {
   workbenchRunning: "Subtitle assistance active",
 };
 const WORKBENCH_JA = {
+  nativeMode: "新しい骨格候補",
+  nativeCatalog: "技術候補 {count} 件。同名の別動作を保持。語義は未確認です。",
+  nativeExactNote: "ラベルで動画全体の候補を検索しました。語義は未確認です。",
+  nativeUnitSources:
+    "デモ草案の単位ごとの出典：{sources}。意味の承認は行いません。",
+  nativeModeDescription:
+    "数値検査済み候補と限定的な役割表現。内蔵動作は明示。語義、境界、中国手話文法は未確認です。",
+  nativeCount: "新しい骨格候補",
+  nativeSource: "動画フィット・技術候補（語義未確認）",
+  nativeWarning:
+    "骨格の数値検査は揺れの完全除去や意味の正しさを保証しません。候補は明示的に選択し、不足する代名詞は内蔵動作と表示します。",
+  nativeInvalidAsset: "骨格候補の検証に失敗しました",
+  nativeToken:
+    "動画の SMPL-X フィットから人物四元数を事前生成。新しいモデル学習はありません。",
   optimizationAdaptiveWarning:
     "適応型フィルターは比較専用です。95件中、揺れ・手首・動作範囲の基準をすべて満たしたものはありません。自動適用されません。",
   optimizationDisplayProfile: "表示フィルター比較",

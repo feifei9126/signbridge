@@ -89,7 +89,7 @@
             <p id="semantic-gaps"></p>
             <p id="semantic-unknown"></p>
             <ul id="semantic-blockers"></ul>
-            <p data-i18n="cslSources"></p>
+            <p id="semantic-source-note" data-i18n="cslSources"></p>
             <details>
               <summary data-i18n="cslMeaningKey"></summary>
               <pre id="semantic-json"></pre>
@@ -243,6 +243,15 @@
               data-i18n="demoDictionary"
             ></button>
             <button
+              id="native-mode"
+              type="button"
+              class="mode"
+              data-mode="native"
+              aria-pressed="false"
+              data-i18n="nativeMode"
+              hidden
+            ></button>
+            <button
               type="button"
               class="mode"
               data-mode="semantic"
@@ -308,6 +317,10 @@
             <span data-i18n="demoExperimental"></span>
             <strong id="experimental-count">0</strong>
           </div>
+          <div id="native-count-panel" hidden>
+            <span data-i18n="nativeCount"></span
+            ><strong id="native-count">0</strong>
+          </div>
         </div>
         <details id="token-details">
           <summary data-i18n="demoTokens"></summary>
@@ -348,6 +361,7 @@
         <p data-i18n="workbenchScope"></p>
         <p id="candidate-warning" class="candidate-warning"></p>
         <p id="experimental-warning" class="candidate-warning"></p>
+        <p id="native-warning" class="candidate-warning" hidden></p>
       </footer>
     </main>
     <script type="module" src="demo.js"></script>

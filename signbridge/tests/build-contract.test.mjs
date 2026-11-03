@@ -83,6 +83,15 @@ test("public builds never auto-discover ignored research data; local builds requ
     resolveBuildProfile({ SIGNBRIDGE_DEMO_ASSET_DIR: "/private/assets" }),
   );
   assert.throws(() =>
+    resolveBuildProfile({ SIGNBRIDGE_NATIVE_ASSET_DIR: "/private/native" }),
+  );
+  assert.throws(() =>
+    resolveBuildProfile({
+      SIGNBRIDGE_BUILD_PROFILE: "public-motion-demo",
+      SIGNBRIDGE_NATIVE_ASSET_DIR: "/private/native",
+    }),
+  );
+  assert.throws(() =>
     resolveBuildProfile({ SIGNBRIDGE_BUILD_PROFILE: "local-research" }),
   );
   const profile = resolveBuildProfile({
@@ -93,6 +102,17 @@ test("public builds never auto-discover ignored research data; local builds requ
   });
   assert.equal(profile.name, "local-research");
   assert.equal(profile.assets, "/assets");
+  assert.equal(profile.native, null);
+  assert.equal(
+    resolveBuildProfile({
+      SIGNBRIDGE_BUILD_PROFILE: "local-research",
+      SIGNBRIDGE_DEMO_ASSET_DIR: "/assets",
+      SIGNBRIDGE_DEMO_EXPERIMENTAL_DIR: "/fits",
+      SIGNBRIDGE_RESEARCH_ASSET_MANIFEST: "/manifest.json",
+      SIGNBRIDGE_NATIVE_ASSET_DIR: "/native",
+    }).native,
+    "/native",
+  );
 });
 
 test("a failed research preflight preserves the previous output and validates file hashes first", async () => {

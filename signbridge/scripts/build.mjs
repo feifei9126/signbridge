@@ -128,6 +128,7 @@ async function build() {
     [
       profile.assets,
       profile.experimental,
+      profile.native,
       profile.manifest,
       PUBLIC_MOTION_ROOT,
     ].filter(Boolean),
@@ -356,6 +357,7 @@ async function build() {
         model_training_ready: false,
         deployment_ready: false,
         csl_translation_trained: false,
+        native_candidate_count: researchInputs?.native?.clips.length || 0,
         files,
       },
       null,
@@ -498,6 +500,17 @@ async function buildDemo() {
       JSON.stringify({ unavailable: true }),
     );
   }
+  if (researchInputs?.native) {
+    for (const [name, bytes] of researchInputs.fileBytes.native)
+      writeFileSync(dp("demo", name), bytes);
+    console.log(
+      `  ✓ ${researchInputs.native.clips.length} precompiled native candidates (local only)`,
+    );
+  } else
+    writeFileSync(
+      dp("demo/native-index.json"),
+      JSON.stringify({ unavailable: true }),
+    );
   const research = researchInputs?.research || [];
   for (const item of research)
     writeFileSync(

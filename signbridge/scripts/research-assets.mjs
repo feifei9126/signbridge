@@ -11,6 +11,11 @@ import {
   validateExperimentalApprovalRecord,
   validateExperimentalClip,
 } from "../src/demo/experimental-motion.js";
+import {
+  validateNativeIndex,
+  decodeNativeClip,
+  NATIVE_MODEL_SHA256,
+} from "../src/demo/native-motion.js";
 const hash = (bytes) => createHash("sha256").update(bytes).digest("hex");
 
 // This snapshot binds current asset bytes, not historical approvals or training provenance.
@@ -26,20 +31,25 @@ export function readResearchAssets(profile) {
   const manifest = JSON.parse(manifestBytes);
   if (manifest.schema !== "signbridge-research-build-inputs-v1")
     throw new Error("Invalid research build manifest");
-  const consumed = { demo: [], experimental: [] };
-  const fileBytes = { demo: new Map(), experimental: new Map() };
+  const consumed = { demo: [], experimental: [], native: [] };
+  const fileBytes = {
+    demo: new Map(),
+    experimental: new Map(),
+    native: new Map(),
+  };
+  const rootFor = (group) =>
+    group === "demo"
+      ? profile.assets
+      : group === "native"
+        ? profile.native
+        : profile.experimental;
   function read(group, name) {
     if (name.includes("..") || name.startsWith("/") || name.includes("\\"))
       throw new Error("Unsafe research asset path");
-    const path = join(
-      group === "demo" ? profile.assets : profile.experimental,
-      name,
-    );
+    const path = join(rootFor(group), name);
     if (lstatSync(path).isSymbolicLink())
       throw new Error("Research asset symlink rejected");
-    const root = realpathSync(
-      group === "demo" ? profile.assets : profile.experimental,
-    );
+    const root = realpathSync(rootFor(group));
     if (!realpathSync(path).startsWith(root + sep))
       throw new Error("Research asset leaves its root");
     const bytes = readFileSync(path);
@@ -97,7 +107,28 @@ export function readResearchAssets(profile) {
         throw new Error("Approved motion pose digest differs: " + entry.id);
     }
   }
-  for (const group of ["demo", "experimental"]) {
+  let native = null;
+  if (profile.native) {
+    if (lstatSync(profile.native).isSymbolicLink())
+      throw new Error("Native input root symlink rejected");
+    native = validateNativeIndex(
+      JSON.parse(read("native", "native-index.json")),
+    );
+    if (
+      hash(
+        readFileSync(new URL("../src/avatar/model.glb", import.meta.url)),
+      ) !== NATIVE_MODEL_SHA256
+    )
+      throw new Error("Native target model differs");
+    for (const entry of native.clips) {
+      const bytes = read("native", entry.asset);
+      if (hash(bytes) !== entry.sha256)
+        throw new Error("Native compiled digest differs");
+      decodeNativeClip(JSON.parse(bytes), entry);
+    }
+  } else if (Object.keys(manifest.native || {}).length)
+    throw new Error("Native manifest requires explicit local input");
+  for (const group of ["demo", "experimental", "native"]) {
     if (Object.keys(manifest[group] || {}).length !== consumed[group].length)
       throw new Error("Unexpected research manifest entries: " + group);
   }
@@ -107,6 +138,7 @@ export function readResearchAssets(profile) {
     candidates,
     research,
     experimental,
+    native,
     manifestSha256: hash(manifestBytes),
   };
 }

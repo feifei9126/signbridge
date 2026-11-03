@@ -11,6 +11,8 @@ import {
   validateExperimentalIndex,
   experimentalPreviewSample,
 } from "./experimental-motion.js";
+import { validateNativeIndex } from "./native-motion.js";
+import { planNativeText } from "./native-plan.js";
 const locale = new URL(location.href).searchParams.get("lang") || "zh-CN";
 setLocale(locale);
 document.documentElement.lang = locale;
@@ -46,6 +48,8 @@ const status = document.querySelector("#status"),
 let clips = [],
   candidates = [],
   experimental = [],
+  nativeClips = [],
+  selectedNativeId = null,
   availableSources = new Set(),
   model = null,
   candidateModel = null,
@@ -62,6 +66,7 @@ const modeDescriptionKeys = {
   t08: "workbenchModeT08Description",
   dictionary: "workbenchModeDictionaryDescription",
   semantic: "workbenchModeSemanticDescription",
+  native: "nativeModeDescription",
 };
 const setStatus = (key, args = {}) => {
   status.textContent = t(key, args);
@@ -79,9 +84,15 @@ function element(tag, text) {
   return n;
 }
 function refreshPlan() {
-  currentPlan = planDemoText(input.value, mode, playableClips());
+  currentPlan =
+    mode === "native"
+      ? planNativeText(input.value, nativeClips, { nativeId: selectedNativeId })
+      : planDemoText(input.value, mode, playableClips());
   renderSemanticPlan();
   const analysisOnly = mode === "semantic";
+  document.querySelector(".catalog-switch").hidden = mode === "native";
+  document.querySelector("#motion-smoothing").disabled = mode === "native";
+  document.querySelector("#stabilization-profile").disabled = mode === "native";
   document.querySelector("#playback-actions").hidden = analysisOnly;
   document.querySelector("#motion-catalog").hidden = analysisOnly;
   document.querySelector(".coverage").hidden = analysisOnly;
@@ -97,7 +108,9 @@ function refreshPlan() {
   for (const item of currentPlan.items) {
     const span = element("span", item.matchedText);
     span.className = item.source;
-    const candidate = clips.find((clip) => clip.id === item.id);
+    const candidate = [...clips, ...nativeClips].find(
+      (clip) => clip.id === item.id,
+    );
     span.title = sourceLabel(item.source, candidate);
     matches.append(span);
   }
@@ -109,11 +122,17 @@ function refreshPlan() {
       ? t("cslAnalysisOnly")
       : currentPlan.unmatched
         ? t("demoUnknown", { text: currentPlan.unmatched })
-        : currentPlan.route === "bounded_demo_semantic"
-          ? t("demoSemanticPreview")
-          : input.value.trim()
-            ? t("demoAllMatched")
-            : "";
+        : currentPlan.route === "native_exact_candidate"
+          ? t("nativeExactNote")
+          : [
+                "bounded_demo_semantic",
+                "bounded_native_semantic",
+                "native_exact_candidate",
+              ].includes(currentPlan.route)
+            ? t("demoSemanticPreview")
+            : input.value.trim()
+              ? t("demoAllMatched")
+              : "";
   if (currentPlan.truncated) setStatus("demoTooLong");
   else if (currentPlan.items.length === 40) setStatus("demoLimit");
   playButton.disabled =
@@ -122,11 +141,23 @@ function refreshPlan() {
 function renderSemanticPlan() {
   const panel = document.querySelector("#semantic-panel");
   panel.hidden =
-    mode !== "semantic" && currentPlan.route !== "bounded_demo_semantic";
+    mode !== "semantic" &&
+    !["bounded_demo_semantic", "bounded_native_semantic"].includes(
+      currentPlan.route,
+    );
   if (panel.hidden) return;
   const plan = currentPlan;
+  document.querySelector("#semantic-source-note").textContent =
+    plan.route === "bounded_native_semantic"
+      ? t("nativeUnitSources", {
+          sources: plan.draft
+            .map((item) => `${item.surface} (${sourceLabel(item.source)})`)
+            .join(" → "),
+        })
+      : t("cslSources");
   document.querySelector("#semantic-status").textContent =
-    plan.route === "bounded_demo_semantic" && plan.canPreview
+    ["bounded_demo_semantic", "bounded_native_semantic"].includes(plan.route) &&
+    plan.canPreview
       ? t("cslDemoPreviewReady")
       : t("cslAnalysisOnly");
   const list = document.querySelector("#semantic-roles");
@@ -178,6 +209,7 @@ function playableClips() {
   return clips.filter((clip) => availableSources.has(motionSource(clip)));
 }
 function sourceLabel(source, clip, stabilized, presentation) {
+  if (source === "native") return t("nativeSource");
   if (source === "candidate")
     return t("demoCandidateDetail", {
       mse: clip?.normalized_reconstruction_mse?.toFixed(3) || "?",
@@ -214,41 +246,48 @@ function renderCatalog() {
     .toLocaleLowerCase();
   const phrases = buildDemoPhraseCatalog(playableClips());
   const catalog =
-    catalogView === "phrases"
-      ? phrases.filter(
-          (entry) =>
-            mode === "auto" ||
-            mode === "semantic" ||
-            (mode === "t08" && entry.source !== "composition") ||
-            (mode === "dictionary" && entry.source === "composition"),
-        )
-      : mode === "t08"
-        ? []
-        : Object.values(SIGNS).map((c) => ({
-            id: c.id,
-            text: c.gloss,
-            source: "dictionary",
-          }));
+    mode === "native"
+      ? nativeClips.map((c) => ({ id: c.id, text: c.text, source: "native" }))
+      : catalogView === "phrases"
+        ? phrases.filter(
+            (entry) =>
+              mode === "auto" ||
+              mode === "semantic" ||
+              (mode === "t08" && entry.source !== "composition") ||
+              (mode === "dictionary" && entry.source === "composition"),
+          )
+        : mode === "t08"
+          ? []
+          : Object.values(SIGNS).map((c) => ({
+              id: c.id,
+              text: c.gloss,
+              source: "dictionary",
+            }));
   const found = catalog.filter((c) =>
     (c.text + " " + c.id).toLocaleLowerCase().includes(query),
   );
   document.querySelector("#catalog-count").textContent =
     `${found.length} / ${catalog.length}`;
-  document.querySelector("#catalog-note").textContent = !researchDetails.open
-    ? t("workbenchCatalogCount", { count: catalog.length })
-    : catalogView === "phrases"
-      ? t("demoPhraseSourceNote", {
-          total: catalog.length,
-          reference: catalog.filter((entry) => entry.source === "t08").length,
-          candidate: catalog.filter((entry) => entry.source === "candidate")
-            .length,
-          experimental: catalog.filter(
-            (entry) => entry.source === "experimental",
-          ).length,
-          composed: catalog.filter((entry) => entry.source === "composition")
-            .length,
-        })
-      : t("demoWordSourceNote", { count: catalog.length });
+  document.querySelector("#catalog-note").textContent =
+    mode === "native"
+      ? t("nativeCatalog", { count: catalog.length })
+      : !researchDetails.open
+        ? t("workbenchCatalogCount", { count: catalog.length })
+        : catalogView === "phrases"
+          ? t("demoPhraseSourceNote", {
+              total: catalog.length,
+              reference: catalog.filter((entry) => entry.source === "t08")
+                .length,
+              candidate: catalog.filter((entry) => entry.source === "candidate")
+                .length,
+              experimental: catalog.filter(
+                (entry) => entry.source === "experimental",
+              ).length,
+              composed: catalog.filter(
+                (entry) => entry.source === "composition",
+              ).length,
+            })
+          : t("demoWordSourceNote", { count: catalog.length });
   const list = document.querySelector("#catalog-list");
   list.replaceChildren();
   for (const button of document.querySelectorAll("[data-catalog-view]")) {
@@ -265,10 +304,12 @@ function renderCatalog() {
       entry.source,
       clips.find((clip) => clip.id === entry.id),
     );
+    b.dataset.id = entry.id;
     b.addEventListener("click", () => {
-      send("STOP");
+      send("STOP", { preservePose: true });
       resetUi();
       input.value = entry.text;
+      selectedNativeId = entry.source === "native" ? entry.id : null;
       refreshPlan();
       input.focus();
     });
@@ -310,7 +351,10 @@ stopButton.addEventListener("click", () => {
   resetUi();
   setStatus("demoStopped");
 });
-input.addEventListener("input", refreshPlan);
+input.addEventListener("input", () => {
+  selectedNativeId = null;
+  refreshPlan();
+});
 input.addEventListener("keydown", (e) => {
   if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
     e.preventDefault();
@@ -325,9 +369,10 @@ for (const button of document.querySelectorAll("[data-catalog-view]"))
   });
 function selectMode(nextMode) {
   mode = nextMode;
+  selectedNativeId = null;
   if (mode === "auto" || mode === "t08") catalogView = "phrases";
   else if (mode === "dictionary") catalogView = "words";
-  send("STOP");
+  send("STOP", { preservePose: true });
   resetUi();
   for (const n of document.querySelectorAll("[data-mode]")) {
     const selected = n.dataset.mode === mode;
@@ -352,7 +397,7 @@ researchDetails.addEventListener("toggle", (event) => {
   if (
     event.target === researchDetails &&
     !researchDetails.open &&
-    mode !== "auto"
+    !["auto", "native"].includes(mode)
   )
     selectMode("auto");
 });
@@ -417,6 +462,9 @@ window.addEventListener("message", (e) => {
     document.querySelector("#experimental-count").textContent = String(
       message.experimentalCount || 0,
     );
+    document.querySelector("#native-count").textContent = String(
+      message.nativeCount || 0,
+    );
     refreshPlan();
     renderCatalog();
     document.querySelector("#retry").hidden = true;
@@ -439,7 +487,7 @@ window.addEventListener("message", (e) => {
     const sourceBadge = document.querySelector("#source-badge");
     sourceBadge.textContent = sourceLabel(
       message.item.source,
-      clips.find((clip) => clip.id === message.item.id),
+      [...clips, ...nativeClips].find((clip) => clip.id === message.item.id),
       message.item.source === "experimental" ? message.stabilized : undefined,
       message.presentation,
     );
@@ -449,9 +497,11 @@ window.addEventListener("message", (e) => {
     document.querySelector("#tokens").textContent = message.tokens
       ? JSON.stringify(message.tokens, null, 2)
       : t(
-          message.item.source === "experimental"
-            ? "demoExperimentalToken"
-            : "demoDictionaryToken",
+          message.item.source === "native"
+            ? "nativeToken"
+            : message.item.source === "experimental"
+              ? "demoExperimentalToken"
+              : "demoDictionaryToken",
         );
     setStatus("demoPlaying", {
       index: message.itemIndex + 1,
@@ -672,6 +722,26 @@ try {
       : "";
 } catch {
   experimental = [];
+}
+try {
+  const response = await fetch("native-index.json");
+  if (!response.ok) throw new Error("nativeInvalidAsset");
+  const data = await response.json();
+  if (!data.unavailable) nativeClips = validateNativeIndex(data).clips;
+  if (nativeClips.length) {
+    document.querySelector("#native-mode").hidden = false;
+    document.querySelector("#native-count-panel").hidden = false;
+    document.querySelector("#native-warning").hidden = false;
+    document.querySelector("#native-warning").textContent = t("nativeWarning");
+    if (new URL(location.href).searchParams.get("native") !== "0") {
+      researchDetails.open = true;
+      input.value =
+        nativeClips.find((c) => c.text === "我")?.text || nativeClips[0].text;
+      selectMode("native");
+    }
+  }
+} catch {
+  nativeClips = [];
 }
 renderCatalog();
 refreshPlan();

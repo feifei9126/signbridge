@@ -8,7 +8,12 @@ import {
   validateT08CandidateBundle,
 } from "../avatar/reference-motion-asset.js";
 import { createT08Retarget } from "./demo-retarget.js";
-import { frameDelta } from "./demo-playback.js";
+import {
+  frameDelta,
+  transitionAmount,
+  restTransition,
+} from "./demo-playback.js";
+import { validateNativeIndex, createNativeLoader } from "./native-motion.js";
 import {
   MOTION_SMOOTHING_PROFILE,
   ADAPTIVE_SMOOTHING_PROFILE,
@@ -31,6 +36,8 @@ let renderer,
   experimentalIndex,
   experimentalLoader,
   experimentalRetarget,
+  nativeIndex,
+  nativeLoader,
   retarget,
   raf = null,
   ready = false,
@@ -46,7 +53,8 @@ let running = false,
   lastTime = 0,
   track = null,
   duration = 0,
-  requestId = 0;
+  requestId = 0,
+  settling = null;
 const cache = createMotionCache();
 function selectedProfile(clip, source) {
   return profileOverride === "adaptive"
@@ -85,7 +93,10 @@ function stop(reset = true) {
   plan = [];
   track = null;
   itemTime = 0;
-  if (reset) rig?.reset();
+  settling = null;
+  if (reset && rig) {
+    settling = restTransition(rig);
+  }
   notify("STOPPED");
 }
 function setView(view) {
@@ -117,14 +128,37 @@ async function nextItem() {
   if (itemIndex >= plan.length) {
     running = false;
     track = null;
-    rig.reset();
+    settling = restTransition(rig);
     notify("FINISHED");
     return;
   }
   const item = plan[itemIndex];
+  const blendFrom = rig.capture();
   track = null;
   itemTime = 0;
-  if (["t08", "candidate", "experimental"].includes(item.source)) {
+  if (item.source === "native") {
+    const start = performance.now(),
+      cacheHit = nativeLoader?.has(item.id) || false;
+    const loaded = await nativeLoader?.load(item.id);
+    if (disposed || generation !== requestId || !running) return;
+    if (!loaded) throw new Error("nativeInvalidAsset");
+    track = {
+      kind: "native",
+      samples: loaded.frames,
+      fps: loaded.clip.fps,
+      clip: loaded.clip,
+      blendFrom,
+      stabilized: loaded.clip.display_profile !== "raw",
+      stabilizationProfile: loaded.clip.display_profile,
+      stabilizationEnabled: loaded.clip.display_profile !== "raw",
+      performance: {
+        cacheHit,
+        compileMs: performance.now() - start,
+        precompiled: true,
+      },
+    };
+    duration = loaded.clip.frames / loaded.clip.fps;
+  } else if (["t08", "candidate", "experimental"].includes(item.source)) {
     const clip =
       item.source === "experimental"
         ? await experimentalLoader?.load(item.id)
@@ -145,6 +179,7 @@ async function nextItem() {
       },
       fps: clip.fps,
       clip,
+      blendFrom,
       stabilized:
         stabilization &&
         resolveMotionDisplayPolicy(
@@ -197,6 +232,8 @@ function applyAt(time) {
       i = Math.floor(frame),
       j = Math.min(i + 1, track.samples.length - 1);
     rig.interpolate(track.samples[i], track.samples[j], frame - i);
+    if (track.blendFrom && time < 0.18)
+      rig.interpolate(track.blendFrom, rig.capture(), transitionAmount(time));
   } else {
     let idx = track.times.findIndex((t) => time < t);
     if (idx < 0) idx = track.samples.length - 1;
@@ -226,6 +263,15 @@ function tick(time) {
       applyAt(itemTime);
       notify("PROGRESS", { elapsed: itemTime, duration, itemIndex });
     }
+  }
+  if (!running && settling) {
+    settling.time += delta;
+    rig.interpolate(
+      settling.from,
+      settling.to,
+      transitionAmount(settling.time),
+    );
+    if (settling.time >= 0.18) settling = null;
   }
   renderer?.render(scene, camera);
   raf = requestAnimationFrame(tick);
@@ -324,6 +370,17 @@ async function init() {
     } catch (e) {
       notify("ASSET_WARNING", { error: e.message });
     }
+    try {
+      const response = await fetch("native-index.json");
+      if (!response.ok) throw new Error("nativeInvalidAsset");
+      const data = await response.json();
+      if (!data.unavailable) {
+        nativeIndex = validateNativeIndex(data);
+        nativeLoader = createNativeLoader(nativeIndex);
+      }
+    } catch (e) {
+      notify("ASSET_WARNING", { error: e.message });
+    }
     if (disposed) return;
     ready = true;
     notifyReady();
@@ -335,17 +392,21 @@ async function init() {
 }
 function notifyReady() {
   notify("READY", {
-    modelAvailable: Boolean(bundle || candidateBundle || experimentalIndex),
+    modelAvailable: Boolean(
+      bundle || candidateBundle || experimentalIndex || nativeIndex,
+    ),
     sources: [
       bundle && "t08",
       candidateBundle && "candidate",
       experimentalIndex && "experimental",
+      nativeIndex && "native",
     ].filter(Boolean),
     mappedBones:
       retarget?.mappedBones || experimentalRetarget?.mappedBones || 0,
     clipCount: bundle?.clips.length || 0,
     candidateCount: candidateBundle?.clips.length || 0,
     experimentalCount: experimentalIndex?.clips.length || 0,
+    nativeCount: nativeIndex?.clips.length || 0,
   });
 }
 window.addEventListener("message", (ev) => {
@@ -374,14 +435,14 @@ window.addEventListener("message", (ev) => {
       const items = ev.data.items;
       if (!Array.isArray(items) || !items.length || items.length > 40)
         throw new Error("demoInvalidAsset");
-      stop();
+      stop(false);
       plan = items;
       itemIndex = 0;
       running = true;
       paused = false;
       advance();
       lastTime = performance.now();
-    } else if (type === "STOP") stop();
+    } else if (type === "STOP") stop(ev.data.preservePose !== true);
     else if (type === "PAUSE") {
       if (!running) return;
       paused = !paused;
@@ -399,7 +460,7 @@ window.addEventListener("message", (ev) => {
         clipId: track?.clip?.id || null,
         experimentalClip: track?.clip?.experimental === true,
       });
-      if (track?.clip && track.kind !== "dictionary") {
+      if (track?.clip && !["dictionary", "native"].includes(track.kind)) {
         const compiled = compiledSamples(track.clip, track.kind);
         track.samples = compiled.frames;
         track.performance = {
@@ -424,7 +485,7 @@ window.addEventListener("message", (ev) => {
         throw new Error("demoInvalidMode");
       if (stabilization === ev.data.enabled) return;
       stabilization = ev.data.enabled;
-      if (track?.clip && track.kind !== "dictionary") {
+      if (track?.clip && !["dictionary", "native"].includes(track.kind)) {
         const compiled = compiledSamples(track.clip, track.kind);
         track.samples = compiled.frames;
         track.performance = {
@@ -466,6 +527,7 @@ window.addEventListener(
     renderer?.dispose();
     cache.clear();
     experimentalLoader?.clear();
+    nativeLoader?.clear();
   },
   { once: true },
 );
