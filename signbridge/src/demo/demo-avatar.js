@@ -148,6 +148,7 @@ async function nextItem() {
       fps: loaded.clip.fps,
       clip: loaded.clip,
       blendFrom,
+      transitionRest: loaded.clip.repair_method ? restTransition(rig).to : null,
       stabilized: loaded.clip.display_profile !== "raw",
       stabilizationProfile: loaded.clip.display_profile,
       stabilizationEnabled: loaded.clip.display_profile !== "raw",
@@ -157,7 +158,8 @@ async function nextItem() {
         precompiled: true,
       },
     };
-    duration = loaded.clip.frames / loaded.clip.fps;
+    duration =
+      loaded.clip.frames / loaded.clip.fps + (track.transitionRest ? 0.24 : 0);
   } else if (["t08", "candidate", "experimental"].includes(item.source)) {
     const clip =
       item.source === "experimental"
@@ -228,11 +230,27 @@ async function nextItem() {
 }
 function applyAt(time) {
   if (track.kind !== "dictionary") {
-    const frame = Math.min(time * track.fps, track.samples.length - 1),
+    if (track.transitionRest && time < 0.24) {
+      if (time < 0.12)
+        rig.interpolate(
+          track.blendFrom,
+          track.transitionRest,
+          transitionAmount(time, 0.12),
+        );
+      else
+        rig.interpolate(
+          track.transitionRest,
+          track.samples[0],
+          transitionAmount(time - 0.12, 0.12),
+        );
+      return;
+    }
+    const motionTime = track.transitionRest ? Math.max(0, time - 0.24) : time;
+    const frame = Math.min(motionTime * track.fps, track.samples.length - 1),
       i = Math.floor(frame),
       j = Math.min(i + 1, track.samples.length - 1);
     rig.interpolate(track.samples[i], track.samples[j], frame - i);
-    if (track.blendFrom && time < 0.18)
+    if (!track.transitionRest && track.blendFrom && time < 0.18)
       rig.interpolate(track.blendFrom, rig.capture(), transitionAmount(time));
   } else {
     let idx = track.times.findIndex((t) => time < t);

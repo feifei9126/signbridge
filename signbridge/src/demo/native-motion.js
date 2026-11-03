@@ -1,6 +1,7 @@
 import { Quaternion } from "three";
 import { REQUIRED_SIGNING_BONES } from "../avatar/humanoid-rig.js";
 import { MOTION_STABILIZATION_PROFILES } from "./motion-stabilization.js";
+import { REPAIR_PROFILES } from "./motion-repair.js";
 
 export const NATIVE_MODEL_SHA256 =
   "97c3bcc37aeb0212203376ba3e69c4c7346357dcef8e2b626768e96ecfe1dc69";
@@ -50,7 +51,8 @@ function validEntry(c) {
     c.model_sha256 === NATIVE_MODEL_SHA256 &&
     c.numeric_gate_passed === true &&
     (c.display_profile === "raw" ||
-      Object.hasOwn(MOTION_STABILIZATION_PROFILES, c.display_profile))
+      Object.hasOwn(MOTION_STABILIZATION_PROFILES, c.display_profile) ||
+      Object.hasOwn(REPAIR_PROFILES, c.display_profile))
   );
 }
 export function validateNativeIndex(index) {

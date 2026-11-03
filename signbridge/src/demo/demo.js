@@ -728,6 +728,13 @@ try {
   if (!response.ok) throw new Error("nativeInvalidAsset");
   const data = await response.json();
   if (!data.unavailable) nativeClips = validateNativeIndex(data).clips;
+  if (data.repair_version) {
+    document.querySelector("#native-repair-summary").hidden = false;
+    document.querySelector("#native-repair-summary").textContent = t(
+      "nativeRepairSummary",
+      { count: nativeClips.length },
+    );
+  }
   if (nativeClips.length) {
     document.querySelector("#native-mode").hidden = false;
     document.querySelector("#native-count-panel").hidden = false;

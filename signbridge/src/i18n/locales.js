@@ -1,5 +1,7 @@
 const WORKBENCH_ZH = {
   nativeMode: "新骨骼候选展示",
+  nativeRepairSummary:
+    "当前为动作修复版：{count} 段已重做肩臂比例映射、手指去抖与穿插筛查。问题片段已移出；词义仍未核准。",
   nativeCatalog:
     "本轮 {count} 段技术候选；同名动作保留不同版本。候选标签尚未核准。",
   nativeExactNote: "匹配到完整视频候选；这是标签检索，尚未核准词义。",
@@ -74,6 +76,8 @@ const WORKBENCH_ZH = {
 };
 const WORKBENCH_EN = {
   nativeMode: "New skeleton candidates",
+  nativeRepairSummary:
+    "Motion repair build: {count} clips rebuilt with proportion-aware arms, finger denoising and penetration screening. Failed clips excluded; meanings unverified.",
   nativeCatalog:
     "{count} technical candidates; same-label variants retained. Candidate meanings are unverified.",
   nativeExactNote:
@@ -151,6 +155,8 @@ const WORKBENCH_EN = {
 };
 const WORKBENCH_JA = {
   nativeMode: "新しい骨格候補",
+  nativeRepairSummary:
+    "動作修正版：{count} 件の腕の比率、指の揺れ、交差を再検査。問題候補は除外。語義は未確認です。",
   nativeCatalog: "技術候補 {count} 件。同名の別動作を保持。語義は未確認です。",
   nativeExactNote: "ラベルで動画全体の候補を検索しました。語義は未確認です。",
   nativeUnitSources:
