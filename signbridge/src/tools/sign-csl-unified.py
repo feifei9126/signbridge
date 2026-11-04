@@ -22,6 +22,7 @@ base = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(base)
 SCHEMA = 'signbridge-csl-unified-v1'
 INITIAL_SHA = '606880a672338eca766a12a43aff25356bcde6375e848c241ffac5f29a1088fa'
+UNIFIED_INITIAL_SHA = 'eceb74609bb1afb2b6639636542b3cf3092d540fe15f1ef4ebb885e6ad1c5e13'
 ROLE_LABELS = ['O'] + [p + r for r in ['actor', 'predicate', 'patient', 'goal', 'time',
     'negation', 'modal', 'question', 'aspect', 'politeness', 'degree'] for p in ['B-', 'I-']]
 GATES = dict(research_only=True, human_approved=False, training_ready=False,
@@ -138,16 +139,23 @@ def read_initial(root):
     vocab = json.loads(checked(root, 'vocab.json', manifest, consumed)); validate_vocab(vocab)
     report = json.loads(checked(root, 'report.json', manifest, consumed))
     name = meta.get('checkpoint')
-    if (meta.get('schema') != 'signbridge-ce-csl-text-to-gloss-v1' or meta.get('research_only') is not True
-            or not isinstance(name, str) or meta.get('checkpoint_sha256') != INITIAL_SHA
+    expected_sha = {SCHEMA: UNIFIED_INITIAL_SHA, 'signbridge-ce-csl-text-to-gloss-v1': INITIAL_SHA}.get(meta.get('schema'))
+    if (expected_sha is None or meta.get('research_only') is not True
+            or not isinstance(name, str) or meta.get('checkpoint_sha256') != expected_sha
             or report.get('status') != 'completed' or report.get('checkpoint') != name
-            or report.get('checkpoint_sha256') != INITIAL_SHA):
+            or report.get('checkpoint_sha256') != expected_sha):
         raise ValueError('Initial checkpoint/report not bound to pinned digest')
     content = checked(root, name, manifest, consumed)
-    if consumed[name] != INITIAL_SHA:
+    if consumed[name] != expected_sha:
         raise ValueError('Initial checkpoint digest differs')
-    return {'metadata': meta, 'vocab': vocab, 'state': torch.load(io.BytesIO(content), map_location='cpu', weights_only=True),
-            'inputs': consumed, 'source_checkpoint_sha256': INITIAL_SHA}
+    labels = json.loads(checked(root, 'role-labels.json', manifest, consumed)) if meta['schema'] == SCHEMA else None
+    if meta['schema'] == SCHEMA and labels != ROLE_LABELS:
+        raise ValueError('Initial role labels differ')
+    state = torch.load(io.BytesIO(content), map_location='cpu', weights_only=True)
+    if not isinstance(state, dict) or any(not isinstance(v, torch.Tensor) or not torch.isfinite(v).all() for v in state.values()):
+        raise ValueError('Invalid/nonfinite initial parameters')
+    return {'metadata': meta, 'vocab': vocab, 'labels': labels, 'state': state,
+            'inputs': consumed, 'source_checkpoint_sha256': expected_sha}
 
 
 def initialize_model(vocab, labels, initial):
@@ -156,6 +164,11 @@ def initialize_model(vocab, labels, initial):
     if labels != ROLE_LABELS:
         raise ValueError('Invalid role labels')
     model = base.make_model(vocab, initial['metadata']['config'])
+    learned_head = initial['metadata'].get('schema') == SCHEMA
+    if learned_head:
+        if initial.get('labels') != labels:
+            raise ValueError('Initial role labels differ')
+        model.role_head = nn.Linear(initial['metadata']['config']['width'], len(labels))
     old, state = initial['state'], model.state_dict()
     if not isinstance(old, dict) or set(old) != set(state):
         raise ValueError('Initial parameters do not strictly match backbone')
@@ -177,9 +190,11 @@ def initialize_model(vocab, labels, initial):
                 raise ValueError('Initial parameters shape differs: ' + key)
             destination.copy_(source)
     model.load_state_dict(state, strict=True)
-    model.role_head = nn.Linear(initial['metadata']['config']['width'], len(labels))
+    if not learned_head:
+        model.role_head = nn.Linear(initial['metadata']['config']['width'], len(labels))
     info = {'mode': 'weights_only_initialization', 'optimizer_state_restored': False,
-            'source_checkpoint_sha256': initial.get('source_checkpoint_sha256'), 'new_optimizer': 'AdamW'}
+            'source_checkpoint_sha256': initial.get('source_checkpoint_sha256'), 'new_optimizer': 'AdamW',
+            'learned_role_head_restored': learned_head}
     for side in ['source', 'target']:
         info[side + '_tokens_added'] = sorted(set(vocab[side]) - set(initial['vocab'][side]))
         info[side + '_tokens_lost'] = sorted(set(initial['vocab'][side]) - set(vocab[side]))
@@ -415,7 +430,7 @@ def train(args):
         raise
 
 
-def infer(root, text):
+def load_predictor(root):
     import torch
     root = safe_path(root); manifest, consumed = read_manifest(root)
     meta = json.loads(checked(root, 'model.json', manifest, consumed))
@@ -426,6 +441,17 @@ def infer(root, text):
     content = checked(root, meta['checkpoint'], manifest, consumed)
     if consumed[meta['checkpoint']] != meta.get('checkpoint_sha256'):
         raise ValueError('Model checkpoint digest differs')
+    torch.set_num_threads(4)
+    model = base.make_model(vocab, meta['config']); model.role_head = torch.nn.Linear(meta['config']['width'], len(labels))
+    model.load_state_dict(torch.load(io.BytesIO(content), map_location='cpu', weights_only=True), strict=True); model.eval()
+    if any(not torch.isfinite(value).all() for value in model.state_dict().values()):
+        raise ValueError('Nonfinite research model parameters')
+    return meta, vocab, labels, model, consumed
+
+
+def predict_loaded(runtime, text):
+    import torch
+    meta, vocab, labels, model, consumed = runtime
     normalized = base.normalize(text) if isinstance(text, str) else ''
     out = {**GATES, 'schema': SCHEMA, 'status': 'unsupported', 'input': text, 'normalized_text': normalized,
            'gloss_candidate': [], 'roles': {}, 'spans': [], 'raw_tags': [], 'scope': None, 'confidence': None,
@@ -435,9 +461,6 @@ def infer(root, text):
         out['uncertainty'] = ['invalid_or_overlong_text']; return out
     if unseen:
         out['uncertainty'] = ['outside_training_character_support']; return out
-    torch.set_num_threads(4)
-    model = base.make_model(vocab, meta['config']); model.role_head = torch.nn.Linear(meta['config']['width'], len(labels))
-    model.load_state_dict(torch.load(io.BytesIO(content), map_location='cpu', weights_only=True), strict=True); model.eval()
     source, _ = task_batch([{'text': normalized, 'gloss_sequence': []}], 'gloss', vocab, 'cpu')
     with torch.inference_mode():
         tags = model.role_head(model.encode(source)).argmax(-1)[0, 1:len(normalized) + 1].tolist()
@@ -452,6 +475,19 @@ def infer(root, text):
     else:
         out['status'] = 'research_candidate_only'
     return out
+
+
+class ResearchPredictor:
+    """Read-only CPU inference; callers seal and recheck inputs after batch use."""
+    def __init__(self, root):
+        self.runtime = load_predictor(root)
+
+    def predict(self, text):
+        return predict_loaded(self.runtime, text)
+
+
+def infer(root, text):
+    return ResearchPredictor(root).predict(text)
 
 
 def parser():

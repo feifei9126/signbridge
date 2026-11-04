@@ -207,6 +207,40 @@ class ModelTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, 'digest'):
                     m.read_initial(root)
 
+    def test_unified_initialization_preserves_learned_role_head(self):
+        m = self.m; torch = self.torch
+        previous = m.base.make_model(self.vocab, self.config)
+        previous.role_head = torch.nn.Linear(self.config['width'], len(LABELS))
+        initial = {'metadata': {'schema': m.SCHEMA, 'config': self.config}, 'vocab': self.vocab,
+                   'labels': LABELS, 'state': previous.state_dict(), 'source_checkpoint_sha256': 'a' * 64}
+        model, info = m.initialize_model(self.vocab, LABELS, initial)
+        self.assertTrue(info['learned_role_head_restored'])
+        self.assertFalse(info['optimizer_state_restored'])
+        for key, tensor in previous.state_dict().items():
+            self.assertTrue(torch.equal(tensor, model.state_dict()[key]), key)
+
+    def test_known_unified_checkpoint_requires_role_labels_and_completed_report(self):
+        m = self.m; torch = self.torch
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            previous = m.base.make_model(self.vocab, self.config)
+            previous.role_head = torch.nn.Linear(self.config['width'], len(LABELS))
+            torch.save(previous.state_dict(), root / 'selected.pt')
+            digest = m.base.sha(root / 'selected.pt')
+            metadata = {'schema': m.SCHEMA, 'research_only': True, 'config': self.config,
+                        'checkpoint': 'selected.pt', 'checkpoint_sha256': digest}
+            m.base.write_json(root / 'model.json', metadata)
+            m.base.write_json(root / 'vocab.json', self.vocab)
+            m.base.write_json(root / 'role-labels.json', LABELS)
+            m.base.write_json(root / 'report.json', {'status': 'completed', 'checkpoint': 'selected.pt', 'checkpoint_sha256': digest})
+            manifest(m, root)
+            with patch.object(m, 'UNIFIED_INITIAL_SHA', digest):
+                initial = m.read_initial(root)
+                self.assertEqual(initial['labels'], LABELS)
+                m.base.write_json(root / 'role-labels.json', ['O']); manifest(m, root)
+                with self.assertRaisesRegex(ValueError, 'role labels'):
+                    m.read_initial(root)
+
     def test_forward_losses_ignore_role_padding_and_share_encoder_gradients(self):
         m = self.m; torch = self.torch
         initial = {'metadata': {'config': self.config}, 'vocab': self.vocab,
@@ -248,6 +282,12 @@ class ModelTests(unittest.TestCase):
             unknown = m.infer(root, '😀')
             self.assertEqual(unknown['status'], 'unsupported')
             self.assertEqual(unknown['unseen_input_characters'], ['😀'])
+            with patch.object(m.base, 'make_model', wraps=m.base.make_model) as factory:
+                predictor = m.ResearchPredictor(root)
+                self.assertEqual(predictor.predict('我去'), out)
+                self.assertEqual(predictor.predict('😀'), unknown)
+                self.assertEqual(predictor.predict('我去'), out)
+                self.assertEqual(factory.call_count, 1)
             (root / 'vocab.json').write_text('{}')
             with self.assertRaisesRegex(ValueError, 'digest'):
                 m.infer(root, '我去')
