@@ -11,7 +11,7 @@ export function validateCoreManifest(data, index) {
     !digest.test(data.alignment_sha256) ||
     !Array.isArray(data.units) ||
     data.units.length < 1 ||
-    data.units.length > 20 ||
+    data.units.length > 50 ||
     !Object.entries(NATIVE_FLAGS).every(([k, v]) => data[k] === v)
   )
     fail();

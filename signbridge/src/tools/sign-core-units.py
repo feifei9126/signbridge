@@ -72,6 +72,26 @@ def label_support(label, lines):
     return False
 
 
+def read_proposals(path=None):
+    if path is None:
+        return [dict(zip(('key','text','identity','start','end','role','note'), row)) for row in PROPOSALS]
+    value=json.loads(Path(path).read_text())
+    rows=value.get('units')
+    if value.get('schema')!='signbridge-core-proposals-v1' or not isinstance(rows,list) or not 1<=len(rows)<=50:
+        raise ValueError('Explicit core proposals must contain 1..50 units')
+    keys,texts=set(),set()
+    for row in rows:
+        if (not isinstance(row,dict) or set(row)!=set(('key','text','identity','start','end','role','note')) or
+            not isinstance(row['key'],str) or re.fullmatch('[a-z]+',row['key']) is None or
+            row['key'] in keys or not isinstance(row['text'],str) or not row['text'].strip() or row['text'] in texts or
+            not isinstance(row['identity'],str) or re.fullmatch('[a-f0-9]{32}',row['identity']) is None or
+            type(row['start']) is not int or type(row['end']) is not int or row['start']<1 or row['end']-row['start']+1<4 or
+            row['role'] not in ('person','predicate','noun','absence') or not isinstance(row['note'],str) or not row['note'].strip()):
+            raise ValueError('Invalid/duplicate proposed candidate unit')
+        keys.add(row['key']);texts.add(row['text'])
+    return rows
+
+
 def slice_clip(clip, proposal, source_sha):
     for field, expected in FLAGS.items():
         if clip.get(field) != expected:
@@ -98,7 +118,7 @@ def slice_clip(clip, proposal, source_sha):
     return result
 
 
-def build(repaired, technical, evidence, output):
+def build(repaired, technical, evidence, output, proposals=None):
     repaired, technical, evidence = (Path(p).resolve() for p in (repaired, technical, evidence))
     output = Path(output).absolute()
     if output.exists() or any(output.resolve().is_relative_to(p) for p in (repaired, technical, evidence)):
@@ -114,7 +134,9 @@ def build(repaired, technical, evidence, output):
     (output / 'native').mkdir()
     (output / 'core-evidence').mkdir()
     clips, units, pages = [], [], []
-    for key, text, identity, start, end, role, note in PROPOSALS:
+    proposal_rows=read_proposals(proposals)
+    for spec in proposal_rows:
+        key,text,identity,start,end,role,note=(spec[k] for k in ('key','text','identity','start','end','role','note'))
         source_id = 'native_fit_' + identity
         entry = entries[source_id]
         source_asset = repaired / entry['asset']
@@ -212,6 +234,7 @@ def build(repaired, technical, evidence, output):
                  'parent_index_sha256': sha(repaired / 'native-index.json'), 'human_review_required_for_language_approval': True, **FLAGS}
     write_json(output / 'core-alignment.json', alignment)
     core_manifest = {'schema': 'signbridge-core-motion-v1', 'native_index_sha256': sha(output / 'native-index.json'),
+                     'proposal_sha256':sha(proposals) if proposals is not None else None,
                      'alignment_sha256': sha(output / 'core-alignment.json'),
                      'units': [{key: unit[key] for key in ('id', 'key', 'text', 'role', 'frames', 'fps', 'source_uid',
                                                          'source_frame_range_1based', 'parent_native_id', 'parent_asset_sha256')}
@@ -224,7 +247,7 @@ def build(repaired, technical, evidence, output):
                'human_approved': False, 'training_ready': False} for c in index['clips']]
     write_json(output / 'coverage-ledger.json', {'records': ledger, 'total': len(ledger),
                'selected': len(units), 'research_only': len(ledger)-len(units), 'excluded_label_reasons': EXCLUDED, **FLAGS})
-    (output / 'alignment.html').write_text('<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>核心候选原片对齐</title><style>body{font:16px system-ui;margin:28px;background:#f6f5ef}article{background:white;padding:20px;margin:24px 0;border:1px solid #cdd8d4}img{max-width:100%}video{width:320px;max-width:100%}</style><h1>17个核心候选：原片、帧区间和骨骼来源</h1><p>这是助手核对后的候选对齐记录；未授予人工语义批准，没有模型训练。</p>'+''.join(pages)+'</html>', encoding='utf-8')
+    (output / 'alignment.html').write_text('<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>核心候选原片对齐</title><style>body{font:16px system-ui;margin:28px;background:#f6f5ef}article{background:white;padding:20px;margin:24px 0;border:1px solid #cdd8d4}img{max-width:100%}video{width:320px;max-width:100%}</style><h1>'+str(len(units))+'个核心候选：原片、帧区间和骨骼来源</h1><p>这是助手核对后的候选对齐记录；未授予人工语义批准，没有模型训练。</p>'+''.join(pages)+'</html>', encoding='utf-8')
     core_manifest['evidence_files'] = {p.relative_to(output).as_posix(): sha(p) for p in sorted(output.rglob('*'))
                                        if p.is_file() and (p.is_relative_to(output / 'core-evidence') or p.name in
                                                            ('core-alignment.json', 'coverage-ledger.json', 'alignment.html'))}
@@ -240,5 +263,6 @@ if __name__ == '__main__':
     parser.add_argument('--technical', required=True)
     parser.add_argument('--evidence', required=True)
     parser.add_argument('--output', required=True)
+    parser.add_argument('--proposals')
     args = parser.parse_args()
-    build(args.repaired, args.technical, args.evidence, args.output)
+    build(args.repaired, args.technical, args.evidence, args.output,args.proposals)

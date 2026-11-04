@@ -14,7 +14,10 @@ const core = JSON.parse(await readFile(join(root, "demo/core-manifest.json"))),
   build = JSON.parse(await readFile(join(root, "BUILD.json")));
 assert.equal(build.core_unit_count, core.units.length);
 const fixture = JSON.parse(
-  await readFile(new URL("./fixtures/core-sentence-v1.json", import.meta.url)),
+  await readFile(
+    process.env.SIGNBRIDGE_CORE_QA_FIXTURE ||
+      new URL("./fixtures/core-sentence-v1.json", import.meta.url),
+  ),
 );
 const report = {
   status: "running",
@@ -120,6 +123,26 @@ try {
   report.checks.push(
     "default core catalog is separate from repaired research candidates and old T08/83 fits",
   );
+  if (process.env.SIGNBRIDGE_CORE_QA_DAILY === "1") {
+    assert.equal(
+      await page.locator('#core-samples [data-scenario="playable"]').count(),
+      10,
+    );
+    assert.equal(
+      await page.locator('#core-samples [data-scenario="gap"]').count(),
+      3,
+    );
+    for (const button of await page.locator("#core-samples button").all()) {
+      const kind = await button.getAttribute("data-scenario"),
+        text = await button.innerText();
+      await button.click();
+      assert.equal(await page.locator("#input").inputValue(), text);
+      assert.equal(await page.locator("#play").isDisabled(), kind === "gap");
+    }
+    report.checks.push(
+      "all ten frozen daily scenario cards and three explicit-gap cards match their display policy",
+    );
+  }
   await page.locator("#speed").selectOption("1.5");
   for (const unit of core.units) {
     await page.locator(`#catalog-list button[data-id="${unit.id}"]`).click();
@@ -154,6 +177,13 @@ try {
       finished: true,
       event: events[0],
     });
+    if (report.coreUnits.length % 10 === 0)
+      console.log(
+        JSON.stringify({
+          unitsFinished: report.coreUnits.length,
+          total: core.units.length,
+        }),
+      );
   }
   for (const test of fixture.cases.filter((c) => c.play)) {
     await page.locator("#input").fill(test.text);
@@ -169,6 +199,10 @@ try {
       })),
       finished: true,
     });
+    if (report.sentences.length % 10 === 0)
+      console.log(
+        JSON.stringify({ sentencesFinished: report.sentences.length }),
+      );
   }
   for (const test of fixture.cases.filter((c) => !c.play)) {
     await page.locator("#input").fill(test.text);
@@ -253,7 +287,10 @@ try {
   await page.locator('[data-mode="native"]').click();
   assert.equal(await page.locator("#catalog-list button").count(), 151);
   await page.locator("#return-core").click();
-  assert.equal(await page.locator("#catalog-list button").count(), 17);
+  assert.equal(
+    await page.locator("#catalog-list button").count(),
+    core.units.length,
+  );
   report.checks.push(
     "research dictionary remains explicit; closing research returns to core; full 151 candidates stay available only as research",
   );

@@ -15,6 +15,7 @@ import { validateNativeIndex } from "./native-motion.js";
 import { planNativeText } from "./native-plan.js";
 import { planCoreText } from "./core-plan.js";
 import { readCoreManifest } from "./core-motion.js";
+import { buildCoreScenario } from "./core-scenario.js";
 const locale = new URL(location.href).searchParams.get("lang") || "zh-CN";
 setLocale(locale);
 document.documentElement.lang = locale;
@@ -897,9 +898,22 @@ try {
       document.querySelector("#core-count").textContent = t("coreCount", {
         count: coreManifest.units.length,
       });
-      for (const text of ["我工作", "你健康", "我开车", "我没有家", "我帮你"]) {
+      const scenario = buildCoreScenario(coreManifest);
+      document.querySelector("#core-scene-title").hidden = false;
+      document.querySelector("#core-scene-title").textContent = t(
+        scenario.titleKey,
+      );
+      for (const example of [
+        ...scenario.examples.filter((e) => e.plan.canPreview),
+        ...scenario.gaps,
+      ]) {
+        const text = example.text;
         const button = element("button", text);
         button.type = "button";
+        button.dataset.scenario = example.plan.canPreview ? "playable" : "gap";
+        button.title = t(
+          example.plan.canPreview ? "coreScenePlayable" : "coreSceneGap",
+        );
         button.addEventListener("click", () => {
           input.value = text;
           selectMode("core");

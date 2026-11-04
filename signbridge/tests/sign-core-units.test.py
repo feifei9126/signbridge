@@ -42,6 +42,17 @@ class CoreUnitsTests(unittest.TestCase):
         self.assertTrue(self.api.label_support('家', ['家（房子）']))
         self.assertFalse(self.api.label_support('谢', ['手语：好啊，谢谢，不客气']))
 
+    def test_explicit_proposals_preserve_scope_and_refuse_renaming_duplicate_or_approval(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            p=Path(tmp)/'proposals.json'
+            row={'key':'scarf','text':'围巾','identity':'a'*32,'start':20,'end':70,'role':'noun','note':'原片围巾完整示范候选'}
+            p.write_text(json.dumps({'schema':'signbridge-core-proposals-v1','units':[row]}))
+            self.assertEqual(self.api.read_proposals(p),[row])
+            for units in [[row,row],[{**row,'key':'../path'}],[{**row,'start':True}],[{**row,'human_approved':True}],[{**row,'note':''}]]:
+                p.write_text(json.dumps({'schema':'signbridge-core-proposals-v1','units':units}))
+                with self.assertRaises(ValueError):self.api.read_proposals(p)
+
+
 
 if __name__ == '__main__':
     unittest.main()

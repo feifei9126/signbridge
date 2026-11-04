@@ -6,6 +6,36 @@ const key = (value) =>
     .trim()
     .replace(/[。.!！]+$/u, "");
 const unique = (values) => [...new Set(values)];
+const eventPredicates = [
+  "工作",
+  "健康",
+  "放松",
+  "开车",
+  "跑步",
+  "洗澡",
+  "回家",
+  "听",
+];
+const possessibleObjects = new Set([
+  "家",
+  "衣服",
+  "裤子",
+  "鞋",
+  "饮料",
+  "香蕉",
+  "梨",
+  "围巾",
+  "帽子",
+  "夹克",
+  "袜子",
+  "大米",
+  "醋",
+  "照片",
+  "香瓜",
+  "腊肠",
+  "味精",
+  "耳环",
+]);
 export function planCoreText(input, manifest) {
   const text = String(input),
     body = key(text),
@@ -66,7 +96,9 @@ export function planCoreText(input, manifest) {
         actor === "我" ? "speaker" : actor === "你" ? "addressee" : actor,
       );
       const absence = tail.match(/^(没有|有)(.+)$/u);
-      const negated = tail.match(/^(不)?(工作|健康|放松|开车)$/u);
+      const negated = tail.match(
+        new RegExp(`^(不)?(${eventPredicates.join("|")})$`, "u"),
+      );
       const directional = tail.match(
         new RegExp(`^(帮助|帮)(${participants})$`, "u"),
       );
@@ -78,8 +110,7 @@ export function planCoreText(input, manifest) {
         else add(operator, "predicate", "have");
         meaning.predicate = { surface: "有", concept: "have", kind: "have" };
         meaning.patient = add(object, "patient");
-        if (["工作", "帮助", "开车", "放松"].includes(object))
-          issues.push("ambiguous_scope");
+        if (!possessibleObjects.has(object)) issues.push("ambiguous_scope");
       } else if (negated) {
         if (negated[1]) meaning.negation = add("不", "negation", "negation");
         meaning.predicate = add(

@@ -1,4 +1,7 @@
 const WORKBENCH_ZH = {
+  coreScenarioTitle: "日常生活与出行 · 固定场景演示",
+  coreScenePlayable: "有核心动作支持的有限中文表达草案",
+  coreSceneGap: "缺词或方向未确认：仅查看解析，不播放",
   coreReturn: "核心演示",
   coreCount: "{count} 个原片对齐候选单元",
   coreScope:
@@ -98,6 +101,10 @@ const WORKBENCH_ZH = {
   workbenchRunning: "字幕辅助中",
 };
 const WORKBENCH_EN = {
+  coreScenarioTitle: "Daily life and travel · Frozen scenario demo",
+  coreScenePlayable: "Bounded Chinese draft with core motion support",
+  coreSceneGap:
+    "Missing motion or unverified direction: analysis only, no playback",
   coreReturn: "Core demo",
   coreCount: "{count} source-aligned candidate units",
   coreScope:
@@ -207,6 +214,9 @@ const WORKBENCH_EN = {
   workbenchRunning: "Subtitle assistance active",
 };
 const WORKBENCH_JA = {
+  coreScenarioTitle: "日常生活と移動・固定シナリオデモ",
+  coreScenePlayable: "コア動作に対応した限定的な中国語表現の草案",
+  coreSceneGap: "動作不足または方向未確認。解析のみで再生しません",
   coreReturn: "コアデモ",
   coreCount: "原動画対応の候補 {count} 単位",
   coreScope:

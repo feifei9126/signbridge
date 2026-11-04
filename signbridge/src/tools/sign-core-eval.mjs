@@ -64,13 +64,18 @@ if (
   resolve(process.argv[1]) === fileURLToPath(import.meta.url)
 ) {
   const { values } = parseArgs({
-    options: { manifest: { type: "string" }, output: { type: "string" } },
+    options: {
+      manifest: { type: "string" },
+      output: { type: "string" },
+      fixture: { type: "string" },
+    },
   });
   if (!values.manifest || !values.output || existsSync(values.output))
     throw new Error("Provide manifest and NEW output JSON");
   const bytes = readFileSync(values.manifest),
     fixtureBytes = readFileSync(
-      new URL("../../tests/fixtures/core-sentence-v1.json", import.meta.url),
+      values.fixture ||
+        new URL("../../tests/fixtures/core-sentence-v1.json", import.meta.url),
     );
   const r = evaluateCoreCases(JSON.parse(bytes), JSON.parse(fixtureBytes));
   r.manifest_sha256 = createHash("sha256").update(bytes).digest("hex");
