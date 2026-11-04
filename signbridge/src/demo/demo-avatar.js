@@ -424,7 +424,8 @@ function notifyReady() {
     clipCount: bundle?.clips.length || 0,
     candidateCount: candidateBundle?.clips.length || 0,
     experimentalCount: experimentalIndex?.clips.length || 0,
-    nativeCount: nativeIndex?.clips.length || 0,
+    nativeCount: nativeIndex?.clips.filter((c) => !c.core_unit_key).length || 0,
+    coreCount: nativeIndex?.clips.filter((c) => c.core_unit_key).length || 0,
   });
 }
 window.addEventListener("message", (ev) => {

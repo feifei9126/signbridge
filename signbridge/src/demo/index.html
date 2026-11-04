@@ -35,6 +35,12 @@
           id="open-research"
         ></a>
       </nav>
+      <section id="core-toolbar" class="routing-note" hidden>
+        <button id="return-core" type="button" data-i18n="coreReturn"></button>
+        <strong id="core-count"></strong>
+        <p id="core-scope" role="status"></p>
+        <div id="core-samples" class="match-list"></div>
+      </section>
       <div class="workspace">
         <section class="composer" aria-labelledby="input-title">
           <h2 id="input-title" data-i18n="demoInput"></h2>
@@ -74,6 +80,10 @@
             <div id="matches" class="match-list"></div>
             <p id="unknown" class="unknown"></p>
           </div>
+          <section id="core-evidence-panel" class="routing-note" hidden>
+            <h3 data-i18n="coreEvidenceHeading"></h3>
+            <div id="core-evidence-list"></div>
+          </section>
           <section
             id="native-repair-summary"
             class="routing-note"
@@ -247,6 +257,15 @@
               data-mode="dictionary"
               aria-pressed="false"
               data-i18n="demoDictionary"
+            ></button>
+            <button
+              id="core-mode"
+              type="button"
+              class="mode"
+              data-mode="core"
+              aria-pressed="false"
+              data-i18n="coreReturn"
+              hidden
             ></button>
             <button
               id="native-mode"

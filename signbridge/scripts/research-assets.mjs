@@ -16,6 +16,7 @@ import {
   decodeNativeClip,
   NATIVE_MODEL_SHA256,
 } from "../src/demo/native-motion.js";
+import { validateCoreManifest } from "../src/demo/core-motion.js";
 const hash = (bytes) => createHash("sha256").update(bytes).digest("hex");
 
 // This snapshot binds current asset bytes, not historical approvals or training provenance.
@@ -107,7 +108,8 @@ export function readResearchAssets(profile) {
         throw new Error("Approved motion pose digest differs: " + entry.id);
     }
   }
-  let native = null;
+  let native = null,
+    core = null;
   if (profile.native) {
     if (lstatSync(profile.native).isSymbolicLink())
       throw new Error("Native input root symlink rejected");
@@ -126,6 +128,30 @@ export function readResearchAssets(profile) {
         throw new Error("Native compiled digest differs");
       decodeNativeClip(JSON.parse(bytes), entry);
     }
+    if (native.core_version) {
+      const bytes = read("native", "core-manifest.json");
+      core = validateCoreManifest(JSON.parse(bytes), native);
+      if (
+        core.native_index_sha256 !==
+        hash(fileBytes.native.get("native-index.json"))
+      )
+        throw new Error("Core native index digest differs");
+      if (
+        !core.evidence_files ||
+        typeof core.evidence_files !== "object" ||
+        core.evidence_files["core-alignment.json"] !== core.alignment_sha256
+      )
+        throw new Error("Core alignment contract differs");
+      for (const [name, digest] of Object.entries(core.evidence_files)) {
+        if (
+          !/^(core-evidence\/[a-z]+\/(original\.mp4|source-contact\.jpg|alignment\.json)|core-alignment\.json|coverage-ledger\.json|alignment\.html)$/.test(
+            name,
+          ) ||
+          hash(read("native", name)) !== digest
+        )
+          throw new Error("Core evidence digest/path differs");
+      }
+    }
   } else if (Object.keys(manifest.native || {}).length)
     throw new Error("Native manifest requires explicit local input");
   for (const group of ["demo", "experimental", "native"]) {
@@ -139,6 +165,7 @@ export function readResearchAssets(profile) {
     research,
     experimental,
     native,
+    core,
     manifestSha256: hash(manifestBytes),
   };
 }

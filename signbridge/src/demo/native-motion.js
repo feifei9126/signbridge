@@ -102,6 +102,31 @@ export function decodeNativeClip(clip, entry) {
     clip.quaternions?.length !== clip.frames
   )
     invalid();
+  if (entry.core_unit_key !== undefined) {
+    const fields = [
+      "core_unit_key",
+      "lexical_role",
+      "parent_native_id",
+      "parent_asset_sha256",
+      "boundary_status",
+      "semantics_status",
+    ];
+    const range = entry.source_frame_range_1based;
+    if (
+      !fields.every((k) => clip[k] === entry[k]) ||
+      !Array.isArray(range) ||
+      range.length !== 2 ||
+      !range.every(Number.isInteger) ||
+      range[1] - range[0] + 1 !== clip.frames ||
+      JSON.stringify(clip.source_frame_range_1based) !==
+        JSON.stringify(range) ||
+      JSON.stringify(clip.source_frame_ids_1based) !==
+        JSON.stringify(
+          Array.from({ length: clip.frames }, (_, i) => range[0] + i),
+        )
+    )
+      invalid();
+  }
   return clip.quaternions.map((values) => {
     if (
       !Array.isArray(values) ||

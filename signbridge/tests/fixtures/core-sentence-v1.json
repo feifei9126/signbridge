@@ -1,0 +1,171 @@
+{
+  "schema": "signbridge-core-chinese-contrast-v1",
+  "supervision": "assistant_synthetic_chinese_test_cases_not_CSL_labels",
+  "cases": [
+    {
+      "text": "我工作",
+      "play": true,
+      "units": ["speaker", "work"],
+      "actor": "我",
+      "predicate": "工作"
+    },
+    {
+      "text": "你工作",
+      "play": true,
+      "units": ["addressee", "work"],
+      "actor": "你",
+      "predicate": "工作"
+    },
+    {
+      "text": "我健康",
+      "play": true,
+      "units": ["speaker", "healthy"],
+      "actor": "我"
+    },
+    {
+      "text": "你健康",
+      "play": true,
+      "units": ["addressee", "healthy"],
+      "actor": "你"
+    },
+    {
+      "text": "我放松",
+      "play": true,
+      "units": ["speaker", "relax"],
+      "actor": "我"
+    },
+    {
+      "text": "你放松",
+      "play": true,
+      "units": ["addressee", "relax"],
+      "actor": "你"
+    },
+    {
+      "text": "我开车",
+      "play": true,
+      "units": ["speaker", "drive"],
+      "actor": "我"
+    },
+    {
+      "text": "你开车",
+      "play": true,
+      "units": ["addressee", "drive"],
+      "actor": "你"
+    },
+    {
+      "text": "我没有家",
+      "play": true,
+      "units": ["speaker", "absence", "home"],
+      "actor": "我",
+      "patient": "家"
+    },
+    {
+      "text": "你没有家",
+      "play": true,
+      "units": ["addressee", "absence", "home"],
+      "actor": "你"
+    },
+    {
+      "text": "我没有衣服",
+      "play": true,
+      "units": ["speaker", "absence", "clothes"],
+      "patient": "衣服"
+    },
+    {
+      "text": "你没有衣服",
+      "play": true,
+      "units": ["addressee", "absence", "clothes"]
+    },
+    {
+      "text": "我没有鞋",
+      "play": true,
+      "units": ["speaker", "absence", "shoes"]
+    },
+    {
+      "text": "你没有鞋",
+      "play": true,
+      "units": ["addressee", "absence", "shoes"]
+    },
+    {
+      "text": "我没有饮料",
+      "play": true,
+      "units": ["speaker", "absence", "drink"]
+    },
+    {
+      "text": "你没有饮料",
+      "play": true,
+      "units": ["addressee", "absence", "drink"]
+    },
+    {
+      "text": "我没有香蕉",
+      "play": true,
+      "units": ["speaker", "absence", "banana"]
+    },
+    {
+      "text": "你没有裤子",
+      "play": true,
+      "units": ["addressee", "absence", "trousers"]
+    },
+    { "text": "我工作。", "play": true, "units": ["speaker", "work"] },
+    { "text": " 你健康 ", "play": true, "units": ["addressee", "healthy"] },
+    {
+      "text": "我帮你",
+      "play": false,
+      "actor": "我",
+      "patient": "你",
+      "blocker": "directional_motion_missing"
+    },
+    {
+      "text": "你帮我",
+      "play": false,
+      "actor": "你",
+      "patient": "我",
+      "blocker": "directional_motion_missing"
+    },
+    {
+      "text": "我帮助你",
+      "play": false,
+      "actor": "我",
+      "patient": "你",
+      "blocker": "directional_motion_missing"
+    },
+    {
+      "text": "你帮助我",
+      "play": false,
+      "actor": "你",
+      "patient": "我",
+      "blocker": "directional_motion_missing"
+    },
+    { "text": "我们工作", "play": false, "gap": "我们" },
+    { "text": "他工作", "play": false, "gap": "他" },
+    { "text": "她开车", "play": false, "gap": "她" },
+    { "text": "你们健康", "play": false, "gap": "你们" },
+    { "text": "我去医院", "play": false, "gap": "去" },
+    { "text": "你来家", "play": false, "gap": "来" },
+    { "text": "今天我工作", "play": false, "gap": "今天" },
+    { "text": "我今天工作", "play": false, "gap": "今天" },
+    { "text": "明天你开车", "play": false, "gap": "明天" },
+    { "text": "我没有工作", "play": false, "blocker": "ambiguous_scope" },
+    { "text": "你没有开车", "play": false, "blocker": "ambiguous_scope" },
+    { "text": "我不工作", "play": false, "gap": "不" },
+    { "text": "你不健康", "play": false, "gap": "不" },
+    { "text": "我不想去", "play": false },
+    { "text": "我想不去", "play": false },
+    { "text": "我不能工作", "play": false },
+    { "text": "我工作了吗", "play": false },
+    { "text": "你工作吗", "play": false },
+    { "text": "你健康？", "play": false },
+    { "text": "我工作，你健康", "play": false },
+    { "text": "我工作然后开车", "play": false },
+    { "text": "我工作但是取消", "play": false },
+    { "text": "我工作你健康", "play": false },
+    { "text": "谢谢", "play": false, "gap": "谢谢" },
+    { "text": "你好", "play": false, "gap": "你好" },
+    { "text": "我们", "play": false, "gap": "我们" },
+    { "text": "他", "play": false, "gap": "他" },
+    { "text": "我有家", "play": false, "gap": "有" },
+    { "text": "医院我", "play": false },
+    { "text": "", "play": false },
+    { "text": "<script>alert(1)</script>", "play": false }
+  ]
+}

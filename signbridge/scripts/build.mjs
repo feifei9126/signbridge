@@ -358,6 +358,7 @@ async function build() {
         deployment_ready: false,
         csl_translation_trained: false,
         native_candidate_count: researchInputs?.native?.clips.length || 0,
+        core_unit_count: researchInputs?.core?.units.length || 0,
         files,
       },
       null,
@@ -509,6 +510,11 @@ async function buildDemo() {
   } else
     writeFileSync(
       dp("demo/native-index.json"),
+      JSON.stringify({ unavailable: true }),
+    );
+  if (!researchInputs?.core)
+    writeFileSync(
+      dp("demo/core-manifest.json"),
       JSON.stringify({ unavailable: true }),
     );
   const research = researchInputs?.research || [];

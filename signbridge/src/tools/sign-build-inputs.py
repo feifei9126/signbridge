@@ -28,6 +28,9 @@ def snapshot(demo, experimental, output, native=None):
         native_index = json.loads((native / 'native-index.json').read_text())
         groups['native'] = {}
         paths['native'] = ['native-index.json', *[c['asset'] for c in native_index['clips']]]
+        if native_index.get('core_version'):
+            core = json.loads((native / 'core-manifest.json').read_text())
+            paths['native'].extend(['core-manifest.json', *core['evidence_files']])
     for group, files in paths.items():
         root = demo if group == 'demo' else native if group == 'native' else experimental
         for name in files:

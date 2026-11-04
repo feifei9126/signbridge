@@ -1,4 +1,27 @@
 const WORKBENCH_ZH = {
+  coreReturn: "核心演示",
+  coreCount: "{count} 个原片对齐候选单元",
+  coreScope:
+    "默认只使用核心动作。原片帧区间由助手核对，词义和词界尚未人工批准；不回退旧动作。",
+  coreResearchScope:
+    "研究对照：当前使用全候选、旧拟合或内置来源，未经过本轮核心词界筛选。返回核心演示可恢复受限范围。",
+  coreModeDescription:
+    "只匹配原片对齐的核心单元。缺词、方向缺口或不支持的句式会保留整句并停止组合。",
+  coreCatalog:
+    "{count} 个有原片区间和修复骨骼来源的核心候选；不含整句查表或内置后备。",
+  coreSource: "原片区间 · 核心候选（词义未批准）",
+  coreGap: "缺少核心动作：{words}。整句已保留，未回退旧动作。",
+  coreBlocked: "句式或动作证据仍有缺口，保留原文并暂停播放。",
+  coreExact: "已找到核心候选区间；这是原片标签支持的演示，不代表语义批准。",
+  coreEvidenceHeading: "本次动作的原片与帧区间",
+  coreOriginal: "{word}：查看原片（源片段第 {start}–{end} 帧）",
+  coreAlignment: "{word}：查看来源记录",
+  coreIssueDirection:
+    "帮助的施事/受事已解析，但缺少经核对的指向动作，暂不播放。",
+  coreIssueScope: "否定、情态或多分句范围超出本轮表达约束，暂不组合。",
+  coreIssueQuestion: "疑问或多分句所需动作证据未齐，暂不组合。",
+  coreIssueUnknown: "输入未被当前有限句式完整解析，原文未丢弃。",
+  coreInvalidAsset: "核心动作来源或帧区间校验失败",
   nativeMode: "新骨骼候选展示",
   nativeRepairSummary:
     "当前为动作修复版：{count} 段已重做肩臂比例映射、手指去抖与穿插筛查。问题片段已移出；词义仍未核准。",
@@ -75,6 +98,36 @@ const WORKBENCH_ZH = {
   workbenchRunning: "字幕辅助中",
 };
 const WORKBENCH_EN = {
+  coreReturn: "Core demo",
+  coreCount: "{count} source-aligned candidate units",
+  coreScope:
+    "Core motions only. Assistant-proposed source intervals; meanings and boundaries are not human-approved. No legacy fallback.",
+  coreResearchScope:
+    "Research comparison: full candidates, legacy fits or authored units are outside the core boundary screen. Return to the core demo for the bounded scope.",
+  coreModeDescription:
+    "Match source-aligned core units only. Missing signs, direction or unsupported structure retain the entire input and block composition.",
+  coreCatalog:
+    "{count} source-bound core candidates; no whole-sentence lookup or authored fallback.",
+  coreSource: "Source interval · Core candidate (meaning unapproved)",
+  coreGap:
+    "Missing core motions: {words}. Entire input retained; no legacy fallback.",
+  coreBlocked:
+    "Sentence structure or motion evidence is incomplete. Input retained; playback blocked.",
+  coreExact:
+    "Source-supported core interval found; candidate demo only, no semantic approval.",
+  coreEvidenceHeading: "Source video and frame interval",
+  coreOriginal: "{word}: original clip (source-clip frames {start}–{end})",
+  coreAlignment: "{word}: provenance record",
+  coreIssueDirection:
+    "Actor and recipient parsed, but directional help motion is unverified; playback blocked.",
+  coreIssueScope:
+    "Negation, modality or clause scope exceeds the bounded contract.",
+  coreIssueQuestion:
+    "Question or multiple-clause motion evidence is incomplete.",
+  coreIssueUnknown:
+    "Input is outside the bounded parser; the original is retained.",
+  coreInvalidAsset:
+    "Core motion provenance or frame-interval validation failed",
   nativeMode: "New skeleton candidates",
   nativeRepairSummary:
     "Motion repair build: {count} clips rebuilt with proportion-aware arms, finger denoising and penetration screening. Failed clips excluded; meanings unverified.",
@@ -154,6 +207,30 @@ const WORKBENCH_EN = {
   workbenchRunning: "Subtitle assistance active",
 };
 const WORKBENCH_JA = {
+  coreReturn: "コアデモ",
+  coreCount: "原動画対応の候補 {count} 単位",
+  coreScope:
+    "コア動作のみ。区間は助手の候補判断で、意味と語境界は人の承認なし。旧動作へ自動移行しません。",
+  coreResearchScope:
+    "研究比較：全候補・旧動作・内蔵動作は今回のコア境界検査の範囲外です。コアデモへ戻ると範囲を限定します。",
+  coreModeDescription:
+    "原動画に対応するコア単位だけを使用。不足や方向、未対応文型は全文を保持し再生を停止します。",
+  coreCatalog:
+    "出典付きコア候補 {count} 件。文全体検索や内蔵動作への自動移行なし。",
+  coreSource: "原動画区間・コア候補（語義未承認）",
+  coreGap: "不足するコア動作：{words}。全文を保持し、旧動作へ移行しません。",
+  coreBlocked: "文構造または動作根拠が不足。原文を保持して再生を停止します。",
+  coreExact:
+    "原動画に対応する候補区間です。意味の承認を示すものではありません。",
+  coreEvidenceHeading: "原動画とフレーム区間",
+  coreOriginal: "{word}：原動画（元クリップの {start}–{end} フレーム）",
+  coreAlignment: "{word}：出典記録",
+  coreIssueDirection:
+    "動作者と対象は解析済みですが、助ける方向の動作は未確認です。",
+  coreIssueScope: "否定・法性・節の範囲が今回の制約を超えています。",
+  coreIssueQuestion: "疑問や複文に必要な動作根拠が不足しています。",
+  coreIssueUnknown: "限定文型で全文を解析できません。原文は保持されます。",
+  coreInvalidAsset: "コア動作の出典またはフレーム区間検証に失敗しました",
   nativeMode: "新しい骨格候補",
   nativeRepairSummary:
     "動作修正版：{count} 件の腕の比率、指の揺れ、交差を再検査。問題候補は除外。語義は未確認です。",
