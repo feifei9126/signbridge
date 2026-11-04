@@ -1,4 +1,12 @@
 const WORKBENCH_ZH = {
+  corePlayableInstructions: "先选择下方可播放例句，再点击“播放动作”。",
+  coreGapExamplesTitle: "暂不能播放的例句（查看原因）",
+  coreGapExamplesNote: "这些例句仅用于查看缺词或方向问题，不会播放动画。",
+  coreGapExampleLabel: "{text} · 仅分析，不能播放",
+  coreDirectionUnavailable:
+    "“我帮你／你帮我”的方向动作尚未确认，当前只分析、不播放。可先选择“我跑步”等可播放例句。",
+  coreReadyToPlay: "可播放 {count} 个动作；点击“播放动作”开始。",
+  coreMissingSource: "缺少动作 · 未使用内置后备",
   coreScenarioTitle: "日常生活与出行 · 固定场景演示",
   coreScenePlayable: "有核心动作支持的有限中文表达草案",
   coreSceneGap: "缺词或方向未确认：仅查看解析，不播放",
@@ -101,6 +109,16 @@ const WORKBENCH_ZH = {
   workbenchRunning: "字幕辅助中",
 };
 const WORKBENCH_EN = {
+  corePlayableInstructions:
+    "Choose a playable example below, then click Play motion.",
+  coreGapExamplesTitle: "Unavailable examples (view reasons)",
+  coreGapExamplesNote:
+    "These examples show missing motions or unresolved direction. They do not play animation.",
+  coreGapExampleLabel: "{text} · Analysis only, no playback",
+  coreDirectionUnavailable:
+    "The direction for “I help you / you help me” is unverified. Analysis only. Choose a playable example such as “我跑步”.",
+  coreReadyToPlay: "{count} motions available. Click Play motion to start.",
+  coreMissingSource: "Missing motion · No authored fallback used",
   coreScenarioTitle: "Daily life and travel · Frozen scenario demo",
   coreScenePlayable: "Bounded Chinese draft with core motion support",
   coreSceneGap:
@@ -214,6 +232,17 @@ const WORKBENCH_EN = {
   workbenchRunning: "Subtitle assistance active",
 };
 const WORKBENCH_JA = {
+  corePlayableInstructions:
+    "下の再生可能な例文を選び、「動作を再生」を押してください。",
+  coreGapExamplesTitle: "再生できない例文（理由を見る）",
+  coreGapExamplesNote:
+    "動作の不足や方向の問題を確認する例文です。アニメーションは再生されません。",
+  coreGapExampleLabel: "{text}・解析のみ、再生不可",
+  coreDirectionUnavailable:
+    "「私があなたを助ける／あなたが私を助ける」の方向動作は未確認です。解析のみ。「我跑步」などの再生可能な例文を選んでください。",
+  coreReadyToPlay:
+    "{count} 個の動作を再生できます。「動作を再生」を押してください。",
+  coreMissingSource: "動作不足・内蔵動作への代替なし",
   coreScenarioTitle: "日常生活と移動・固定シナリオデモ",
   coreScenePlayable: "コア動作に対応した限定的な中国語表現の草案",
   coreSceneGap: "動作不足または方向未確認。解析のみで再生しません",

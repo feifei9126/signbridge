@@ -129,16 +129,38 @@ try {
       10,
     );
     assert.equal(
-      await page.locator('#core-samples [data-scenario="gap"]').count(),
+      await page.locator('#core-gap-samples [data-scenario="gap"]').count(),
       3,
     );
-    for (const button of await page.locator("#core-samples button").all()) {
+    await page.locator("#core-gap-examples summary").click();
+    for (const button of await page
+      .locator("#core-samples button, #core-gap-samples button")
+      .all()) {
       const kind = await button.getAttribute("data-scenario"),
-        text = await button.innerText();
+        text = await button.getAttribute("data-text");
       await button.click();
       assert.equal(await page.locator("#input").inputValue(), text);
       assert.equal(await page.locator("#play").isDisabled(), kind === "gap");
+      if (kind === "gap") {
+        assert.equal(
+          await page.locator("#status").getAttribute("data-playback-state"),
+          "blocked",
+        );
+        assert.ok(
+          !(await page.locator("#status").innerText()).includes("已就绪"),
+        );
+        assert.ok(
+          !(await page.locator("#semantic-source-note").innerText()).includes(
+            "词库 · 内置动作",
+          ),
+        );
+        await page.locator("#input").press("Control+Enter");
+        assert.ok(
+          !(await page.locator("#status").innerText()).includes("已就绪"),
+        );
+      }
     }
+    await page.locator("#core-gap-examples summary").click();
     report.checks.push(
       "all ten frozen daily scenario cards and three explicit-gap cards match their display policy",
     );

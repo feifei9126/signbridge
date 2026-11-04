@@ -15,7 +15,7 @@ import { validateNativeIndex } from "./native-motion.js";
 import { planNativeText } from "./native-plan.js";
 import { planCoreText } from "./core-plan.js";
 import { readCoreManifest } from "./core-motion.js";
-import { buildCoreScenario } from "./core-scenario.js";
+import { buildCoreScenario, corePlaybackStatus } from "./core-scenario.js";
 const locale = new URL(location.href).searchParams.get("lang") || "zh-CN";
 setLocale(locale);
 document.documentElement.lang = locale;
@@ -122,6 +122,8 @@ function refreshPlan() {
     );
   if (coreManifest)
     document.querySelector("#native-repair-summary").hidden = mode === "core";
+  document.querySelector("#native-warning").hidden =
+    mode === "core" || !nativeClips.length;
   renderCoreEvidence();
   document.querySelector("#playback-actions").hidden = analysisOnly;
   document.querySelector("#motion-catalog").hidden = analysisOnly;
@@ -177,6 +179,15 @@ function refreshPlan() {
   else if (currentPlan.items.length === 40) setStatus("demoLimit");
   playButton.disabled =
     mode === "semantic" || !ready || !currentPlan.items.length;
+  status.dataset.playbackState =
+    mode === "core" && !currentPlan.canPreview ? "blocked" : "available";
+  if (mode === "core" && !running) {
+    const feedback = corePlaybackStatus(currentPlan, {
+      ready,
+      failed: coreFailed,
+    });
+    setStatus(feedback.key, feedback.args);
+  }
 }
 function renderSemanticPlan() {
   const panel = document.querySelector("#semantic-panel");
@@ -211,7 +222,9 @@ function renderSemanticPlan() {
       "bounded_native_semantic",
       "core_candidate_plan",
     ].includes(plan.route) && plan.canPreview
-      ? t("cslDemoPreviewReady")
+      ? mode === "core"
+        ? t("coreReadyToPlay", { count: plan.items.length })
+        : t("cslDemoPreviewReady")
       : t("cslAnalysisOnly");
   const list = document.querySelector("#semantic-roles");
   list.replaceChildren();
@@ -314,6 +327,7 @@ function playableClips() {
   return clips.filter((clip) => availableSources.has(motionSource(clip)));
 }
 function sourceLabel(source, clip, stabilized, presentation) {
+  if (!source) return t("coreMissingSource");
   if (source === "native" && clip?.core_unit_key) return t("coreSource");
   if (source === "native") return t("nativeSource");
   if (source === "candidate")
@@ -419,7 +433,7 @@ function renderCatalog() {
     b.dataset.source = entry.source;
     b.title = sourceLabel(
       entry.source,
-      clips.find((clip) => clip.id === entry.id),
+      [...clips, ...nativeClips].find((clip) => clip.id === entry.id),
     );
     b.dataset.id = entry.id;
     b.addEventListener("click", () => {
@@ -451,7 +465,13 @@ function play() {
   }
   refreshPlan();
   if (!currentPlan.items.length) {
-    setStatus(mode === "semantic" ? "cslNoMatch" : "demoNoMatch");
+    if (mode === "core") {
+      const feedback = corePlaybackStatus(currentPlan, {
+        ready,
+        failed: coreFailed,
+      });
+      setStatus(feedback.key, feedback.args);
+    } else setStatus(mode === "semantic" ? "cslNoMatch" : "demoNoMatch");
     return;
   }
   resetUi();
@@ -502,13 +522,14 @@ function selectMode(nextMode) {
   }
   refreshPlan();
   renderCatalog();
-  setStatus(
-    mode === "semantic"
-      ? "cslAnalysisOnly"
-      : modelAvailable || mode === "dictionary"
-        ? "demoReady"
-        : "demoPartialAsset",
-  );
+  if (mode !== "core")
+    setStatus(
+      mode === "semantic"
+        ? "cslAnalysisOnly"
+        : modelAvailable || mode === "dictionary"
+          ? "demoReady"
+          : "demoPartialAsset",
+    );
 }
 for (const b of document.querySelectorAll("[data-mode]"))
   b.addEventListener("click", () => selectMode(b.dataset.mode));
@@ -592,7 +613,7 @@ window.addEventListener("message", (e) => {
     refreshPlan();
     renderCatalog();
     document.querySelector("#retry").hidden = true;
-    if (!running)
+    if (!running && mode !== "core")
       setStatus(
         coreFailed
           ? "coreInvalidAsset"
@@ -608,7 +629,7 @@ window.addEventListener("message", (e) => {
     document.querySelector("#retry").hidden = false;
     setStatus("demoFailed", { detail: t(message.error) });
   } else if (message.type === "ASSET_WARNING") {
-    if (!coreFailed) setStatus("demoPartialAsset");
+    if (!coreFailed && mode !== "core") setStatus("demoPartialAsset");
   } else if (message.type === "CURRENT") {
     running = true;
     pauseButton.disabled = false;
@@ -908,9 +929,13 @@ try {
         ...scenario.gaps,
       ]) {
         const text = example.text;
-        const button = element("button", text);
+        const button = element(
+          "button",
+          example.plan.canPreview ? text : t("coreGapExampleLabel", { text }),
+        );
         button.type = "button";
         button.dataset.scenario = example.plan.canPreview ? "playable" : "gap";
+        button.dataset.text = text;
         button.title = t(
           example.plan.canPreview ? "coreScenePlayable" : "coreSceneGap",
         );
@@ -918,7 +943,11 @@ try {
           input.value = text;
           selectMode("core");
         });
-        document.querySelector("#core-samples").append(button);
+        document
+          .querySelector(
+            example.plan.canPreview ? "#core-samples" : "#core-gap-samples",
+          )
+          .append(button);
       }
       input.value = "我工作";
       researchDetails.open = false;

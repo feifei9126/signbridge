@@ -31,3 +31,20 @@ export function buildCoreScenario(manifest) {
     trainingStarted: false,
   };
 }
+export function corePlaybackStatus(
+  plan,
+  { ready = false, failed = false } = {},
+) {
+  if (failed) return { key: "coreInvalidAsset", args: {} };
+  if (!ready) return { key: "demoLoading", args: {} };
+  if (plan?.canPreview)
+    return { key: "coreReadyToPlay", args: { count: plan.items.length } };
+  if (plan?.blockers?.includes("directional_motion_missing"))
+    return { key: "coreDirectionUnavailable", args: {} };
+  if (plan?.gaps?.length)
+    return {
+      key: "coreGap",
+      args: { words: [...new Set(plan.gaps.map((g) => g.surface))].join("、") },
+    };
+  return { key: "coreBlocked", args: {} };
+}

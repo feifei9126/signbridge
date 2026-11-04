@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { buildCoreScenario } from "../src/demo/core-scenario.js";
+import * as scenario from "../src/demo/core-scenario.js";
+const { buildCoreScenario } = scenario;
 const labels = [
   "我",
   "你",
@@ -37,4 +38,32 @@ test("frozen daily scenario accepts every intended display and keeps gaps unplay
 test("scenario catalog cannot pretend missing assets are available", () => {
   const r = buildCoreScenario({ units: [] });
   assert.ok(r.examples.every((c) => !c.plan.canPreview));
+});
+test("blocked direction and missing assets never present a ready-to-play status", () => {
+  const s = buildCoreScenario(manifest);
+  assert.equal(typeof scenario.corePlaybackStatus, "function");
+  const ready = { ready: true };
+  assert.equal(
+    scenario.corePlaybackStatus(s.gaps[2].plan, ready).key,
+    "coreDirectionUnavailable",
+  );
+  assert.equal(
+    scenario.corePlaybackStatus(s.gaps[0].plan, ready).key,
+    "coreGap",
+  );
+  assert.equal(
+    scenario.corePlaybackStatus(s.examples[0].plan, ready).key,
+    "coreReadyToPlay",
+  );
+  assert.equal(
+    scenario.corePlaybackStatus(s.gaps[2].plan, { ready: false }).key,
+    "demoLoading",
+  );
+  assert.equal(
+    scenario.corePlaybackStatus(s.examples[0].plan, {
+      ready: true,
+      failed: true,
+    }).key,
+    "coreInvalidAsset",
+  );
 });

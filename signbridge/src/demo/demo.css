@@ -698,3 +698,19 @@ pre {
   background: var(--soft);
   border-left: 3px solid var(--accent);
 }
+#core-gap-examples {
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+#core-gap-samples button {
+  border: 1px dashed #98602c;
+  color: #704419;
+  background: #fff7e8;
+}
+#status[data-playback-state="blocked"] {
+  color: #704419;
+  background: #fff7e8;
+  border-left: 3px solid #98602c;
+  padding: 10px;
+}
