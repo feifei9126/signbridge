@@ -29,6 +29,6 @@ H共422个参考Gloss token，其中79个（18.72%）对应63种token未见于�
 
 ## 证据
 
-交付目录：`/Users/mac/Desktop/手语/SignBridge-Gloss分组GPU-20261105-6q6s4w5x/`。`evidence-v1.tar.gz` 外层 SHA256：`2db245971a6d1034d2eda746f81b26d74f46666b8362d6158b856f8a3438784a`；本机核验36个归档文件、全体内部哈希和嵌套train/selection与留出清单。`verified-evidence-v1/evidence/results/` 中有完整训练历史、选中权重、一次性H逐句结果和输入来源。模型checkpoint数值有限且进程已终止。
+交付目录：`/Users/mac/Desktop/手语/SignBridge-Gloss分组GPU-20261105-6q6s4w5x/`。`evidence-v1.tar.gz` 外层 SHA256：`2db245971a6d1034d2eda746f81b26d74f46666b8362d6158b856f8a3438784a`；本机已下载并核验36个归档文件、全体内部哈希和嵌套train/selection与留出清单。`verified-evidence-v1/evidence/results/` 中有完整训练历史、选中权重、一次性H逐句结果和输入来源。模型checkpoint数值有限且进程已终止。
 
 试验数据准备及工具测试复核：项目 `npm run verify` 通过，323项JS通过，Python共744项、19项跳过，其余通过，构建、Lint、格式通过。GPU训练参数更新已完成，但产品晋升被阻止；Demo、动作文件、T08、正式test均未改动或读取。
