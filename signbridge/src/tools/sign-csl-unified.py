@@ -258,6 +258,12 @@ def evaluate(model, data, vocab, device, batch_size=64, max_length=62):
                       'exact_matches': exact, 'exact_match_rate': exact / len(refs), 'label_source': 'assistant_synthetic_chinese'}}, predictions
 
 
+def implicit_absence_scope_unresolved(spans):
+    negations = [s for s in spans if s['role'] == 'negation' and s['text'] == '没有']
+    predicates = [s for s in spans if s['role'] == 'predicate']
+    return any(n['end'] == p['start'] for n in negations for p in predicates)
+
+
 def parse_roles(text, tags, labels, support=None):
     raw = [labels[t] for t in tags]; spans, reasons = [], []
     for i, tag in enumerate(raw):
@@ -275,6 +281,8 @@ def parse_roles(text, tags, labels, support=None):
         reasons.append('unsupported_role_structure')
     if counts['negation'] + counts['modal'] > 1:
         reasons.append('operator_scope_unresolved')
+    if implicit_absence_scope_unresolved(spans):
+        reasons.append('implicit_absence_scope_unresolved')
     roles = {s['role']: s['text'] for s in spans}
     if support is not None:
         if [s['role'] for s in spans] not in support.get('orders', []):

@@ -139,6 +139,21 @@ class DataTests(unittest.TestCase):
             self.assertEqual(out['raw_tags'], [LABELS[t] for t in tags])
             self.assertIsNone(out['scope'])
 
+    def test_implicit_absence_before_event_requires_semantic_review(self):
+        m = module()
+        ambiguous = [{'role': 'actor', 'text': '我', 'start': 0, 'end': 1},
+                     {'role': 'negation', 'text': '没有', 'start': 1, 'end': 3},
+                     {'role': 'predicate', 'text': '工作', 'start': 3, 'end': 5}]
+        self.assertTrue(m.implicit_absence_scope_unresolved(ambiguous))
+        actual = m.parse_roles('我没有工作', [1, 11, 12, 3, 4], LABELS)
+        self.assertIn('implicit_absence_scope_unresolved', actual['uncertainty'])
+        self.assertEqual(actual['roles'], {})
+        self.assertFalse(m.implicit_absence_scope_unresolved(ambiguous[:1]))
+        self.assertFalse(m.implicit_absence_scope_unresolved([
+            {'role': 'actor', 'text': '我', 'start': 0, 'end': 1},
+            {'role': 'negation', 'text': '不', 'start': 1, 'end': 2},
+            {'role': 'predicate', 'text': '工作', 'start': 2, 'end': 4}]))
+
 
 @unittest.skipUnless(importlib.util.find_spec('torch'), 'Existing optional PyTorch runtime required')
 class ModelTests(unittest.TestCase):
