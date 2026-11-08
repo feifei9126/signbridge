@@ -65,6 +65,7 @@ const WORKBENCH_ZH = {
   workbenchCsl: "当前支持：中国手语",
   workbenchTextPreview: "文字预览",
   workbenchOpen: "打开工作台",
+  workbenchModelDemo: "模型演示 Demo",
   workbenchSettings: "SignBridge 设置",
   workbenchSettingsLead:
     "显示与声音统一设置。网页字幕按中文读取，声音识别可单独配置语言。",
@@ -187,6 +188,7 @@ const WORKBENCH_EN = {
   workbenchCsl: "Supported: Chinese Sign Language",
   workbenchTextPreview: "Text preview",
   workbenchOpen: "Open workspace",
+  workbenchModelDemo: "Model Demo",
   workbenchSettings: "SignBridge settings",
   workbenchSettingsLead:
     "Display and audio in one place. Subtitles are read as Chinese; ASR language is configured separately.",
@@ -302,6 +304,7 @@ const WORKBENCH_JA = {
   workbenchCsl: "対応： 中国手話",
   workbenchTextPreview: "テキストのプレビュー",
   workbenchOpen: "ワークスペースを開く",
+  workbenchModelDemo: "モデル Demo",
   workbenchSettings: "SignBridge 設定",
   workbenchSettingsLead:
     "Display and audio in one place. Subtitles are read as Chinese; ASR language is configured separately.",
@@ -1442,6 +1445,15 @@ const WORD_MOTION_JA = {
  * Supports: zh-CN, en, ja
  */
 const MODEL_DEMO_ZH = {
+  connectionTitle: "连接本机模型服务",
+  connectionHelp:
+    "先双击安装包中的“启动模型Demo.command”，保持终端开启，再点击连接。只授权本机地址，不上传输入。",
+  endpoint: "本机服务地址",
+  connect: "授权并连接",
+  invalidEndpoint: "仅支持 http://127.0.0.1:端口，请检查本机服务地址。",
+  permissionRequired: "点击“授权并连接”，允许插件访问本机模型服务。",
+  permissionDenied: "未获得本机访问授权，请点击“授权并连接”重试。",
+  incompatible: "本机服务的模型或动作版本不匹配，请启动同一安装包中的服务。",
   badge: "研究 Demo",
   avatarLabel: "手语人物参考播放器",
   title: "SignBridge · 本机模型演示",
@@ -1519,6 +1531,17 @@ const MODEL_DEMO_ZH = {
 };
 const MODEL_DEMO_EN = {
   ...MODEL_DEMO_ZH,
+  connectionTitle: "Connect local model service",
+  connectionHelp:
+    "Run the packaged model Demo launcher, keep its terminal open, then connect. Inputs stay on this computer.",
+  endpoint: "Local service address",
+  connect: "Allow and connect",
+  invalidEndpoint: "Use http://127.0.0.1:port only.",
+  permissionRequired: "Allow loopback access to connect the model service.",
+  permissionDenied:
+    "Loopback access was declined. Click Allow and connect to retry.",
+  incompatible:
+    "The model or motion assets differ. Start the service from this package.",
   title: "SignBridge · Local model demo",
   label: "Real model · bounded Chinese semantics",
   heading: "See the relationships in a sentence",

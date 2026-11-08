@@ -343,3 +343,32 @@ footer {
     scroll-behavior: auto;
   }
 }
+
+.connection {
+  background: #fff;
+  border: 1px solid #d9e1d5;
+  padding: 20px;
+  border-radius: 12px;
+  margin-bottom: 24px;
+}
+.connection h2 {
+  margin-bottom: 8px;
+}
+.connection label {
+  display: block;
+  font-size: 13px;
+  margin-bottom: 8px;
+}
+.connection input {
+  font: inherit;
+  color: inherit;
+  padding: 10px;
+  border: 1px solid #b8cbbb;
+  border-radius: 8px;
+  width: 300px;
+  max-width: 100%;
+}
+.connection input:focus-visible {
+  outline: 3px solid #a36a26;
+  outline-offset: 3px;
+}

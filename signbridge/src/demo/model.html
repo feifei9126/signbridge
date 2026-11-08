@@ -20,6 +20,19 @@
         <p data-i18n="modelDemo.lead"></p>
       </section>
       <p class="scope" data-i18n="modelDemo.scope"></p>
+      <section id="connection-panel" class="connection" hidden>
+        <h2 data-i18n="modelDemo.connectionTitle"></h2>
+        <p class="hint" data-i18n="modelDemo.connectionHelp"></p>
+        <label for="endpoint" data-i18n="modelDemo.endpoint"></label>
+        <div class="actions">
+          <input
+            id="endpoint"
+            type="url"
+            value="http://127.0.0.1:8787"
+            spellcheck="false"
+          /><button id="connect" data-i18n="modelDemo.connect"></button>
+        </div>
+      </section>
       <div class="workspace">
         <section class="composer">
           <label for="input" data-i18n="modelDemo.input"></label

@@ -23,6 +23,7 @@ def load(name):
 
 
 private = load('sign-private-serve.py')
+PROTOCOL = 'signbridge-model-demo-v1'
 GATES = {'research_only': True, 'human_approved': False, 'semantics_approved': False,
          'training_ready': False, 'model_training_ready': False, 'csl_translation_verified': False}
 
@@ -137,10 +138,23 @@ class Handler(BaseHTTPRequestHandler):
     def trusted(self):
         port = self.server.server_port
         hosts = {f'127.0.0.1:{port}', f'localhost:{port}'}
-        origins = {f'http://{h}' for h in hosts}
-        return (len(self.headers.get_all('Host', [])) == 1 and self.headers['Host'] in hosts
-                and self.headers.get('Origin') in origins | {None}
+        if len(self.headers.get_all('Host', [])) != 1 or self.headers['Host'] not in hosts:
+            return False
+        if len(self.headers.get_all('Origin', [])) > 1: return False
+        origin = self.headers.get('Origin')
+        if origin in self.server.extension_origins: return True
+        return (origin in {f'http://{h}' for h in hosts} | {None}
                 and self.headers.get('Sec-Fetch-Site') not in ('cross-site', 'same-site'))
+
+    def do_OPTIONS(self):
+        origin = self.headers.get('Origin')
+        method = self.headers.get('Access-Control-Request-Method')
+        headers = {p.strip().lower() for p in self.headers.get('Access-Control-Request-Headers', '').split(',') if p.strip()}
+        if (not self.trusted() or origin not in self.server.extension_origins
+                or (self.path, method) not in {('/v1/demo-session', 'GET'), ('/v1/understand', 'POST'), ('/health', 'GET')}
+                or not headers <= {'content-type', 'authorization'}):
+            return self.send(403, {'error': 'forbidden_preflight'})
+        return self.send(204, b'')
 
     def send(self, status, value, content_type='application/json; charset=utf-8'):
         body = value if isinstance(value, bytes) else json.dumps(value, ensure_ascii=False).encode()
@@ -148,6 +162,13 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header('Content-Length', str(len(body))); self.send_header('Cache-Control', 'no-store')
         self.send_header('X-Content-Type-Options', 'nosniff'); self.send_header('Referrer-Policy', 'no-referrer')
         self.send_header('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; connect-src 'self' blob:; frame-src 'self'; frame-ancestors 'self'; object-src 'none'; base-uri 'none'")
+        origin = self.headers.get('Origin')
+        if self.trusted() and origin in self.server.extension_origins:
+            self.send_header('Access-Control-Allow-Origin', origin)
+            self.send_header('Vary', 'Origin')
+            if self.command == 'OPTIONS' and status == 204:
+                self.send_header('Access-Control-Allow-Methods', 'GET, POST')
+                self.send_header('Access-Control-Allow-Headers', 'Authorization, Content-Type')
         self.end_headers()
         try: self.wfile.write(body)
         except (BrokenPipeError, ConnectionResetError): pass
@@ -155,9 +176,9 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         if not self.trusted(): return self.send(403, {'error': 'forbidden_origin_or_host'})
         if self.path == '/health': return self.send(200, {'status': 'ok', 'model_loaded': True,
-            'instance': self.server.instance, 'checkpoint_sha256': getattr(self.server.predictor, 'checkpoint_sha256', '')})
+            'instance': self.server.instance, 'protocol': PROTOCOL, 'extension_origins': sorted(self.server.extension_origins), 'checkpoint_sha256': getattr(self.server.predictor, 'checkpoint_sha256', '')})
         if self.path == '/v1/demo-session':
-            return self.send(200, {'token': self.server.token, 'catalog': self.server.catalog,
+            return self.send(200, {'token': self.server.token, 'catalog': self.server.catalog, 'protocol': PROTOCOL,
                 'checkpoint_sha256': getattr(self.server.predictor, 'checkpoint_sha256', ''), **GATES})
         name = self.path.removeprefix('/')
         if name not in self.server.allowed or self.path != '/' + name: return self.send(404, {'error': 'not_found'})
@@ -195,12 +216,21 @@ class Handler(BaseHTTPRequestHandler):
         return self.send(200, result)
 
 
-def make_server(predictor, directory, allowed, catalog, port=0):
+def validate_extension_origins(origins):
+    if not isinstance(origins, (list, tuple)) or any(not isinstance(origin, str) or
+            not re.fullmatch(r'chrome-extension://[a-p]{32}', origin) for origin in origins):
+        raise ValueError('Invalid extension origin allowlist')
+    return frozenset(origins)
+
+
+def make_server(predictor, directory, allowed, catalog, port=0, extension_origins=()):
+    origins = validate_extension_origins(extension_origins)
     server = private.LimitedServer(('127.0.0.1', port), Handler)
     server.slots = threading.BoundedSemaphore(16); server.inference = threading.BoundedSemaphore(1)
     server.guard = threading.Lock(); server.requests = deque(); server.token = secrets.token_urlsafe(32)
     server.predictor = predictor; server.directory = Path(directory); server.allowed = set(allowed); server.catalog = catalog
     server.instance = secrets.token_urlsafe(24)
+    server.extension_origins = origins
     return server
 
 
@@ -212,8 +242,9 @@ def main():
     config['root'] = str(args.config.absolute().parent)
     directory = Path(config['root']) / config['web']
     allowed, catalog = read_build(directory)
+    origins = list(validate_extension_origins(config.get('extension_origins', [])))
     predictor = Predictor(config)
-    with make_server(predictor, directory, allowed, catalog, args.port) as server:
+    with make_server(predictor, directory, allowed, catalog, args.port, origins) as server:
         url = f'http://127.0.0.1:{server.server_port}/demo/model.html'
         if args.state_file: args.state_file.write_text(json.dumps({'url': url, 'port': server.server_port, 'pid': os.getpid(),
             'instance': server.instance, 'checkpoint_sha256': predictor.checkpoint_sha256}))

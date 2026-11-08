@@ -30,6 +30,7 @@ class SignBridgePopup {
       statusText: document.getElementById("statusText"),
       settingsBtn: document.getElementById("btnSettings"),
       btnDemo: document.getElementById("btnDemo"),
+      btnModelDemo: document.getElementById("btnModelDemo"),
       version: document.getElementById("extension-version"),
       textInput: document.getElementById("textInput"),
       btnSendText: document.getElementById("btnSendText"),
@@ -68,6 +69,9 @@ class SignBridgePopup {
     });
     this.elements.btnDemo?.addEventListener("click", () => {
       chrome.tabs.create({ url: chrome.runtime.getURL("demo/index.html") });
+    });
+    this.elements.btnModelDemo?.addEventListener("click", () => {
+      chrome.tabs.create({ url: chrome.runtime.getURL("demo/model.html") });
     });
     this.elements.btnAudio?.addEventListener("click", () =>
       this._handleAudio(),

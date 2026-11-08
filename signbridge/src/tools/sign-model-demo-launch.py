@@ -9,7 +9,7 @@ from urllib.parse import urlsplit
 import webbrowser
 
 
-def existing_url(state, checkpoint_sha256):
+def existing_url(state, checkpoint_sha256, extension_origins=(), service_port=None):
     old = json.loads(Path(state).read_text())
     if not isinstance(old, dict): raise ValueError('Invalid saved state')
     url = urlsplit(old['url'])
@@ -21,6 +21,10 @@ def existing_url(state, checkpoint_sha256):
     if not isinstance(health, dict): raise ValueError('Invalid local health response')
     if health.get('instance') != old['instance'] or health.get('checkpoint_sha256') != checkpoint_sha256:
         raise ValueError('Different local process')
+    if (health.get('protocol') != 'signbridge-model-demo-v1'
+            or health.get('extension_origins') != sorted(extension_origins)):
+        raise ValueError('Different Demo extension configuration')
+    if service_port is not None and url.port != service_port: raise ValueError('Different Demo service port')
     return old['url']
 
 
@@ -39,7 +43,7 @@ def main():
         sys.exit(2)
     state = args.state_file
     try:
-        url = existing_url(state, settings['checkpoint_sha256'])
+        url = existing_url(state, settings['checkpoint_sha256'], settings.get('extension_origins', []), settings.get('service_port'))
         print('SignBridge model Demo: ' + url, flush=True)
         if not args.no_open: webbrowser.open(url, new=2)
         return
@@ -47,6 +51,7 @@ def main():
     environment = os.environ.copy()
     environment.update(HF_HUB_OFFLINE='1', TRANSFORMERS_OFFLINE='1', PYTHONDONTWRITEBYTECODE='1')
     command = [str(python), str(root / 'tools/sign-model-demo-serve.py'), '--config', str(config), '--state-file', str(state)]
+    if 'service_port' in settings: command.extend(['--port', str(settings['service_port'])])
     if args.no_open: command.append('--no-open')
     os.execve(str(python), command, environment)
 

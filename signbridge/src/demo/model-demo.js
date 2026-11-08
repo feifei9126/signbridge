@@ -1,4 +1,5 @@
 import { setLocale, t } from "../i18n/locales.js";
+import { createModelApi } from "./model-demo-api.js";
 import { createModelSession } from "./model-demo-session.js";
 
 setLocale("zh-CN");
@@ -14,8 +15,8 @@ for (const node of document.querySelectorAll("[data-title]"))
   node.title = t(node.dataset.title);
 const $ = (id) => document.getElementById(id);
 const frame = $("avatar");
-let token,
-  catalog = [],
+const api = createModelApi();
+let catalog = [],
   ready = false,
   requestId = 0,
   matched = [],
@@ -53,8 +54,8 @@ function clearResult() {
   $("model-time").textContent = "";
   $("motion-gap").textContent = tr("unavailable");
   $("motion-evidence").textContent = "—";
-  $("model-status").textContent = tr(token ? "ready" : "disconnected");
-  $("model-status").dataset.state = token ? "ready" : "error";
+  $("model-status").textContent = tr(api.connected ? "ready" : "disconnected");
+  $("model-status").dataset.state = api.connected ? "ready" : "error";
   for (const button of document.querySelectorAll("[data-reference]"))
     button.setAttribute("aria-pressed", "false");
 }
@@ -104,29 +105,20 @@ function render(result) {
   );
 }
 const session = createModelSession({
-  predict: async (text, signal) => {
-    const response = await fetch("/v1/understand", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ text }),
-      signal,
-    });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    return response.json();
-  },
+  predict: (text, signal) => api.predict(text, signal),
   onStop: clearResult,
   onResult: render,
-  onError: () => {
-    $("model-status").textContent = tr("serviceError");
+  onError: (error) => {
+    resetConnection();
+    $("model-status").textContent = tr(
+      error.code === "incompatible" ? "incompatible" : "serviceError",
+    );
     $("model-status").dataset.state = "error";
     $("retry").hidden = false;
   },
 });
 async function analyze() {
-  if (!token || !$("input").value.trim()) return;
+  if (!api.connected || !$("input").value.trim()) return;
   const pending = session.analyze($("input").value);
   $("model-status").textContent = tr("working");
   await pending;
@@ -170,6 +162,9 @@ function play(items, reference) {
     $("motion-gap").textContent = tr("reference", { text: reference.text });
     $("motion-evidence").textContent = JSON.stringify(reference, null, 2);
   }
+  const bounds = frame.getBoundingClientRect();
+  if (bounds.top < 0 || bounds.bottom > window.innerHeight)
+    frame.scrollIntoView({ block: "center", behavior: "instant" });
   send("PLAY", { items });
 }
 $("play-motion").addEventListener("click", () => play(matched));
@@ -261,27 +256,52 @@ window.addEventListener("message", (event) => {
   }
 });
 frame.addEventListener("load", () => send("HELLO"));
-async function connect() {
+let connectionId = 0;
+function resetConnection() {
+  connectionId++;
+  api.disconnect();
+  session.clear();
+  catalog = [];
+  renderCatalog();
+  $("analyze").disabled = true;
+  $("checkpoint").textContent = "";
+}
+async function connect(requestPermission = false) {
+  resetConnection();
+  const generation = connectionId;
   $("retry").hidden = true;
+  $("model-status").textContent = tr("loading");
   try {
-    const response = await fetch("/v1/demo-session");
-    if (!response.ok) throw new Error("service");
-    const info = await response.json();
-    token = info.token;
+    const info = await api.connect($("endpoint").value, { requestPermission });
+    if (generation !== connectionId) return;
     catalog = info.catalog;
     $("checkpoint").textContent = tr("model", { hash: info.checkpoint_sha256 });
     $("analyze").disabled = false;
     $("model-status").textContent = tr("ready");
+    $("model-status").dataset.state = "ready";
     renderCatalog();
     send("HELLO");
-  } catch {
-    token = null;
+  } catch (error) {
+    if (generation !== connectionId) return;
+    api.disconnect();
     $("analyze").disabled = true;
-    $("model-status").textContent = tr("disconnected");
+    $("model-status").textContent = tr(
+      [
+        "invalidEndpoint",
+        "permissionRequired",
+        "permissionDenied",
+        "incompatible",
+      ].includes(error.code)
+        ? error.code
+        : "disconnected",
+    );
     $("model-status").dataset.state = "error";
-    $("retry").hidden = false;
+    $("retry").hidden = api.extension;
   }
 }
-$("retry").addEventListener("click", connect);
-window.addEventListener("pagehide", () => session.clear(), { once: true });
-connect();
+$("connection-panel").hidden = !api.extension;
+$("connect").addEventListener("click", () => connect(true));
+$("endpoint").addEventListener("input", resetConnection);
+$("retry").addEventListener("click", () => connect(false));
+window.addEventListener("pagehide", resetConnection, { once: true });
+connect(false);

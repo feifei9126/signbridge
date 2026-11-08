@@ -26,11 +26,19 @@ class LauncherTests(unittest.TestCase):
                     opener.assert_not_called()
             p.write_text(json.dumps({'url': 'http://127.0.0.1:8888/demo/model.html', 'instance': 'a' * 24}))
             for instance, digest, valid in [('a' * 24, 'c' * 64, True), ('b' * 24, 'c' * 64, False), ('a' * 24, 'd' * 64, False)]:
-                response = io.BytesIO(json.dumps({'instance': instance, 'checkpoint_sha256': digest}).encode())
+                response = io.BytesIO(json.dumps({'instance': instance, 'checkpoint_sha256': digest, 'protocol': 'signbridge-model-demo-v1', 'extension_origins': []}).encode())
                 with patch.object(m, 'urlopen', return_value=response):
                     if valid: self.assertEqual(m.existing_url(p, 'c' * 64), 'http://127.0.0.1:8888/demo/model.html')
                     else:
                         with self.assertRaises(ValueError): m.existing_url(p, 'c' * 64)
+            origins = ['chrome-extension://' + 'a' * 32]
+            response = {'instance': 'a' * 24, 'checkpoint_sha256': 'c' * 64,
+                        'protocol': 'signbridge-model-demo-v1', 'extension_origins': origins}
+            with patch.object(m, 'urlopen', return_value=io.BytesIO(json.dumps(response).encode())):
+                self.assertEqual(m.existing_url(p, 'c' * 64, origins, 8888), 'http://127.0.0.1:8888/demo/model.html')
+            for wrong_origins, port in [([], 8888), (origins, 8787)]:
+                with patch.object(m, 'urlopen', return_value=io.BytesIO(json.dumps(response).encode())):
+                    with self.assertRaises(ValueError): m.existing_url(p, 'c' * 64, wrong_origins, port)
             for malformed in [[], None, 'ok', 1]:
                 with patch.object(m, 'urlopen', return_value=io.BytesIO(json.dumps(malformed).encode())):
                     with self.assertRaises(ValueError): m.existing_url(p, 'c' * 64)

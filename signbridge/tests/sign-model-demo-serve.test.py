@@ -125,6 +125,38 @@ class HttpTests(unittest.TestCase):
         self.assertIn("connect-src 'self' blob:", headers['Content-Security-Policy'])
         self.assertEqual(self.request('/v1/understand', 'POST', '{}', {'Content-Type': 'application/json'})[0], 401)
 
+    def test_only_configured_extension_gets_cors_session_and_preflight(self):
+        origin = 'chrome-extension://' + 'a' * 32
+        self.server.extension_origins = frozenset([origin])
+        headers = {'Origin': origin, 'Sec-Fetch-Site': 'cross-site'}
+        code, response, body = self.request('/v1/demo-session', headers=headers)
+        self.assertEqual(code, 200)
+        self.assertEqual(response['Access-Control-Allow-Origin'], origin)
+        self.assertEqual(json.loads(body)['protocol'], 'signbridge-model-demo-v1')
+        token = json.loads(body)['token']
+        code, response, _ = self.request('/v1/understand', 'OPTIONS', headers={**headers,
+            'Access-Control-Request-Method': 'POST', 'Access-Control-Request-Headers': 'authorization,content-type'})
+        self.assertEqual(code, 204)
+        self.assertEqual(response['Access-Control-Allow-Origin'], origin)
+        self.assertIn('Authorization', response['Access-Control-Allow-Headers'])
+        code, _, _ = self.request('/v1/understand', 'POST', json.dumps({'text': '我'}), {
+            **headers, 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json'})
+        self.assertEqual(code, 200)
+        for wrong in ['https://evil.example', 'chrome-extension://' + 'b' * 32, origin + '.evil']:
+            code, response, _ = self.request('/v1/demo-session', headers={'Origin': wrong})
+            self.assertEqual(code, 403)
+            self.assertNotIn('Access-Control-Allow-Origin', response)
+        self.assertEqual(self.request('/v1/demo-session', headers={**headers, 'Host': 'evil.example'})[0], 403)
+        self.assertEqual(self.request('/v1/understand', 'OPTIONS', headers={**headers,
+            'Access-Control-Request-Method': 'DELETE'})[0], 403)
+        self.assertEqual(self.request('/weights.pt', 'OPTIONS', headers={**headers,
+            'Access-Control-Request-Method': 'POST'})[0], 403)
+
+    def test_invalid_extension_configuration_rejected(self):
+        for origins in ['*', ['https://evil.example'], ['chrome-extension://bad']]:
+            with self.assertRaises(ValueError):
+                self.m.make_server(None, self.root, set(), [], extension_origins=origins)
+
     def test_bad_origin_host_and_oversized_payload_rejected(self):
         for headers in [{'Origin': 'https://evil.example'}, {'Host': 'evil.example'}, {'Sec-Fetch-Site': 'cross-site'}]:
             self.assertEqual(self.request('/v1/demo-session', headers=headers)[0], 403)
