@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>SignBridge</title>
+    <link rel="stylesheet" href="model-demo.css" />
+  </head>
+  <body>
+    <header>
+      <a class="brand" href="model.html"
+        >SignBridge<span data-i18n="modelDemo.badge"></span></a
+      ><span data-i18n="modelDemo.local"></span
+      ><a href="index.html" data-i18n="modelDemo.oldWorkbench"></a>
+    </header>
+    <main>
+      <section class="intro">
+        <p class="eyebrow" data-i18n="modelDemo.label"></p>
+        <h1 data-i18n="modelDemo.heading"></h1>
+        <p data-i18n="modelDemo.lead"></p>
+      </section>
+      <p class="scope" data-i18n="modelDemo.scope"></p>
+      <div class="workspace">
+        <section class="composer">
+          <label for="input" data-i18n="modelDemo.input"></label
+          ><textarea
+            id="input"
+            rows="3"
+            maxlength="200"
+            data-placeholder="modelDemo.placeholder"
+          ></textarea>
+          <p class="hint" data-i18n="modelDemo.shortcuts"></p>
+          <div class="actions">
+            <button
+              id="analyze"
+              class="primary"
+              disabled
+              data-i18n="modelDemo.analyze"
+            ></button
+            ><button id="retry" hidden data-i18n="modelDemo.retry"></button>
+          </div>
+          <p
+            id="model-status"
+            role="status"
+            aria-live="polite"
+            data-i18n="modelDemo.loading"
+          ></p>
+          <div
+            id="examples"
+            class="samples"
+            role="group"
+            data-label="modelDemo.sampleLabel"
+          ></div>
+          <section class="meaning">
+            <h2 data-i18n="modelDemo.meaning"></h2>
+            <p id="parse-status" data-i18n="modelDemo.idle"></p>
+            <dl id="roles"></dl>
+            <h3 data-i18n="modelDemo.operators"></h3>
+            <p id="operators" class="operators">—</p>
+            <p id="model-basis" class="hint"></p>
+            <p id="model-time" class="hint"></p>
+          </section>
+          <details>
+            <summary data-i18n="modelDemo.raw"></summary>
+            <pre id="raw-model">—</pre>
+          </details>
+        </section>
+        <section class="viewer">
+          <h2 data-i18n="modelDemo.stage"></h2>
+          <iframe
+            id="avatar"
+            src="avatar.html"
+            data-title="modelDemo.avatarLabel"
+          ></iframe>
+          <div class="playback">
+            <button
+              id="play-motion"
+              disabled
+              data-i18n="modelDemo.play"
+            ></button
+            ><button id="pause" disabled data-i18n="modelDemo.pause"></button
+            ><button id="stop" data-i18n="modelDemo.stop"></button
+            ><label
+              ><span data-i18n="modelDemo.speed"></span
+              ><select id="speed">
+                <option value="0.75">0.75×</option>
+                <option value="1" selected>1×</option>
+                <option value="1.25">1.25×</option>
+              </select></label
+            >
+          </div>
+          <progress id="progress" value="0" max="1"></progress>
+          <p
+            id="motion-status"
+            role="status"
+            data-i18n="modelDemo.avatarLoading"
+          ></p>
+          <p id="motion-gap" class="gap" data-i18n="modelDemo.unavailable"></p>
+          <div class="views">
+            <button data-view="front" data-i18n="modelDemo.front"></button
+            ><button data-view="left" data-i18n="modelDemo.left"></button
+            ><button data-view="right" data-i18n="modelDemo.right"></button>
+          </div>
+          <p data-i18n="modelDemo.noPromise" class="hint"></p>
+          <details>
+            <summary data-i18n="modelDemo.evidence"></summary>
+            <p data-i18n="modelDemo.approval"></p>
+            <pre id="motion-evidence">—</pre>
+          </details>
+        </section>
+      </div>
+      <section class="references">
+        <div class="section-heading">
+          <h2 data-i18n="modelDemo.catalog"></h2>
+          <span id="reference-count"></span>
+        </div>
+        <p data-i18n="modelDemo.catalogNote"></p>
+        <div id="references" class="reference-grid"></div>
+      </section>
+      <footer id="checkpoint"></footer>
+    </main>
+    <script type="module" src="model-demo.js"></script>
+  </body>
+</html>
