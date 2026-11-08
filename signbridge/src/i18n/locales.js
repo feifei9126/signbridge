@@ -1445,6 +1445,20 @@ const WORD_MOTION_JA = {
  * Supports: zh-CN, en, ja
  */
 const MODEL_DEMO_ZH = {
+  nativeTitle: "SignBridge 演示版",
+  nativeLoading: "正在启动本机模型，首次打开请稍候…",
+  nativeReady: "模型已就绪 · 全程本机推理",
+  nativeOpen: "打开演示",
+  nativePlugin: "打开插件文件夹",
+  nativeQuit: "退出并停止服务",
+  nativeNote: "内置模型和动作，全程本机运行；退出此程序会停止服务。",
+  nativeFailed: "模型启动失败，请查看运行记录。",
+  nativeLog: "查看运行记录",
+  nativePluginGuide:
+    "在 Chrome 扩展管理页启用开发者模式，选择“加载已解压的扩展程序”，加载下面打开的 chrome-extension 文件夹。模型演示服务地址：",
+  nativeOK: "知道了",
+  nativeInstallName: "SignBridge 演示版（Apple 芯片 Mac）",
+
   connectionTitle: "连接本机模型服务",
   connectionHelp:
     "先双击安装包中的“启动模型Demo.command”，保持终端开启，再点击连接。只授权本机地址，不上传输入。",
