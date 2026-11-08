@@ -1,5 +1,6 @@
 import hashlib
 import importlib.util
+import json
 from pathlib import Path
 import tempfile
 import unittest
@@ -43,6 +44,20 @@ class ManifestTests(unittest.TestCase):
         self.assertFalse(rows[0]['BundleIsRelocatable'])
         self.assertTrue(rows[0]['BundleHasStrictIdentifier'])
         self.assertEqual(rows[0]['RootRelativeBundlePath'],'SignBridge Demo.app')
+
+
+    def test_wizard_plugin_assets_are_bound_to_packaged_build(self):
+        m = self.module()
+        with tempfile.TemporaryDirectory() as temp:
+            root=Path(temp); source=root/'payload/SignBridge Demo.app/Contents/Resources'
+            (source/'chrome-extension').mkdir(parents=True)
+            build=source/'chrome-extension/BUILD.json';build.write_bytes(b'original')
+            installer=root/'demo.pkg';installer.write_bytes(b'fixed-pkg')
+            (root/'installer.json').write_text(json.dumps({'sha256':hashlib.sha256(b'fixed-pkg').hexdigest(),
+                'plugin_build_sha256':hashlib.sha256(b'original').hexdigest()}))
+            selected,_=m.wizard_assets(root,installer);self.assertEqual(selected,source)
+            build.write_bytes(b'new-different-build')
+            with self.assertRaises(ValueError):m.wizard_assets(root,installer)
 
 
 if __name__ == '__main__': unittest.main()

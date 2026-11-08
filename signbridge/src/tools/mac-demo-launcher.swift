@@ -7,6 +7,7 @@ final class DemoApp: NSObject, NSApplicationDelegate {
     var status: NSTextField!
     var address: NSTextField!
     var openButton: NSButton!
+    var pluginLocationLabel: NSTextField!
     var child: Process?
     var logHandle: FileHandle?
     var poller: Timer?
@@ -72,7 +73,7 @@ final class DemoApp: NSObject, NSApplicationDelegate {
         }
     }
     func makeWindow() {
-        window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 600, height: 260), styleMask: [.titled, .closable, .miniaturizable], backing: .buffered, defer: false)
+        window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 720, height: 350), styleMask: [.titled, .closable, .miniaturizable], backing: .buffered, defer: false)
         window.title = tr("nativeTitle")
         let menu = NSMenu(); let item = NSMenuItem(); menu.addItem(item)
         let applicationMenu = NSMenu(); item.submenu = applicationMenu
@@ -87,8 +88,12 @@ final class DemoApp: NSObject, NSApplicationDelegate {
         address.isSelectable = true; address.font = .monospacedSystemFont(ofSize: 12, weight: .regular)
         let note = NSTextField(wrappingLabelWithString: tr("nativeNote")); note.textColor = .secondaryLabelColor; note.font = .systemFont(ofSize: 12)
         openButton = button("nativeOpen", #selector(openDemo)); openButton.isEnabled = false
-        let row = NSStackView(views: [openButton, button("nativePlugin", #selector(openPlugin)), button("nativeLog", #selector(openLog)), button("nativeQuit", #selector(quit))]); row.spacing = 8
-        let stack = NSStackView(views: [heading, status, address, row, note]); stack.orientation = .vertical; stack.alignment = .leading; stack.spacing = 18
+        let row = NSStackView(views: [openButton, button("nativeLog", #selector(openLog)), button("nativeQuit", #selector(quit))]); row.spacing = 8
+        pluginLocationLabel = NSTextField(wrappingLabelWithString: ""); pluginLocationLabel.isSelectable = true
+        pluginLocationLabel.font = .systemFont(ofSize: 12)
+        updatePluginLocation()
+        let pluginRow = NSStackView(views: [button("nativePlugin", #selector(openPlugin)), button("nativeChangePlugin", #selector(changePluginLocation)), button("nativeCopyPluginPath", #selector(copyPluginPath))]); pluginRow.spacing = 8
+        let stack = NSStackView(views: [heading, status, address, row, pluginLocationLabel, pluginRow, note]); stack.orientation = .vertical; stack.alignment = .leading; stack.spacing = 18
         stack.translatesAutoresizingMaskIntoConstraints = false
         window.contentView!.addSubview(stack)
         NSLayoutConstraint.activate([stack.leadingAnchor.constraint(equalTo: window.contentView!.leadingAnchor, constant: 24), stack.trailingAnchor.constraint(equalTo: window.contentView!.trailingAnchor, constant: -24), stack.topAnchor.constraint(equalTo: window.contentView!.topAnchor, constant: 24)])
@@ -115,12 +120,41 @@ final class DemoApp: NSObject, NSApplicationDelegate {
     }
     @objc func openDemo() { guard let process = child, process.isRunning, let url = serviceURL else { return }; NSWorkspace.shared.open(url) }
     @objc func openLog() { if let url = logURL { NSWorkspace.shared.activateFileViewerSelecting([url]) } }
-    @objc func openPlugin() {
-        let url = root.appendingPathComponent("chrome-extension", isDirectory: true)
-        NSWorkspace.shared.activateFileViewerSelecting([url])
-        let alert = NSAlert(); alert.messageText = tr("nativeTitle"); alert.informativeText = tr("nativePluginGuide") + "\n" + (address?.stringValue ?? "http://127.0.0.1:8787") + "\n\n" + url.path
+    func updatePluginLocation() {
+        let saved = try? savedPluginDirectory(settings: pluginSettingsFile())
+        pluginLocationLabel?.stringValue = tr("nativePluginLocation") + (saved?.path ?? tr("nativePluginUnset"))
+    }
+    func showPluginFailure() {
+        let alert = NSAlert(); alert.messageText = tr("nativePluginFailed")
+        alert.informativeText = tr("nativePluginFailureHelp")
         alert.addButton(withTitle: tr("nativeOK")); alert.runModal()
     }
+    @objc func openPlugin() {
+        do {
+            guard let saved = try savedPluginDirectory(settings: pluginSettingsFile()) else { changePluginLocation(); return }
+            let folder = try installPlugin(source: root.appendingPathComponent("chrome-extension", isDirectory: true), destination: saved)
+            guard NSWorkspace.shared.open(folder) else { throw NSError(domain: "SignBridgePluginExport", code: 2) }
+        } catch { showPluginFailure() }
+    }
+    @objc func changePluginLocation() {
+        let panel = NSOpenPanel(); panel.title = tr("nativeChoosePlugin")
+        panel.message = tr("nativeChoosePluginHelp"); panel.prompt = tr("nativeChoose")
+        panel.canChooseFiles = false; panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = false; panel.canCreateDirectories = true
+        panel.directoryURL = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Desktop", isDirectory: true)
+        guard panel.runModal() == .OK, let directory = panel.url else { return }
+        do {
+            let folder = try installPlugin(source: root.appendingPathComponent("chrome-extension", isDirectory: true), destination: directory)
+            try savePluginDirectory(folder, settings: pluginSettingsFile())
+            updatePluginLocation()
+            guard NSWorkspace.shared.open(folder) else { throw NSError(domain: "SignBridgePluginExport", code: 2) }
+        } catch { showPluginFailure() }
+    }
+    @objc func copyPluginPath() {
+        guard let directory = try? savedPluginDirectory(settings: pluginSettingsFile()) else { changePluginLocation(); return }
+        NSPasteboard.general.clearContents(); NSPasteboard.general.setString(directory.path, forType: .string)
+    }
+    func applicationDidBecomeActive(_ notification: Notification) { updatePluginLocation() }
     @objc func quit() { NSApp.terminate(nil) }
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool { window.makeKeyAndOrderFront(nil); if serviceURL != nil { openDemo() }; return true }
@@ -137,8 +171,13 @@ final class DemoApp: NSObject, NSApplicationDelegate {
         try? logHandle?.close()
     }
 }
-let app = NSApplication.shared
-let delegate = DemoApp()
-app.setActivationPolicy(.regular)
-app.delegate = delegate
-app.run()
+@main
+struct DemoMain {
+    static func main() {
+        let app = NSApplication.shared
+        let delegate = DemoApp()
+        app.setActivationPolicy(.regular)
+        app.delegate = delegate
+        withExtendedLifetime(delegate) { app.run() }
+    }
+}

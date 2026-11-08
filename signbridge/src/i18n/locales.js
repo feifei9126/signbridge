@@ -1455,8 +1455,36 @@ const MODEL_DEMO_ZH = {
   nativeFailed: "模型启动失败，请查看运行记录。",
   nativeLog: "查看运行记录",
   nativePluginGuide:
-    "在 Chrome 扩展管理页启用开发者模式，选择“加载已解压的扩展程序”，加载下面打开的 chrome-extension 文件夹。模型演示服务地址：",
+    "在 Chrome 扩展管理页启用开发者模式，选择“加载已解压的扩展程序”，加载下面已校验并导出的 chrome-extension 文件夹。点击“复制插件路径”后，可在文件选择框按⌘⇧G并粘贴路径。模型演示服务地址：",
   nativeOK: "知道了",
+  nativeCopyPluginPath: "复制插件路径",
+  nativeChangePlugin: "更改插件位置",
+  nativePluginLocation: "插件位置：",
+  nativePluginUnset: "尚未选择，请点击“更改插件位置”。",
+  nativeChoosePlugin: "选择插件保存文件夹",
+  nativeChoosePluginHelp:
+    "请选择新建的空文件夹；插件文件会直接保存在这里。不要选择包含个人文件的目录。",
+  nativeChoose: "选择此文件夹",
+  nativeChooseInstaller: "选择…",
+  nativeWizardTitle: "SignBridge 安装向导",
+  nativeQuitInstaller: "退出安装向导",
+  nativeWizardLead:
+    "先选择插件文件夹，再安装桌面演示程序。以后程序会直接打开你选的文件夹。",
+  nativeWizardFolder: "插件保存到",
+  nativeWizardContinue: "保存插件位置",
+  nativeWizardBusy: "正在校验并保存插件…",
+  nativeWizardReady:
+    "插件位置已保存。点击“完成”关闭向导，再双击本向导旁的 SignBridge-Demo.pkg 完成桌面安装。",
+  nativeWizardFinish: "完成",
+  nativeWizardFailed:
+    "所选位置不可用或含有其他文件。请选择空文件夹，未改动原目录。",
+  nativeWizardNote:
+    "Chrome仍需手动加载此文件夹。关闭系统安装窗口不会删除已保存的插件。",
+  nativeWizardOpenFolder: "打开已保存插件",
+
+  nativePluginFailed: "插件文件夹打开失败",
+  nativePluginFailureHelp:
+    "插件文件未通过校验或导出目录不可用，请重新安装此版本后再试。",
   nativeInstallName: "SignBridge 演示版（Apple 芯片 Mac）",
 
   connectionTitle: "连接本机模型服务",

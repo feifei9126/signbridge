@@ -113,10 +113,10 @@ def build(delivery, output):
     (resources / 'runtime-provenance.json').write_text(json.dumps(record, ensure_ascii=False, indent=2) + '\n')
     source = Path(__file__).with_name('mac-demo-launcher.swift')
     subprocess.run(['/usr/bin/swiftc', '-swift-version', '5', '-O', '-target', 'arm64-apple-macosx13.0',
-                    str(source), '-o', str(macos / 'SignBridge Demo'), '-framework', 'AppKit'], check=True)
+                    str(source), str(Path(__file__).with_name("mac-plugin-export.swift")), '-o', str(macos / 'SignBridge Demo'), '-framework', 'AppKit'], check=True)
     info = {'CFBundleName': 'SignBridge Demo', 'CFBundleDisplayName': 'SignBridge 演示版',
             'CFBundleIdentifier': 'org.signbridge.model-demo', 'CFBundleExecutable': 'SignBridge Demo',
-            'CFBundlePackageType': 'APPL', 'CFBundleShortVersionString': '1.0.8', 'CFBundleVersion': '20261108.1',
+            'CFBundlePackageType': 'APPL', 'CFBundleShortVersionString': '1.0.10', 'CFBundleVersion': '20261108.3',
             'LSMinimumSystemVersion': '13.0', 'LSApplicationCategoryType': 'public.app-category.education',
             'NSHighResolutionCapable': True}
     (contents / 'Info.plist').write_bytes(plistlib.dumps(info))
@@ -151,15 +151,59 @@ def package(output, installer):
     subprocess.run(['/usr/bin/pkgbuild', '--analyze', '--root', str(output / 'payload'), str(components)], check=True)
     components.write_bytes(plistlib.dumps(fixed_components(plistlib.loads(components.read_bytes()))))
     subprocess.run(['/usr/bin/pkgbuild', '--root', str(output / 'payload'), '--component-plist', str(components),
-                    '--identifier', 'org.signbridge.model-demo', '--version', '1.0.8',
+                    '--identifier', 'org.signbridge.model-demo', '--version', '1.0.10',
                     '--install-location', '/Applications', '--ownership', 'recommended', str(installer)], check=True)
     digest = sha(installer)
     Path(str(installer) + '.sha256').write_text(digest + '  ' + installer.name + '\n')
     record = {'installer': str(installer), 'sha256': digest, 'bytes': installer.stat().st_size,
               'install_location': '/Applications/SignBridge Demo.app', 'relocatable_install_target': False,
-              'architecture': 'arm64', 'developer_signed_or_notarized': False}
+              'architecture': 'arm64', 'developer_signed_or_notarized': False,
+              'plugin_build_sha256': sha(app / 'Contents/Resources/chrome-extension/BUILD.json')}
     (output / 'installer.json').write_text(json.dumps(record, ensure_ascii=False, indent=2) + '\n')
     return record
+
+
+def wizard_assets(output, installer):
+    expected = json.loads((output / 'installer.json').read_text())
+    if sha(installer) != expected['sha256']: raise ValueError('Installer bytes differ')
+    source = output / 'payload/SignBridge Demo.app/Contents/Resources'
+    if sha(source / 'chrome-extension/BUILD.json') != expected.get('plugin_build_sha256'):
+        raise ValueError('Wizard plugin assets differ from the packaged application')
+    return source, expected
+
+
+def wizard(output, installer, application):
+    output, installer, application = Path(output).resolve(), Path(installer).resolve(), Path(application).absolute()
+    if application.exists(): raise FileExistsError('Choose a NEW installer wizard application')
+    source, expected = wizard_assets(output, installer)
+    contents = application / 'Contents'; resources = contents / 'Resources'; macos = contents / 'MacOS'
+    resources.mkdir(parents=True); macos.mkdir()
+    sibling_package = application.parent / 'SignBridge-Demo.pkg'
+    if sibling_package.exists() and sha(sibling_package) != expected['sha256']: raise FileExistsError('Sibling package differs')
+    if not sibling_package.exists(): shutil.copy2(installer, sibling_package)
+    extension = source / 'chrome-extension'
+    info = json.loads((extension / 'BUILD.json').read_text())
+    for name in [*info['files'], 'BUILD.json']:
+        member = PurePosixPath(name)
+        if member.is_absolute() or '..' in member.parts or str(member) != name or chr(92) in name: raise ValueError('Invalid extension member')
+        file = extension / name
+        if any(extension.joinpath(*member.parts[:i]).is_symlink() for i in range(1, len(member.parts) + 1)): raise ValueError('Extension symlink rejected')
+        if name != 'BUILD.json' and sha(file) != info['files'][name]: raise ValueError('Extension changed')
+        destination = resources / 'chrome-extension' / name
+        destination.parent.mkdir(parents=True, exist_ok=True); shutil.copy2(file, destination)
+    shutil.copy2(source / 'native-locales.json', resources / 'native-locales.json')
+    subprocess.run(['/usr/bin/swiftc', '-swift-version', '5', '-O', '-target', 'arm64-apple-macosx13.0',
+                    str(Path(__file__).with_name('mac-demo-installer.swift')), str(Path(__file__).with_name('mac-plugin-export.swift')),
+                    '-o', str(macos / 'SignBridge Installer'), '-framework', 'AppKit'], check=True)
+    info = {'CFBundleName': 'SignBridge Installer', 'CFBundleDisplayName': 'SignBridge 安装向导',
+            'CFBundleIdentifier': 'org.signbridge.demo-installer', 'CFBundleExecutable': 'SignBridge Installer',
+            'CFBundlePackageType': 'APPL', 'CFBundleShortVersionString': '1.0.10', 'CFBundleVersion': '20261108.3',
+            'LSMinimumSystemVersion': '13.0', 'NSHighResolutionCapable': True}
+    (contents / 'Info.plist').write_bytes(plistlib.dumps(info))
+    subprocess.run(['/usr/bin/codesign', '--force', '--sign', '-', str(application)], check=True)
+    subprocess.run(['/usr/bin/codesign', '--verify', '--deep', '--strict', str(application)], check=True)
+    return {'wizard': str(application), 'installer_sha256': expected['sha256'], 'custom_plugin_directory': True,
+            'persists_user_selected_directory': True, 'macos_installer_confirmation_required': True, 'notarized': False}
 
 
 if __name__ == '__main__':
@@ -167,7 +211,8 @@ if __name__ == '__main__':
     parser.add_argument('--delivery', type=Path)
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--installer', type=Path)
+    parser.add_argument('--wizard', type=Path)
     args = parser.parse_args()
     if not args.installer and not args.delivery: parser.error('Specify --delivery or --installer')
-    result = package(args.output, args.installer) if args.installer else build(args.delivery, args.output)
+    result = wizard(args.output, args.installer, args.wizard) if args.wizard else package(args.output, args.installer) if args.installer else build(args.delivery, args.output)
     print(json.dumps(result, ensure_ascii=False, indent=2))
