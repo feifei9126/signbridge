@@ -165,6 +165,12 @@ def sibling_hand_tool():
     return module
 
 
+def case_directory(output, segment, number, multiple):
+    folder = output / segment / ('%06d' % number) if multiple else output / segment
+    folder.mkdir(parents=True)
+    return folder
+
+
 def read_case_plan(path, expected_sha, tasks_sha):
     require(sha256(path) == expected_sha, 'Explicit case plan digest differs')
     plan = json.loads(Path(path).read_text())
@@ -196,11 +202,20 @@ def run(args):
     full = getattr(args, "full_sequence", False)
     case_plan = getattr(args, 'case_plan', None)
     case_plan_sha = getattr(args, 'case_plan_sha256', None)
+    candidate_plan = getattr(args, 'candidate_plan', None)
+    candidate_plan_sha = getattr(args, 'candidate_plan_sha256', None)
     require(bool(case_plan) == bool(case_plan_sha), 'Case plan requires an explicit digest')
-    require(sum((bool(window), bool(full), bool(case_plan))) <= 1, "Choose one inference scope")
+    require(bool(candidate_plan) == bool(candidate_plan_sha), 'Candidate plan requires an explicit digest')
+    require(sum((bool(window), bool(full), bool(case_plan), bool(candidate_plan))) <= 1, "Choose one inference scope")
     cases = read_case_plan(case_plan, case_plan_sha, sha256(batch / 'tasks.jsonl')) if case_plan else \
         (helper.full_sequence_cases() if full else (short_window_cases() if window else None))
-    selected = helper.task_cases(batch, cases=cases)
+    if candidate_plan:
+        spec = importlib.util.spec_from_file_location('wilor_candidate_inputs', Path(__file__).with_name('sign-wilor-candidate-inputs.py'))
+        candidate_inputs = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(candidate_inputs)
+        selected = candidate_inputs.read_candidate_plan(batch, candidate_plan, candidate_plan_sha)
+    else:
+        selected = helper.task_cases(batch, cases=cases)
     require(not output.exists() and all(output != p and p not in output.parents and output not in p.parents
                                        for p in (root, batch, mano.parent)), "Output must be new and separate")
     output.mkdir(parents=True)
@@ -219,6 +234,13 @@ def run(args):
                       explicit_case_plan_sha256=case_plan_sha,
                       requested_cases=[{'segment_id': s, 'frame_1based': n, 'sides': list(h)} for s, n, h in cases])
         report['source_sha256'][str(Path(case_plan).resolve())] = case_plan_sha
+    if candidate_plan:
+        report.update(scope='Digest-bound candidate source images; no semantic, boundary or motion approval',
+                      candidate_plan_sha256=candidate_plan_sha, full_sequence_inferred=False,
+                      requested_cases=[{'segment_id': t['segment_id'], 'frame_1based': n, 'sides': list(s)} for t, n, s, _, _ in selected],
+                      human_approved=False, model_training_ready=False)
+        report['source_sha256'][str(Path(candidate_plan).resolve())] = candidate_plan_sha
+        report['source_sha256'][str(Path(candidate_inputs.__file__).resolve())] = sha256(candidate_inputs.__file__)
     path = output / "report.json"
 
     def save():
@@ -292,8 +314,7 @@ def run(args):
         report["renderer_preflight"] = helper.renderer_preflight()
         for task, number, expected_sides, image_path, observations in selected:
             segment = task["segment_id"]
-            folder = output / segment / ("%06d" % number) if window or full or case_plan else output / segment
-            folder.mkdir(parents=True)
+            folder = case_directory(output, segment, number, window or full or case_plan or candidate_plan)
             stage = "detector:" + segment
             image = cv2.imread(str(image_path))
             require(image is not None, "Cannot read frame image")
@@ -407,7 +428,8 @@ def run(args):
                       limitations=["Full sequences estimated; missing/ambiguous hands do not imply valid motion" if full else
                                    ("Short windows only; temporal jumps flagged, no smoothing/contact/semantic acceptance" if window
                                    else ("Explicit keyframes only; no temporal/contact/semantic acceptance" if case_plan
-                                         else "Two keyframes only; no temporal/contact/semantic acceptance")),
+                                         else ("Candidate images only; no temporal/contact/semantic acceptance" if candidate_plan
+                                               else "Two keyframes only; no temporal/contact/semantic acceptance"))),
                                    "Detector handedness follows official demo; mirror status still unknown",
                                    "MANO and SMPL-X rotations/cameras not retargeted or merged",
                                    "Native pose arrays are right-canonical rotation matrices, not axis angles",
@@ -431,6 +453,8 @@ def main():
     parser.add_argument("--short-window", action="store_true", help="Only frames 88-94 and 156-162; no smoothing")
     parser.add_argument('--case-plan', type=Path, help='Bounded explicit keyframes in a verified batch')
     parser.add_argument('--case-plan-sha256', help='Digest binding the explicit keyframe plan')
+    parser.add_argument('--candidate-plan', type=Path, help='Unapproved source images; preserves all approval gates')
+    parser.add_argument('--candidate-plan-sha256', help='Digest binding the candidate inference scope')
     return run(parser.parse_args())
 
 

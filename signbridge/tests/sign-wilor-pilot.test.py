@@ -16,6 +16,17 @@ spec.loader.exec_module(pilot)
 
 
 class WiLoRPilotTests(unittest.TestCase):
+    def test_multiple_candidate_frames_do_not_collide_or_overwrite_prior_outputs(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            first = pilot.case_directory(root, 'basic-i', 1, multiple=True)
+            (first / 'evidence').write_bytes(b'original')
+            second = pilot.case_directory(root, 'basic-i', 2, multiple=True)
+            self.assertEqual(second.relative_to(root), Path('basic-i/000002'))
+            self.assertEqual((first / 'evidence').read_bytes(), b'original')
+            with self.assertRaises(FileExistsError):
+                pilot.case_directory(root, 'basic-i', 1, multiple=True)
+
     def plan_fixture(self, path, cases):
         value = {'schema': 'signbridge-wilor-explicit-cases-v1', 'batch_tasks_sha256': 'a' * 64,
                  'training_ready': False, 'cases': cases}
