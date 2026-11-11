@@ -41,6 +41,8 @@
   },
   "dependencies": {
     "@huggingface/transformers": "^3.7.6",
+    "@tensorflow/tfjs": "^4.22.0",
+    "@tensorflow/tfjs-backend-webgl": "^4.22.0",
     "three": "^0.170.0"
   },
   "overrides": {

@@ -44,7 +44,9 @@
         "avatar/jsm/loaders/GLTFLoader.js",
         "avatar/jsm/utils/BufferGeometryUtils.js",
         "avatar/model.glb",
-        "avatar/page-agent.js"
+        "avatar/page-agent.js",
+        "ar/ar-frame.html",
+        "ar/ar-frame-init.js"
       ],
       "matches": ["http://*/*", "https://*/*"]
     }

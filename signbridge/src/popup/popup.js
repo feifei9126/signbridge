@@ -8,6 +8,7 @@ class SignBridgePopup {
     this._currentTabId = null;
     this._isActive = false;
     this._audioEnabled = false;
+    this._arEnabled = false;
   }
 
   async init() {
@@ -37,6 +38,8 @@ class SignBridgePopup {
       btnHelp: document.getElementById("btnHelp"),
       btnAudio: document.getElementById("btnAudio"),
       audioStatus: document.getElementById("audioStatus"),
+      btnAR: document.getElementById("btnAR"),
+      arStatus: document.getElementById("arStatus"),
     };
   }
 
@@ -76,6 +79,7 @@ class SignBridgePopup {
     this.elements.btnAudio?.addEventListener("click", () =>
       this._handleAudio(),
     );
+    this.elements.btnAR?.addEventListener("click", () => this._handleAR());
     this.elements.btnHelp?.addEventListener("click", () => {
       chrome.tabs.create({ url: chrome.runtime.getURL("avatar/help.html") });
     });
@@ -208,6 +212,76 @@ class SignBridgePopup {
           this.elements.btnSendText.textContent = t("send");
         }
       }, 500);
+    }
+  }
+
+  async _handleAR() {
+    const requestedEnabled = !this._arEnabled;
+    if (requestedEnabled) {
+      if (!this._currentTabId) {
+        this._setARStatus(t("arUnavailable"));
+        return;
+      }
+      this._setARStatus(t("arStarting"));
+      try {
+        const response = await this._sendMessage("startAR");
+        if (!response?.ok) {
+          this._setARStatus(
+            response?.error
+              ? t("arStartingFailed", { detail: response.error })
+              : t("arStartingFailed", { detail: t("arUnavailable") }),
+          );
+          this._arEnabled = false;
+          this._updateARUI();
+          return;
+        }
+        this._arEnabled = true;
+        this._isActive = true;
+        this._updateUI();
+        this._updateARUI();
+      } catch (error) {
+        console.error("[SignBridge] AR mode failed:", error);
+        this._setARStatus(
+          t("arStartingFailed", {
+            detail: error?.message || String(error),
+          }),
+        );
+        this._arEnabled = false;
+        this._updateARUI();
+      }
+      return;
+    }
+
+    const response = await this._sendMessage("stopAR");
+    if (!response?.ok) {
+      this._setARStatus(
+        t("arStoppingFailed", {
+          detail: response?.error || t("unavailable"),
+        }),
+      );
+      return;
+    }
+    this._arEnabled = false;
+    this._updateARUI();
+  }
+
+  _setARStatus(text) {
+    if (this.elements.arStatus) {
+      this.elements.arStatus.textContent = text;
+    }
+  }
+
+  _updateARUI() {
+    this.elements.btnAR?.classList.toggle("active", this._arEnabled);
+    if (this.elements.btnAR) {
+      this.elements.btnAR.textContent = this._arEnabled
+        ? t("arOn")
+        : t("arOff");
+    }
+    if (this.elements.arStatus) {
+      this.elements.arStatus.textContent = this._arEnabled
+        ? t("arRunning")
+        : t("arStopped");
     }
   }
 

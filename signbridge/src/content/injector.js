@@ -38,6 +38,9 @@
   let resolveIframeLoaded = null;
   let overlayRevision = 0;
   let audioSessionId = null;
+  let arHost = null;
+  let arFrame = null;
+  const AR_MESSAGE_SOURCE = "signbridge-ar";
   const pendingIframeMessages = [];
 
   function isVideoSite() {
@@ -216,6 +219,7 @@
   }
 
   function removeOverlay() {
+    closeARFrame();
     stopTranslation();
     overlayRevision += 1;
     resolveIframeLoaded?.();
@@ -379,6 +383,24 @@
           manual: true,
         });
       }
+    } else if (action === "startAR" || action === "AR_START") {
+      await ensureInjected();
+      if (!container?.isConnected) {
+        return { ok: false, error: "页面注入失败，无法启动 AR" };
+      }
+      const started = await openARFrame();
+      return { ok: started.ok, error: started.error, active: arFrame !== null };
+    } else if (action === "stopAR" || action === "AR_STOP") {
+      closeARFrame();
+      return { ok: true, active: false };
+    } else if (action === "playARSign" || action === "AR_PLAY") {
+      if (arFrame?.contentWindow && message.text) {
+        arFrame.contentWindow.postMessage(
+          { source: "signbridge-page", type: "PLAY_SIGN", text: message.text },
+          "*",
+        );
+      }
+      return { ok: arFrame !== null };
     } else if (action === "updateConfig" || action === "SET_CONFIG") {
       updateConfig(message.config || {});
     }
@@ -388,6 +410,76 @@
       active,
       ready: iframeReady,
     };
+  }
+
+  function openARFrame() {
+    if (arFrame?.isConnected) return Promise.resolve({ ok: true });
+
+    const previousOverlay = container;
+    const host = document.createElement("div");
+    host.id = "signbridge-ar-host";
+    host.style.cssText =
+      "position:fixed;inset:0;z-index:2147483646;background:#000;" +
+      "display:block;user-select:none;";
+
+    const frame = document.createElement("iframe");
+    frame.id = "signbridge-ar-frame";
+    frame.allow = "camera; microphone";
+    frame.setAttribute("allow", "camera; microphone");
+    frame.style.cssText = "width:100%;height:100%;border:0;display:block;";
+    frame.src = chrome.runtime.getURL("ar/ar-frame.html");
+
+    host.appendChild(frame);
+    (document.body || document.documentElement).appendChild(host);
+    arHost = host;
+    arFrame = frame;
+    if (previousOverlay) previousOverlay.style.display = "none";
+
+    return new Promise((resolve) => {
+      let settled = false;
+      const finish = (result) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        window.removeEventListener("message", onMessage);
+        resolve(result);
+      };
+      const onMessage = (event) => {
+        if (event.source !== frame.contentWindow) return;
+        const data = event.data;
+        if (!data || data.source !== AR_MESSAGE_SOURCE) return;
+        if (data.type === "ar-ready") finish({ ok: true });
+        else if (data.type === "ar-error")
+          finish({ ok: false, error: data.error || "AR 启动失败" });
+        else if (data.type === "ar-exit") {
+          closeARFrame();
+          finish({ ok: true });
+        }
+      };
+      const timer = setTimeout(
+        () => finish({ ok: true, pending: true }),
+        20000,
+      );
+      window.addEventListener("message", onMessage);
+      frame.addEventListener("error", () =>
+        finish({ ok: false, error: "AR 页面加载失败" }),
+      );
+    });
+  }
+
+  function closeARFrame() {
+    if (arFrame?.contentWindow) {
+      try {
+        arFrame.contentWindow.postMessage(
+          { source: "signbridge-page", type: "AR_EXIT" },
+          "*",
+        );
+      } catch {}
+    }
+    arHost?.remove();
+    arHost = null;
+    arFrame = null;
+    if (container) container.style.display = "block";
   }
 
   function updateConfig(updates) {
