@@ -728,3 +728,83 @@ pre {
   border-left: 3px solid #98602c;
   padding: 10px;
 }
+
+/* 可访问性覆盖：大字号、高对比、足够大的点击区域、减少动画 */
+:root {
+  --muted: #4a5a5a;
+  --line: #b9c4bd;
+  --warn: #7a3d17;
+}
+body {
+  font-size: 16px;
+}
+.version,
+.eyebrow,
+.model-info div,
+.research-list small,
+pre {
+  font-size: 13px;
+}
+.top-right,
+.input-footer,
+.status,
+.unknown,
+.section-label h3,
+.section-label span,
+.catalog-note,
+.candidate-warning,
+.catalog > input,
+.match-list span,
+.catalog-list button,
+.view-group button,
+.mode-group button,
+.source-badge,
+.frame-stamp,
+.stage-controls label,
+#token-details,
+.research-header > span,
+.research-list button,
+.footnote {
+  font-size: 14px;
+}
+.model-info strong {
+  font-size: 15px;
+}
+textarea {
+  font-size: 20px;
+}
+button,
+.task-nav a,
+.tool-links a {
+  min-height: 44px;
+}
+.catalog-list button,
+.view-group button {
+  min-height: 40px;
+}
+button:disabled {
+  opacity: 0.6;
+}
+.mode-group {
+  flex-wrap: wrap;
+}
+@media (prefers-contrast: more) {
+  :root {
+    --muted: #26363a;
+    --line: #5d6d68;
+  }
+  button,
+  .task-nav a,
+  .tool-links a {
+    border-color: #26363a;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}
