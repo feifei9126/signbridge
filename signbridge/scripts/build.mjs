@@ -383,6 +383,10 @@ async function buildDemo() {
   for (const file of ["model.html", "model-demo.css"]) {
     copyFileSync(join(ROOT, "src/demo", file), dp("demo", file));
   }
+  copyFileSync(
+    join(ROOT, "src/demo/demo-vocabulary.json"),
+    dp("demo", "demo-vocabulary.json"),
+  );
   await bundle("demo/model-demo.js", "demo/model-demo.js");
   await bundle("demo/demo.js", "demo/demo.js");
   await bundle("demo/demo-avatar.js", "demo/demo-avatar.js");

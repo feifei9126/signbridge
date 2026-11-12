@@ -316,6 +316,20 @@ textarea {
   background: #eff5f1;
   color: #275643;
 }
+.catalog-list button[data-status="native_display_candidate"] {
+  border-color: #c4d8cd;
+  background: #eff5f1;
+  color: #275643;
+}
+.catalog-list button[data-status="builtin_handmade_pose"] {
+  border-color: #b8cfd7;
+  background: #f0f6f8;
+}
+.catalog-list button[data-status="isolated_by_technical_gate"],
+.catalog-list button[data-status="list_only"] {
+  border-style: dashed;
+  color: var(--muted);
+}
 .stage-heading {
   padding: 18px 22px;
   display: flex;

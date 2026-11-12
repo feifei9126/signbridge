@@ -1,3 +1,5 @@
+> 注意：本文描述带模型运行时的旧方案（1.0.10）。当前演示版见 mac-demo-lite-20261112.md。
+
 # SignBridge Mac 演示版安装包
 
 适用 Apple 芯片 Mac（M1/M2/M3/M4等）。原生启动器目标为macOS13及以上；实际验收在当前Apple芯片Mac完成，未声称Intel/Windows或所有旧系统已验证。

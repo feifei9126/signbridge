@@ -62,6 +62,8 @@ let clips = [],
   candidateModel = null,
   mode = "auto",
   catalogView = "phrases",
+  vocabulary = [],
+  blockedVocab = null,
   ready = false,
   modelAvailable = false,
   currentPlan = { items: [], unmatched: "" },
@@ -104,10 +106,7 @@ function refreshPlan() {
         : planDemoText(input.value, mode, playableClips());
   renderSemanticPlan();
   const analysisOnly = mode === "semantic";
-  document.querySelector(".catalog-switch").hidden = [
-    "native",
-    "core",
-  ].includes(mode);
+  document.querySelector(".catalog-switch").hidden = mode === "core";
   document.querySelector("#motion-smoothing").disabled = [
     "native",
     "core",
@@ -178,7 +177,10 @@ function refreshPlan() {
   if (currentPlan.truncated) setStatus("demoTooLong");
   else if (currentPlan.items.length === 40) setStatus("demoLimit");
   playButton.disabled =
-    mode === "semantic" || !ready || !currentPlan.items.length;
+    mode === "semantic" ||
+    !ready ||
+    !currentPlan.items.length ||
+    (blockedVocab !== null && input.value === blockedVocab);
   status.dataset.playbackState =
     mode === "core" && !currentPlan.canPreview ? "blocked" : "available";
   if (mode === "core" && !running) {
@@ -365,8 +367,17 @@ function renderCatalog() {
     .value.trim()
     .toLocaleLowerCase();
   const phrases = buildDemoPhraseCatalog(playableClips());
-  const catalog =
-    mode === "core"
+  const vocabView =
+    catalogView === "vocab" && vocabulary.length > 0 && mode !== "core";
+  const catalog = vocabView
+    ? vocabulary.map((entry) => ({
+        id: entry.forms.join(" "),
+        text: entry.text,
+        source: "vocab",
+        status: entry.status,
+        nativeId: entry.nativeId,
+      }))
+    : mode === "core"
       ? (coreManifest?.units || []).map((c) => ({
           id: c.id,
           text: c.text,
@@ -396,8 +407,20 @@ function renderCatalog() {
   );
   document.querySelector("#catalog-count").textContent =
     `${found.length} / ${catalog.length}`;
-  document.querySelector("#catalog-note").textContent =
-    mode === "core"
+  document.querySelector("#catalog-note").textContent = vocabView
+    ? t("demoVocabNote", {
+        total: catalog.length,
+        native: catalog.filter((e) => e.status === "native_display_candidate")
+          .length,
+        pose: catalog.filter((e) => e.status === "builtin_handmade_pose")
+          .length,
+        none: catalog.filter(
+          (e) =>
+            e.status !== "native_display_candidate" &&
+            e.status !== "builtin_handmade_pose",
+        ).length,
+      })
+    : mode === "core"
       ? t("coreCatalog", { count: catalog.length })
       : mode === "native"
         ? t("nativeCatalog", { count: catalog.length })
@@ -422,6 +445,9 @@ function renderCatalog() {
   const list = document.querySelector("#catalog-list");
   list.replaceChildren();
   for (const button of document.querySelectorAll("[data-catalog-view]")) {
+    button.hidden =
+      (button.dataset.catalogView === "vocab" && !vocabulary.length) ||
+      (button.dataset.catalogView === "words" && mode === "native");
     button.setAttribute(
       "aria-pressed",
       String(button.dataset.catalogView === catalogView),
@@ -436,7 +462,15 @@ function renderCatalog() {
       [...clips, ...nativeClips].find((clip) => clip.id === entry.id),
     );
     b.dataset.id = entry.id;
+    if (entry.status) {
+      b.dataset.status = entry.status;
+      b.title = vocabStatusLabel(entry.status);
+    }
     b.addEventListener("click", () => {
+      if (entry.source === "vocab") {
+        pickVocabulary(entry);
+        return;
+      }
       send("STOP", { preservePose: true });
       resetUi();
       input.value = entry.text;
@@ -446,6 +480,40 @@ function renderCatalog() {
     });
     list.append(b);
   }
+}
+function vocabStatusLabel(status) {
+  return t(
+    status === "native_display_candidate"
+      ? "demoVocabStatusNative"
+      : status === "builtin_handmade_pose"
+        ? "demoVocabStatusPose"
+        : "demoVocabStatusNone",
+  );
+}
+// Only words with a real motion are routed to a playable mode. Words without
+// one stay blocked: no other motion is borrowed to stand in for them.
+function pickVocabulary(entry) {
+  send("STOP", { preservePose: true });
+  resetUi();
+  blockedVocab = null;
+  const nativeClip =
+    entry.status === "native_display_candidate"
+      ? nativeClips.find((c) => !c.core_unit_key && c.text === entry.text)
+      : null;
+  if (nativeClip) {
+    selectMode("native", true);
+    input.value = entry.text;
+    selectedNativeId = nativeClip.id;
+  } else if (entry.status === "builtin_handmade_pose") {
+    selectMode("dictionary", true);
+    input.value = entry.text;
+  } else {
+    input.value = entry.text;
+    blockedVocab = entry.text;
+  }
+  refreshPlan();
+  if (blockedVocab) setStatus("demoVocabNoMotion", { text: entry.text });
+  input.focus();
 }
 function resetUi() {
   running = false;
@@ -459,6 +527,10 @@ function resetUi() {
 }
 function play() {
   if (!ready) return;
+  if (blockedVocab !== null && input.value === blockedVocab) {
+    setStatus("demoVocabNoMotion", { text: blockedVocab });
+    return;
+  }
   if (mode === "semantic") {
     setStatus("cslAnalysisOnly");
     return;
@@ -508,11 +580,15 @@ for (const button of document.querySelectorAll("[data-catalog-view]"))
     catalogView = button.dataset.catalogView;
     renderCatalog();
   });
-function selectMode(nextMode) {
+function selectMode(nextMode, keepVocabulary = false) {
   mode = nextMode;
   selectedNativeId = null;
-  if (mode === "auto" || mode === "t08") catalogView = "phrases";
+  blockedVocab = null;
+  if (keepVocabulary || (mode === "auto" && catalogView === "vocab"))
+    catalogView = "vocab";
+  else if (mode === "auto" || mode === "t08") catalogView = "phrases";
   else if (mode === "dictionary") catalogView = "words";
+  else if (catalogView === "vocab") catalogView = "phrases";
   send("STOP", { preservePose: true });
   resetUi();
   for (const n of document.querySelectorAll("[data-mode]")) {
@@ -966,6 +1042,22 @@ try {
     mode = "core";
     setStatus("coreInvalidAsset");
   }
+}
+try {
+  const response = await fetch("demo-vocabulary.json");
+  if (!response.ok) throw new Error("demoInvalidAsset");
+  const data = await response.json();
+  if (
+    data.schema !== "signbridge-demo-vocabulary-ui-v1" ||
+    !Array.isArray(data.entries)
+  )
+    throw new Error("demoInvalidAsset");
+  vocabulary = data.entries.filter(
+    (e) => typeof e.text === "string" && Array.isArray(e.forms),
+  );
+  if (vocabulary.length && mode !== "core") catalogView = "vocab";
+} catch {
+  vocabulary = [];
 }
 renderCatalog();
 refreshPlan();

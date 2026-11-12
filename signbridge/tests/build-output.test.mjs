@@ -265,6 +265,7 @@ test("full-page Demo ships its iframe, local assets and popup entry under the ex
     "experimental-index.json",
     "motion-library-v2.json",
     "research.json",
+    "demo-vocabulary.json",
   ])
     assert.ok(existsSync(join(dist, "demo", file)), file);
   const popup = readFileSync(join(dist, "popup/index.html"), "utf8");

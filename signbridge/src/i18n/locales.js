@@ -700,6 +700,14 @@ const DEMO_ZH = {
   demoCatalogViews: "短句或词库动作",
   demoPhraseTab: "短句与片段",
   demoWordTab: "单词动作",
+  demoVocabTab: "基础词库",
+  demoVocabNote:
+    "共 {total} 条常用词：{native} 条有原生动作候选，{pose} 条有内置手工姿势，{none} 条暂时只有词表、没有动作。所有动作均未经人工审核。",
+  demoVocabNoMotion:
+    "“{text}”暂时没有动作，只在词表中展示，不会用别的动作代替。",
+  demoVocabStatusNative: "有动作（原生候选，未经审核）",
+  demoVocabStatusPose: "有动作（内置手工姿势）",
+  demoVocabStatusNone: "仅词表（暂无动作）",
   demoPhraseSourceNote:
     "共 {total} 条：{reference} 条 T08 参考、{candidate} 条候选、{experimental} 条实验重建、{composed} 条词库组合。",
   demoWordSourceNote:
@@ -862,6 +870,14 @@ const DEMO_EN = {
   demoCatalogViews: "Phrase or dictionary view",
   demoPhraseTab: "Phrases / clips",
   demoWordTab: "Dictionary motions",
+  demoVocabTab: "Basic vocabulary",
+  demoVocabNote:
+    "{total} common words: {native} with native motion candidates, {pose} with built-in hand-made poses, {none} listed only (no motion yet). No motion has been human-reviewed.",
+  demoVocabNoMotion:
+    "No motion exists for “{text}” yet. It is listed only and no other motion is substituted.",
+  demoVocabStatusNative: "Has motion (native candidate, unreviewed)",
+  demoVocabStatusPose: "Has motion (built-in hand-made pose)",
+  demoVocabStatusNone: "Listed only (no motion yet)",
   demoPhraseSourceNote:
     "{total} entries: {reference} T08 references, {candidate} candidates, {experimental} experimental fits, {composed} dictionary compositions.",
   demoWordSourceNote:
@@ -1486,6 +1502,13 @@ const MODEL_DEMO_ZH = {
   nativePluginFailureHelp:
     "插件文件未通过校验或导出目录不可用，请重新安装此版本后再试。",
   nativeInstallName: "SignBridge 演示版（Apple 芯片 Mac）",
+  nativeLiteStartFailed: "启动失败，请退出后重新打开。",
+  nativeLiteInstallPlugin: "安装浏览器插件",
+  nativeLiteInstallHelp:
+    "请选择一个空文件夹，程序会把插件保存进去并为你打开。之后在 Chrome 打开扩展页，打开右上角的开发者模式，点击加载已解压的扩展程序，再选择这个文件夹。",
+  nativeLiteInstallDone: "插件已保存，文件夹已打开。",
+  nativeLiteOpenExtensions: "打开 Chrome 扩展页",
+  nativeLiteChromeMissing: "没有找到 Chrome，请先安装 Chrome 浏览器。",
 
   connectionTitle: "连接本机模型服务",
   connectionHelp:
