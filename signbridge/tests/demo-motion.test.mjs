@@ -184,3 +184,36 @@ test("semantic mode delegates to the CSL meaning planner instead of substring ma
   );
   assert.equal(planDemoText("我帮你", "semantic").canPreview, false);
 });
+
+test("auto mode prefers native recordings over builtin dictionary poses", async () => {
+  const { planAutoText } = await import("../src/demo/demo-motion.js");
+  const nativeClips = [{ id: "native-hello", text: "你好", source: "native" }];
+  const withoutNative = planDemoText("你好", "auto", clips);
+  assert.ok(
+    withoutNative.items.every((x) => x.source === "dictionary"),
+    "baseline: without the native library the word resolves to the dictionary",
+  );
+  const withNative = planAutoText("你好", clips, nativeClips);
+  assert.equal(withNative.items[0].id, "native-hello");
+  assert.equal(withNative.items[0].source, "native");
+  assert.equal(withNative.route, "native_auto_mix");
+  assert.ok(withNative.warnings.includes("candidate_label_unverified"));
+});
+
+test("planAutoText keeps dictionary items that the native library does not cover", async () => {
+  const { planAutoText } = await import("../src/demo/demo-motion.js");
+  const withNative = planAutoText("你好谢谢", clips, [
+    { id: "native-hello", text: "你好", source: "native" },
+  ]);
+  const byId = Object.fromEntries(withNative.items.map((x) => [x.id, x]));
+  assert.equal(byId["native-hello"].source, "native");
+  assert.equal(byId["csl_thanks"].source, "dictionary");
+});
+
+test("planAutoText falls back when no native clips are loaded", async () => {
+  const { planAutoText } = await import("../src/demo/demo-motion.js");
+  assert.deepEqual(
+    planAutoText("你好", clips, []),
+    planDemoText("你好", "auto", clips),
+  );
+});

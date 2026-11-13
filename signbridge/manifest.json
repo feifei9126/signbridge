@@ -11,8 +11,16 @@
     "48": "icons/icon48.png",
     "128": "icons/icon128.png"
   },
-  "permissions": ["storage", "activeTab", "offscreen", "tabCapture"],
-  "optional_host_permissions": ["http://*/*", "https://*/*"],
+  "permissions": [
+    "storage",
+    "activeTab",
+    "offscreen",
+    "tabCapture"
+  ],
+  "optional_host_permissions": [
+    "http://*/*",
+    "https://*/*"
+  ],
   "action": {
     "default_popup": "popup/index.html",
     "default_title": "SignBridge — 手语翻译",
@@ -29,9 +37,16 @@
   "options_page": "options/asr-settings.html",
   "content_scripts": [
     {
-      "matches": ["http://*/*", "https://*/*"],
-      "js": ["content/injector.js"],
-      "css": ["content/overlay.css"],
+      "matches": [
+        "http://*/*",
+        "https://*/*"
+      ],
+      "js": [
+        "content/injector.js"
+      ],
+      "css": [
+        "content/overlay.css"
+      ],
       "run_at": "document_idle"
     }
   ],
@@ -44,11 +59,12 @@
         "avatar/jsm/loaders/GLTFLoader.js",
         "avatar/jsm/utils/BufferGeometryUtils.js",
         "avatar/model.glb",
-        "avatar/page-agent.js",
-        "ar/ar-frame.html",
-        "ar/ar-frame-init.js"
+        "avatar/page-agent.js"
       ],
-      "matches": ["http://*/*", "https://*/*"]
+      "matches": [
+        "http://*/*",
+        "https://*/*"
+      ]
     }
   ],
   "content_security_policy": {

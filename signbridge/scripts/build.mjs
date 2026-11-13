@@ -278,7 +278,6 @@ async function build() {
   }
   console.log("  ✓ offscreen/audio-capture.{html,js}");
 
-  await buildAR();
   await buildDemo();
   await buildPoseEditor();
   await buildRecordMode();
@@ -533,14 +532,6 @@ async function buildDemo() {
       researchInputs.fileBytes.demo.get(item.image),
     );
   writeFileSync(dp("demo/research.json"), JSON.stringify(research));
-}
-
-async function buildAR() {
-  const source = join(ROOT, "src/ar/ar-frame.html");
-  if (!existsSync(source)) throw new Error("AR frame source is missing.");
-  copyFileSync(source, dp("ar/ar-frame.html"));
-  await bundle("ar/ar-frame-init.js", "ar/ar-frame-init.js");
-  console.log("  ✓ ar/ar-frame.{html,js}");
 }
 
 async function buildPoseEditor() {

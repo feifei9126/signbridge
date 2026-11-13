@@ -1,6 +1,7 @@
 import { t, setLocale } from "../i18n/locales.js";
 import { SIGNS } from "../avatar/sign-language-data.js";
 import {
+  planAutoText,
   planDemoText,
   validateT08Bundle,
   validateT08CandidateBundle,
@@ -103,7 +104,13 @@ function refreshPlan() {
             nativeClips.filter((c) => !c.core_unit_key),
             { nativeId: selectedNativeId },
           )
-        : planDemoText(input.value, mode, playableClips());
+        : mode === "auto"
+          ? planAutoText(
+              input.value,
+              playableClips(),
+              nativeClips.filter((c) => !c.core_unit_key),
+            )
+          : planDemoText(input.value, mode, playableClips());
   renderSemanticPlan();
   const analysisOnly = mode === "semantic";
   document.querySelector(".catalog-switch").hidden = mode === "core";
@@ -169,6 +176,7 @@ function refreshPlan() {
                   "bounded_demo_semantic",
                   "bounded_native_semantic",
                   "native_exact_candidate",
+                  "native_auto_mix",
                 ].includes(currentPlan.route)
               ? t("demoSemanticPreview")
               : input.value.trim()
@@ -505,7 +513,10 @@ function pickVocabulary(entry) {
     input.value = entry.text;
     selectedNativeId = nativeClip.id;
   } else if (entry.status === "builtin_handmade_pose") {
-    selectMode("dictionary", true);
+    // Auto mode already resolves builtin poses, and native recordings win
+    // whenever both exist. Locking to "dictionary" here routed every later
+    // input to the word library and hid the sign library from playback.
+    selectMode("auto", true);
     input.value = entry.text;
   } else {
     input.value = entry.text;

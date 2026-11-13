@@ -207,26 +207,7 @@ test("manifest relies on one static content-script registration", () => {
     "avatar/jsm/utils/BufferGeometryUtils.js",
     "avatar/model.glb",
     "avatar/page-agent.js",
-    "ar/ar-frame.html",
-    "ar/ar-frame-init.js",
   ]);
-});
-
-test("AR frame and its module bundle ship with the extension", () => {
-  const manifest = JSON.parse(
-    readFileSync(join(dist, "manifest.json"), "utf8"),
-  );
-  const resources = manifest.web_accessible_resources[0].resources;
-  for (const resource of resources) {
-    assert.ok(existsSync(join(dist, resource)), `missing ${resource}`);
-  }
-  const html = readFileSync(join(dist, "ar/ar-frame.html"), "utf8");
-  assert.match(html, /src="\.\/ar-frame-init\.js"/);
-  assert.doesNotMatch(html, /<script type="module">/);
-  assert.match(html, /^<!DOCTYPE html>/i);
-  const bundle = readFileSync(join(dist, "ar/ar-frame-init.js"), "utf8");
-  assert.match(bundle, /getUserMedia|createARScene/);
-  assert.ok(statSync(join(dist, "avatar/model.glb")).size > 0);
 });
 
 test("popup controls are inside the app and avoid inline styles", () => {

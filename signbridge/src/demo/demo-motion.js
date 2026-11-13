@@ -73,3 +73,37 @@ export {
   validateT08Bundle,
   validateT08CandidateBundle,
 } from "../avatar/reference-motion-asset.js";
+
+// Auto mode must consult the native motion library before falling back to the
+// builtin hand-authored dictionary, otherwise every word that exists in both
+// plays the dictionary pose and the native recordings are never shown.
+export function planAutoText(input, clips = [], nativeClips = []) {
+  const plan = planDemoText(input, "auto", clips);
+  if (!nativeClips.length) return plan;
+  const key = (text) =>
+    String(text)
+      .normalize("NFKC")
+      .trim()
+      .replace(/[。.!！]+$/u, "");
+  const byText = new Map();
+  for (const clip of nativeClips) {
+    for (const alias of [clip.text, ...(clip.aliases || [])]) {
+      const k = key(alias);
+      if (k && !byText.has(k)) byText.set(k, clip);
+    }
+  }
+  let remapped = 0;
+  const items = plan.items.map((item) => {
+    const clip = byText.get(key(item.matchedText));
+    if (!clip || clip.id === item.id) return item;
+    remapped += 1;
+    return { ...item, id: clip.id, source: "native", label: clip.text };
+  });
+  if (!remapped) return plan;
+  return {
+    ...plan,
+    items,
+    route: "native_auto_mix",
+    warnings: [...(plan.warnings || []), "candidate_label_unverified"],
+  };
+}
