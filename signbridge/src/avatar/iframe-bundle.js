@@ -26,6 +26,10 @@ import {
   createExperimentalLoader,
 } from "../demo/experimental-motion.js";
 import { planRealtimeText } from "./runtime-motion-plan.js";
+import {
+  validateNativeIndex,
+  decodeNativeClip,
+} from "../demo/native-motion.js";
 import { MOTION_SMOOTHING_PROFILE } from "../demo/motion-stabilization.js";
 import { resolveMotionDisplayPolicy } from "../demo/motion-policy.js";
 
@@ -52,6 +56,54 @@ let experimentalLoader = null;
 let experimentalRetarget = null;
 let motionLibraryEntries = new Map();
 const t08TrackCache = createMotionCache({ maxEntries: 12, maxValues: 500000 });
+const nativeTrackCache = createMotionCache({
+  maxEntries: 12,
+  maxValues: 500000,
+});
+let nativeIndex = null;
+let nativeClipCache = new Map();
+
+async function loadNativeIndex() {
+  try {
+    const response = await fetch(
+      chrome.runtime.getURL("demo/native-index.json"),
+    );
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const data = await response.json();
+    if (data.unavailable) return;
+    nativeIndex = validateNativeIndex(data);
+    console.info(
+      "[SB] Native motion index ready:",
+      nativeIndex.clips.length,
+      "candidates",
+    );
+  } catch (error) {
+    nativeIndex = null;
+    console.warn("[SB] Native index unavailable; dictionary fallback:", error);
+  }
+}
+
+async function loadNativeClip(id) {
+  const entry = nativeIndex?.clips.find((clip) => clip.id === id);
+  if (!entry) throw new Error("native clip is not in the index");
+  if (nativeClipCache.has(id)) return nativeClipCache.get(id);
+  const response = await fetch(chrome.runtime.getURL("demo/" + entry.asset));
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  const bytes = await response.arrayBuffer();
+  const digest = [
+    ...new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)),
+  ]
+    .map((v) => v.toString(16).padStart(2, "0"))
+    .join("");
+  if (digest !== entry.sha256) throw new Error("native clip digest differs");
+  const clip = JSON.parse(new TextDecoder().decode(bytes));
+  const frames = decodeNativeClip(clip, entry);
+  const value = { clip, frames };
+  nativeClipCache.set(id, value);
+  while (nativeClipCache.size > 8)
+    nativeClipCache.delete(nativeClipCache.keys().next().value);
+  return value;
+}
 let translationQueue = Promise.resolve();
 let translationGeneration = 0;
 
@@ -242,7 +294,12 @@ function textToAnimation(text, manual = false) {
     motionPlayer?.stop({ reset: false });
   }
   const generation = translationGeneration;
-  const plan = planRealtimeText(text, t08ReferenceClips, translationMatchers);
+  const plan = planRealtimeText(
+    text,
+    t08ReferenceClips,
+    translationMatchers,
+    nativeIndex?.clips || [],
+  );
   console.info("[SB] Realtime motion plan:", {
     items: plan.items.map(({ id, source, text }) => ({ id, source, text })),
     unmatched: plan.unmatched,
@@ -257,6 +314,50 @@ function textToAnimation(text, manual = false) {
       if (item.source === "dictionary") {
         const motion = dictionaryMotion(item.text, item.translation);
         if (motion) motions.push(motion);
+        continue;
+      }
+      if (item.source === "native") {
+        try {
+          const loaded = await loadNativeClip(item.id);
+          if (!modelReady || generation !== translationGeneration) return;
+          const clipsKey = `native:${item.id}:${loaded.clip.display_profile}`;
+          const compiled = nativeTrackCache.get(clipsKey, () => ({
+            frames: loaded.frames,
+          }));
+          motions.push({
+            type: "quaternion-track",
+            samples: compiled.frames,
+            fps: loaded.clip.fps,
+            duration: loaded.clip.frames / loaded.clip.fps,
+            sourceInfo: {
+              sourceType: "native",
+              referenceId: loaded.clip.id,
+              frames: loaded.clip.frames,
+              stabilized: loaded.clip.display_profile !== "raw",
+              presentation: loaded.clip.display_profile,
+              matchedText: item.text,
+              label: t(
+                loaded.clip.wrist_amplitude_reduced
+                  ? "demoVocabStatusNativeReduced"
+                  : "demoVocabStatusNative",
+              ),
+            },
+          });
+        } catch (error) {
+          console.warn(
+            "[SB] Native playback unavailable; using dictionary:",
+            item.id,
+            error,
+          );
+          if (!modelReady || generation !== translationGeneration) return;
+          const fallback = dictionaryMotion(
+            item.text,
+            translateText(item.text, 12, translationMatchers),
+            item.id,
+            error.message,
+          );
+          if (fallback) motions.push(fallback);
+        }
         continue;
       }
       try {
@@ -465,6 +566,7 @@ function init(modelUrl) {
       console.log("[SB] REST saved for", Object.keys(rig.rest).length, "bones");
 
       await loadT08ReferenceIndex();
+      await loadNativeIndex();
       if (!modelRoot) return;
       modelReady = true;
       modelLoading = false;

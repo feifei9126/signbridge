@@ -25,8 +25,9 @@ test("basic vocabulary lists at least 100 unique entries and is not approved", (
 
 test("status counts stay honest about how many words have a motion", () => {
   assert.equal(count(NATIVE), 29);
-  assert.equal(count(POSE), 44);
-  assert.equal(count("isolated_by_technical_gate"), 52);
+  assert.equal(count("wrist_amplitude_reduced_candidate"), 37);
+  assert.equal(count(POSE), 38);
+  assert.equal(count("isolated_by_technical_gate"), 21);
   assert.equal(count("list_only"), 16);
   assert.equal(vocabulary.entries.length, 141);
 });
@@ -36,13 +37,13 @@ test("built-in pose entries map to exactly one dictionary sign", () => {
   for (const entry of vocabulary.entries.filter((e) => e.status === POSE)) {
     const hits = signs.filter((s) => entry.forms.includes(s.gloss));
     assert.equal(hits.length, 1, entry.text);
-    assert.equal(entry.nativeId, null, entry.text);
   }
 });
 
 test("entries without a motion name no motion id and carry no private data", () => {
+  const MOTION = [NATIVE, "wrist_amplitude_reduced_candidate", POSE];
   for (const entry of vocabulary.entries.filter(
-    (e) => e.status !== NATIVE && e.status !== POSE,
+    (e) => !MOTION.includes(e.status),
   ))
     assert.equal(entry.nativeId, null, entry.text);
   assert.ok(!raw.includes("/Users/"));

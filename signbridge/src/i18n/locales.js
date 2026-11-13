@@ -706,6 +706,7 @@ const DEMO_ZH = {
   demoVocabNoMotion:
     "“{text}”暂时没有动作，只在词表中展示，不会用别的动作代替。",
   demoVocabStatusNative: "有动作（原生候选，未经审核）",
+  demoVocabStatusNativeReduced: "有动作（原生候选，手腕幅度略减）",
   demoVocabStatusPose: "有动作（内置手工姿势）",
   demoVocabStatusNone: "仅词表（暂无动作）",
   demoPhraseSourceNote:
@@ -876,6 +877,8 @@ const DEMO_EN = {
   demoVocabNoMotion:
     "No motion exists for “{text}” yet. It is listed only and no other motion is substituted.",
   demoVocabStatusNative: "Has motion (native candidate, unreviewed)",
+  demoVocabStatusNativeReduced:
+    "Has motion (native candidate, reduced wrist amplitude)",
   demoVocabStatusPose: "Has motion (built-in hand-made pose)",
   demoVocabStatusNone: "Listed only (no motion yet)",
   demoPhraseSourceNote:

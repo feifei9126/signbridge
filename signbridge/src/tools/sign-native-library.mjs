@@ -129,6 +129,29 @@ export function chooseProfile(profiles) {
   );
 }
 
+// Second tier: accept a profile whose only failure is wrist-range retention
+// (smoothing damped some of the wrist amplitude but geometry and handshape
+// checks still hold). These are marked wrist_amplitude_reduced so the UI can
+// warn honestly instead of claiming full gate compliance.
+export const SECOND_TIER_FAILURES = ["minimumWristRangeRetention"];
+export function chooseSecondTier(profiles) {
+  return (
+    ["current", "precision", "adaptive", "recovery", "raw"].find((name) => {
+      const c = profiles[name];
+      if (!c?.gate?.failures?.length) return false;
+      if (c.gate.failures.some((f) => !SECOND_TIER_FAILURES.includes(f)))
+        return false;
+      return (
+        c.geometry?.armCrossingFrames === 0 &&
+        c.geometry?.deepTorsoFrames === 0 &&
+        Number.isFinite(c.metrics?.fingerMidpointP95Degrees) &&
+        c.metrics.fingerMidpointP95Degrees <= 10 &&
+        c.gate.checks?.handshapeChangeP95Cm === true
+      );
+    }) ?? null
+  );
+}
+
 export function handshapeDifference(raw, display, rig, model) {
   const ends = ["Thumb", "Index", "Middle", "Ring", "Little"];
   const coordinates = (track) =>
@@ -260,10 +283,13 @@ export function buildLibrary(inputRoot, outputRoot, modelPath) {
       }
       if (JSON.stringify(clip.poses) !== original)
         throw new Error("Source pose mutated");
-      const selected = chooseProfile(record.profiles);
+      const strict = chooseProfile(record.profiles);
+      const selected = strict || chooseSecondTier(record.profiles);
       record.selected_profile = selected;
       record.status = selected
-        ? "technical_display_candidate"
+        ? strict
+          ? "technical_display_candidate"
+          : "wrist_amplitude_reduced_candidate"
         : "isolated_numeric_or_geometry_risk";
       if (selected) {
         const track = tracks[selected],
@@ -276,6 +302,7 @@ export function buildLibrary(inputRoot, outputRoot, modelPath) {
           display_profile: profiles[selected] || "raw",
           model_sha256: hash(readFileSync(modelFile)),
           numeric_gate_passed: true,
+          wrist_amplitude_reduced: !strict,
           ...flags,
         };
         json(join(output, asset), {

@@ -415,18 +415,19 @@ function renderCatalog() {
   );
   document.querySelector("#catalog-count").textContent =
     `${found.length} / ${catalog.length}`;
+  const MOTION_STATUSES = [
+    "native_display_candidate",
+    "wrist_amplitude_reduced_candidate",
+    "builtin_handmade_pose",
+  ];
   document.querySelector("#catalog-note").textContent = vocabView
     ? t("demoVocabNote", {
         total: catalog.length,
-        native: catalog.filter((e) => e.status === "native_display_candidate")
+        native: catalog.filter((e) => MOTION_STATUSES.includes(e.status))
           .length,
         pose: catalog.filter((e) => e.status === "builtin_handmade_pose")
           .length,
-        none: catalog.filter(
-          (e) =>
-            e.status !== "native_display_candidate" &&
-            e.status !== "builtin_handmade_pose",
-        ).length,
+        none: catalog.filter((e) => !MOTION_STATUSES.includes(e.status)).length,
       })
     : mode === "core"
       ? t("coreCatalog", { count: catalog.length })
@@ -493,9 +494,11 @@ function vocabStatusLabel(status) {
   return t(
     status === "native_display_candidate"
       ? "demoVocabStatusNative"
-      : status === "builtin_handmade_pose"
-        ? "demoVocabStatusPose"
-        : "demoVocabStatusNone",
+      : status === "wrist_amplitude_reduced_candidate"
+        ? "demoVocabStatusNativeReduced"
+        : status === "builtin_handmade_pose"
+          ? "demoVocabStatusPose"
+          : "demoVocabStatusNone",
   );
 }
 // Only words with a real motion are routed to a playable mode. Words without
@@ -504,10 +507,12 @@ function pickVocabulary(entry) {
   send("STOP", { preservePose: true });
   resetUi();
   blockedVocab = null;
-  const nativeClip =
-    entry.status === "native_display_candidate"
-      ? nativeClips.find((c) => !c.core_unit_key && c.text === entry.text)
-      : null;
+  const nativeClip = [
+    "native_display_candidate",
+    "wrist_amplitude_reduced_candidate",
+  ].includes(entry.status)
+    ? nativeClips.find((c) => !c.core_unit_key && c.text === entry.text)
+    : null;
   if (nativeClip) {
     selectMode("native", true);
     input.value = entry.text;
