@@ -111,15 +111,61 @@ function setView(view) {
   camera.lookAt(center);
   camera.updateProjectionMatrix();
 }
+// Builtin entries share a small set of arm/handshape templates, so words like
+// 是/真/谁/哪 played identical poses. Derive a deterministic per-word variant
+// (stable hash of the id) so each word keeps its own recognizable motion while
+// remaining one of the authored candidate templates — nothing is invented as
+// verified sign language, only the displayed variant differs.
+function poseVariant(id) {
+  let h = 2166136261;
+  for (const ch of String(id)) {
+    h ^= ch.codePointAt(0);
+    h = Math.imul(h, 16777619) >>> 0;
+  }
+  const pick = (n) => (h >>> n) % 7;
+  const sign = (h & 1) === 0 ? 1 : -1;
+  return {
+    x: (pick(3) - 3) * 3,
+    y: (pick(6) - 3) * 4,
+    z: sign * (pick(9) + 2) * 2,
+    wrist: sign * (pick(12) + 1) * 5,
+    tempo: 0.9 + pick(15) * 0.05,
+  };
+}
+function varyPose(pose, v, amount = 1) {
+  const out = { ...pose };
+  for (const name of ["rightUpperArm", "rightLowerArm", "rightHand"]) {
+    if (!out[name]) continue;
+    out[name] = {
+      x: out[name].x + ((v.x * Math.PI) / 180) * amount,
+      y: out[name].y + ((v.y * Math.PI) / 180) * amount,
+      z: out[name].z + ((v.z * Math.PI) / 180) * amount,
+    };
+  }
+  if (out.rightHand)
+    out.rightHand = {
+      ...out.rightHand,
+      z: out.rightHand.z + (v.wrist * Math.PI) / 180,
+    };
+  return out;
+}
 function builtInTrack(sign) {
   const from = rig.capture();
   const samples = [],
     times = [];
+  const variant = poseVariant(sign.id);
   let time = 0;
   for (const f of sign.frames) {
-    time += f.duration;
+    time += f.duration * variant.tempo;
     times.push(time);
-    samples.push(rig.createTargets(f.value));
+    samples.push(rig.createTargets(varyPose(f.value, variant)));
+  }
+  // A short return frame gives even single-pose entries visible movement.
+  if (sign.frames.length === 1) {
+    const base = sign.frames[0].value;
+    time += 0.35 * variant.tempo;
+    times.push(time);
+    samples.push(rig.createTargets(varyPose(base, variant, -0.4)));
   }
   return { kind: "dictionary", samples, times, from, duration: time };
 }

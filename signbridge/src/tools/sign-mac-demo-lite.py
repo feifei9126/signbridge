@@ -65,6 +65,9 @@ def build(site, output):
         if sha(target) != files[name]: raise ValueError('Copy differs: ' + name)
     shutil.copy2(site / 'BUILD.json', resources / 'site/BUILD.json')
     (resources / 'native-locales.json').write_text(labels_text)
+    icon = TOOLS / 'assets/AppIcon.icns'
+    if not icon.is_file(): raise ValueError('AppIcon.icns is missing')
+    shutil.copy2(icon, resources / 'AppIcon.icns')
     subprocess.run(['/usr/bin/swiftc', '-swift-version', '5', '-O', '-parse-as-library', '-target', 'arm64-apple-macosx13.0',
                     str(TOOLS / 'mac-demo-lite.swift'), str(TOOLS / 'mac-plugin-export.swift'),
                     '-o', str(macos / 'SignBridge Demo'), '-framework', 'AppKit', '-framework', 'WebKit'], check=True)
@@ -72,7 +75,7 @@ def build(site, output):
             'CFBundleIdentifier': 'org.signbridge.demo-lite', 'CFBundleExecutable': 'SignBridge Demo',
             'CFBundlePackageType': 'APPL', 'CFBundleShortVersionString': VERSION, 'CFBundleVersion': BUILD_NUMBER,
             'LSMinimumSystemVersion': '13.0', 'LSApplicationCategoryType': 'public.app-category.education',
-            'NSHighResolutionCapable': True}
+            'NSHighResolutionCapable': True, 'CFBundleIconFile': 'AppIcon'}
     (contents / 'Info.plist').write_bytes(plistlib.dumps(info))
     subprocess.run(['/usr/bin/codesign', '--force', '--deep', '--sign', '-', str(app)], check=True)
     subprocess.run(['/usr/bin/codesign', '--verify', '--deep', '--strict', str(app)], check=True)
