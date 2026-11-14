@@ -1,0 +1,3 @@
+fe5f06923905c5e3d54d770683c53297773210aef3860422a3bb5751d8ea3a4e  SignBridge-Demo-2.1.2-macOS-AppleSilicon.pkg
+03ac137315a840813520302fd31dd85e59b557b6ac8b7f8b94942e325132a0be  SignBridge-Demo-2.1.2-StaticSite.zip
+1d2b22dcd9c2f46dbcd4c8393458b3bddff0b543f2c8eab264e428b25a5577ec  SignBridge-Demo-2.1.2-Windows.zip

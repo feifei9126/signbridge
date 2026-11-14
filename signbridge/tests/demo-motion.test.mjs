@@ -217,3 +217,13 @@ test("planAutoText falls back when no native clips are loaded", async () => {
     planDemoText("你好", "auto", clips),
   );
 });
+
+test("native mode falls back to the auto route for words without a native clip", async () => {
+  const { planAutoText } = await import("../src/demo/demo-motion.js");
+  const { planNativeText } = await import("../src/demo/native-plan.js");
+  // "是" has a builtin pose but no native recording.
+  const nativeOnly = planNativeText("是", [], {});
+  assert.equal(nativeOnly.items.length, 0, "native planner cannot resolve it");
+  const auto = planAutoText("是", [], []);
+  assert.equal(auto.items[0]?.id, "csl_yes", "auto route resolves the pose");
+});

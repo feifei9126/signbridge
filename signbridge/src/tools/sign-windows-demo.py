@@ -12,8 +12,8 @@ import shutil
 import zipfile
 from pathlib import Path
 
-VERSION = '2.1.1'
-BUILD_NUMBER = '20261114.1'
+VERSION = '2.1.2'
+BUILD_NUMBER = '20261114.2'
 LAUNCHER = '启动 SignBridge Demo.bat'
 SERVER = 'serve.ps1'
 README = 'README-Windows.txt'

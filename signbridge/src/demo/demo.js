@@ -94,15 +94,31 @@ function element(tag, text) {
   if (text !== undefined) n.textContent = text;
   return n;
 }
+// Native mode is the default view. A word with only a builtin pose has no
+// native clip, so a bare exact-match check would leave it unplayable ("暂不支持").
+// Fall back to the auto route so those words still resolve to their pose.
+function nativeFallback(plan) {
+  if (plan.canPreview || plan.items.length) return plan;
+  const text = String(plan.unmatched || "").trim();
+  if (!text) return plan;
+  const auto = planAutoText(
+    text,
+    playableClips(),
+    nativeClips.filter((c) => !c.core_unit_key),
+  );
+  return auto.items.length ? auto : plan;
+}
 function refreshPlan() {
   currentPlan =
     mode === "core"
       ? planCoreText(input.value, coreManifest)
       : mode === "native"
-        ? planNativeText(
-            input.value,
-            nativeClips.filter((c) => !c.core_unit_key),
-            { nativeId: selectedNativeId },
+        ? nativeFallback(
+            planNativeText(
+              input.value,
+              nativeClips.filter((c) => !c.core_unit_key),
+              { nativeId: selectedNativeId },
+            ),
           )
         : mode === "auto"
           ? planAutoText(

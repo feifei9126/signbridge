@@ -3,7 +3,7 @@
 **让网页视频多一种无障碍观看方式：读取字幕或识别视频声音，用 3D 虚拟人播放可检查、可扩展的中国手语动作。**
 
 [![CI](https://github.com/feifei9126/signbridge/actions/workflows/verify.yml/badge.svg)](https://github.com/feifei9126/signbridge/actions/workflows/verify.yml)
-[![Version](https://img.shields.io/badge/demo-2.1.1-0b7285.svg)](#下载演示版211)
+[![Version](https://img.shields.io/badge/demo-2.1.2-0b7285.svg)](#下载演示版212)
 [![License: MIT](https://img.shields.io/badge/license-MIT-2563eb.svg)](LICENSE)
 [![Chrome MV3](https://img.shields.io/badge/Chrome-Manifest%20V3-4285f4.svg)](https://developer.chrome.com/docs/extensions/develop/migrate/what-is-mv3)
 [![CSL](https://img.shields.io/badge/sign%20language-CSL-dc2626.svg)](#工作原理与边界)
@@ -17,25 +17,26 @@ SignBridge 是一个面向视频无障碍场景的开源 Chrome 扩展。我们�
 
 ![SignBridge 在视频页面中实时播放 3D 中国手语动画](docs/images/signbridge-demo.png)
 
-## 下载演示版（2.1.1）
+## 下载演示版（2.1.2）
 
-当前版本 **2.1.1**，发布在 [GitHub Releases](https://github.com/feifei9126/signbridge/releases/tag/v2.1.1)。两套演示包都是离线运行，只监听本机 `127.0.0.1`，不联网、不上传数据。
+当前版本 **2.1.2**，发布在 [GitHub Releases](https://github.com/feifei9126/signbridge/releases/latest)。所有演示包都是离线运行，只监听本机 `127.0.0.1`，不联网、不上传数据。
 
-| 平台 | 文件 | 说明 |
+| 用途 | 文件 | 说明 |
 | --- | --- | --- |
-| macOS（Apple 芯片，13+） | [SignBridge-Demo-2.1.1-macOS-AppleSilicon.pkg](https://github.com/feifei9126/signbridge/releases/download/v2.1.1/SignBridge-Demo-2.1.1-macOS-AppleSilicon.pkg) | 双击安装，打开应用即演示 |
-| Windows（10/11 x64） | [SignBridge-Demo-2.1.1-Windows.zip](https://github.com/feifei9126/signbridge/releases/download/v2.1.1/SignBridge-Demo-2.1.1-Windows.zip) | 解压后双击 `启动 SignBridge Demo.bat`，无需安装 |
+| macOS（Apple 芯片，13+） | [SignBridge-Demo-2.1.2-macOS-AppleSilicon.pkg](https://github.com/feifei9126/signbridge/releases/latest/download/SignBridge-Demo-2.1.2-macOS-AppleSilicon.pkg) | 双击安装，打开应用即演示 |
+| Windows（10/11 x64） | [SignBridge-Demo-2.1.2-Windows.zip](https://github.com/feifei9126/signbridge/releases/latest/download/SignBridge-Demo-2.1.2-Windows.zip) | 解压后双击 `启动 SignBridge Demo.bat`，无需安装 |
+| 静态网站托管 | [SignBridge-Demo-2.1.2-StaticSite.zip](https://github.com/feifei9126/signbridge/releases/latest/download/SignBridge-Demo-2.1.2-StaticSite.zip) | 解压上传即可：根目录含 `package.json` 与 `index.html`，无需构建 |
 
-[SHA-256 校验值](https://github.com/feifei9126/signbridge/releases/download/v2.1.1/SHA256SUMS.txt) · [安装说明（macOS）](SignBridge-Demo-安装指南.md)
+[SHA-256 校验值](https://github.com/feifei9126/signbridge/releases/latest/download/SHA256SUMS.txt) · [安装说明（macOS）](SignBridge-Demo-安装指南.md)
 
-**2.1.1 版包含什么**：141 条手语词条，其中 104 条有动作（66 条视频拟合动作 + 38 条内置手工姿势，每个词的动作互不相同），其余 37 条只在词表中展示、不用别的动作顶替。插件浮层与演示工作台都会优先匹配视频拟合动作，匹配不到才回退内置词库，界面标注来源。界面版本显示 **v2.1.1**。
+**2.1.2 版包含什么**：141 条手语词条，其中 104 条有动作（66 条视频拟合动作 + 38 条内置手工姿势，每个词的动作互不相同），其余 37 条只在词表中展示、不用别的动作顶替。插件浮层与演示工作台都会优先匹配视频拟合动作，匹配不到才回退内置词库（手语库模式下同样回退），界面标注来源。界面版本显示 **v2.1.2**。
 
-**必读限制**：所有动作均为未经手语专家审核的候选，`human_approved` 与 `training_ready` 仍为 false；不含语音识别与语义模型推理；macOS 包为 ad-hoc 签名、未公证，Windows 包未做代码签名，首次运行需手动放行。
+**必读限制**：所有动作均为未经手语专家审核的候选，`human_approved` 与 `training_ready` 仍为 false；不含语音识别与语义模型推理；macOS 包为 ad-hoc 签名、未公证，Windows 包未做代码签名，首次运行需手动放行。静态站点版不包含浏览器扩展专用的设置、覆盖分析等页面。
 
 ## 目录
 
 - [项目简介](#signbridge)
-- [下载演示版（2.1.1）](#下载演示版211)
+- [下载演示版（2.1.2）](#下载演示版212)
 - [快速上手](#三步快速上手)
 - [核心特性](#核心特性)
 - [声音识别](#两种声音识别方式)
@@ -59,6 +60,12 @@ SignBridge 是一个面向视频无障碍场景的开源 Chrome 扩展。我们�
 - **研究资产隔离**：普通构建不含本地研究资产；研究资产必须显式选择并通过校验后才进入构建。
 
 ## 版本记录
+
+### 2026-11-14：演示版 2.1.2 —— 手语库模式回退修复与静态网站包
+
+- 修复：演示页启动后默认进入“手语库”模式，而该模式只匹配原生录制动作；只有内置姿势的词（是、一、不、真等）因此显示“暂不支持”。现在手语库模式匹配不到时自动回退到完整路由，内置姿势与原生动作都能播放。
+- 新增静态网站包：根目录含 `package.json`（name + version）与 `index.html`，页面引用的脚本、样式、模型和动作全部在内，不含 `node_modules` 与未编译源码，可直接上传到任意静态托管平台，平台无需安装依赖或执行构建。
+- 新增 `sign-static-zip.py` 打包工具：只复制经过校验的构建产物，剥离依赖扩展 API 的工具页入口，并在打包后复验哈希。
 
 ### 2026-11-14：演示版 2.1.1 发布，新增 Windows 版
 
