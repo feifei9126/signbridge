@@ -91,12 +91,12 @@ async function loadNativeClip(id) {
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
   const bytes = await response.arrayBuffer();
   const digest = [
-    ...new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)),
+    ...new Uint8Array(await globalThis.crypto.subtle.digest("SHA-256", bytes)),
   ]
     .map((v) => v.toString(16).padStart(2, "0"))
     .join("");
   if (digest !== entry.sha256) throw new Error("native clip digest differs");
-  const clip = JSON.parse(new TextDecoder().decode(bytes));
+  const clip = JSON.parse(new globalThis.TextDecoder().decode(bytes));
   const frames = decodeNativeClip(clip, entry);
   const value = { clip, frames };
   nativeClipCache.set(id, value);
