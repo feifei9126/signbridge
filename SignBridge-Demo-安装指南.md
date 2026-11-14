@@ -1,7 +1,8 @@
 # SignBridge Demo 2.1.1 安装指南（新手版）
 
 > 本版（2026-11-14）：插件版本 2.1.1；修复插件浮层原生动作缓存错误（此前一直"参考动作加载失败"回退词库）；动作库 66 条、词库 104 条词有动作。
-> 安装包 SHA-256：`926b708325c993c5df973ccf63ef0812c78a49ae7402b5a7516452532ba5e2b9`
+> Windows 版见[发布页](https://github.com/feifei9126/signbridge#下载演示版211)。公开发布包不含来源视频截图。
+> 安装包 SHA-256：`3a96e89ce5aa3239b334056bdd5bd8ec7d180927d47b5455973aaf155c5ce156`
 
 这个包装一次，之后每次只要打开「SignBridge Demo」应用就行。
 
@@ -13,13 +14,13 @@
 
 ## 安装步骤
 
-**第 1 步：双击 `SignBridge-Demo-2.1.1.pkg`**
+**第 1 步：双击 `SignBridge-Demo-2.1.1-macOS-AppleSilicon.pkg`**
 
 如果弹出"无法打开，因为来自身份不明的开发者"：
 打开「终端」应用，把这行命令粘贴进去回车：
 
 ```sh
-xattr -d com.apple.quarantine ~/Downloads/SignBridge-Demo-2.1.1.pkg
+xattr -d com.apple.quarantine ~/Downloads/SignBridge-Demo-2.1.1-macOS-AppleSilicon.pkg
 ```
 
 （如果 pkg 不在"下载"文件夹，把路径换成实际位置。）
