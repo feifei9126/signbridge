@@ -270,7 +270,12 @@ try {
   const degraded = await page.evaluate(() => window.__motionEvents);
   assert.equal(degraded[0].sourceType, "dictionary");
   assert.ok(degraded[0].fallbackReason);
-  assert.ok(degraded[0].label.includes("回退"));
+  // The runner's browser locale decides the label language, so accept both
+  // shipped wordings instead of pinning the Chinese string.
+  assert.ok(
+    /回退|fallback/i.test(degraded[0].label),
+    `unexpected fallback label: ${degraded[0].label}`,
+  );
   assert.equal(degraded[1].sourceType, "experimental");
   report.sources.push(...degraded);
   report.checks.push(
