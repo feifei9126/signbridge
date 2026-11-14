@@ -318,6 +318,8 @@ class WordMotionLibraryTests(unittest.TestCase):
     def test_effective_pose_identity_uses_batch_qualified_sequence_uid(self):
         tool = module()
         local_data = TOOL.parents[3] / 'local-data'
+        # local-data is gitignored, so a clean checkout (CI) has none yet.
+        local_data.mkdir(parents=True, exist_ok=True)
         with tempfile.TemporaryDirectory(dir=local_data, prefix='word-motion-test-') as folder:
             path = Path(folder) / 'pose.json'
             path.write_text(json.dumps({'id': 'batch--annotation', 'frames': 2, 'fps': 25.,
@@ -357,6 +359,8 @@ class WordMotionLibraryTests(unittest.TestCase):
         tool = module()
         import numpy as np
         local_data = TOOL.parents[3] / 'local-data'
+        # local-data is gitignored, so a clean checkout (CI) has none yet.
+        local_data.mkdir(parents=True, exist_ok=True)
         with tempfile.TemporaryDirectory(dir=local_data, prefix='word-native-test-') as folder:
             root = Path(folder)
             for sub in ('smplx', 'meta'):
@@ -398,6 +402,8 @@ class WordMotionLibraryTests(unittest.TestCase):
         tool = module()
         import subprocess
         local_data = TOOL.parents[3] / 'local-data'
+        # local-data is gitignored, so a clean checkout (CI) has none yet.
+        local_data.mkdir(parents=True, exist_ok=True)
         with tempfile.TemporaryDirectory(dir=local_data, prefix='word-legacy-test-') as folder:
             root = Path(folder)
             clip = root / 'clip.mp4'
