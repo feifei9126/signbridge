@@ -3,6 +3,7 @@
 **让网页视频多一种无障碍观看方式：读取字幕或识别视频声音，用 3D 虚拟人播放可检查、可扩展的中国手语动作。**
 
 [![CI](https://github.com/feifei9126/signbridge/actions/workflows/verify.yml/badge.svg)](https://github.com/feifei9126/signbridge/actions/workflows/verify.yml)
+[![Version](https://img.shields.io/badge/demo-2.1.1-0b7285.svg)](#下载演示版211)
 [![License: MIT](https://img.shields.io/badge/license-MIT-2563eb.svg)](LICENSE)
 [![Chrome MV3](https://img.shields.io/badge/Chrome-Manifest%20V3-4285f4.svg)](https://developer.chrome.com/docs/extensions/develop/migrate/what-is-mv3)
 [![CSL](https://img.shields.io/badge/sign%20language-CSL-dc2626.svg)](#工作原理与边界)
@@ -16,9 +17,25 @@ SignBridge 是一个面向视频无障碍场景的开源 Chrome 扩展。我们�
 
 ![SignBridge 在视频页面中实时播放 3D 中国手语动画](docs/images/signbridge-demo.png)
 
+## 下载演示版（2.1.1）
+
+当前版本 **2.1.1**。两套演示包都是离线运行，只监听本机 `127.0.0.1`，不联网、不上传数据。
+
+| 平台 | 文件 | 说明 |
+| --- | --- | --- |
+| macOS（Apple 芯片，13+） | [SignBridge-Demo-2.1.1-macOS-AppleSilicon.pkg](docs/assets/demo-2.1.1/SignBridge-Demo-2.1.1-macOS-AppleSilicon.pkg) | 双击安装，打开应用即演示 |
+| Windows（10/11 x64） | [SignBridge-Demo-2.1.1-Windows.zip](docs/assets/demo-2.1.1/SignBridge-Demo-2.1.1-Windows.zip) | 解压后双击 `启动 SignBridge Demo.bat`，无需安装 |
+
+[SHA-256 校验值](docs/assets/demo-2.1.1/SHA256SUMS.txt) · [安装说明（macOS）](SignBridge-Demo-安装指南.md)
+
+**2.1.1 版包含什么**：141 条手语词条，其中 104 条有动作（66 条视频拟合动作 + 38 条内置手工姿势，每个词的动作互不相同），其余 37 条只在词表中展示、不用别的动作顶替。插件浮层与演示工作台都会优先匹配视频拟合动作，匹配不到才回退内置词库，界面标注来源。界面版本显示 **v2.1.1**。
+
+**必读限制**：所有动作均为未经手语专家审核的候选，`human_approved` 与 `training_ready` 仍为 false；不含语音识别与语义模型推理；macOS 包为 ad-hoc 签名、未公证，Windows 包未做代码签名，首次运行需手动放行。
+
 ## 目录
 
 - [项目简介](#signbridge)
+- [下载演示版（2.1.1）](#下载演示版211)
 - [快速上手](#三步快速上手)
 - [核心特性](#核心特性)
 - [声音识别](#两种声音识别方式)
@@ -42,6 +59,16 @@ SignBridge 是一个面向视频无障碍场景的开源 Chrome 扩展。我们�
 - **研究资产隔离**：普通构建不含本地研究资产；研究资产必须显式选择并通过校验后才进入构建。
 
 ## 版本记录
+
+### 2026-11-14：演示版 2.1.1 发布，新增 Windows 版
+
+- 修复插件浮层播放时抛 `TypeError: frames.reduce is not a function` 导致每次都显示“参考动作加载失败”并回退词库的问题。原因是浮层原生动作缓存回调返回了对象而缓存期望帧数组。修复后在真实 Chrome 中实测，“我 / 听 / 谢谢”等词全部走视频拟合动作，不再回退。
+- 插件浮层（网页上的虚拟人）此前只匹配 T08 参考句和内置词库，完全不查原生动作库。现已在浮层实时路由中加入原生动作匹配：最长别名优先、失败才回退词库，并校验每个动作文件的 SHA-256。
+- 原生动作库新增第二档准入：仅“手腕活动幅度保留 < 90%”一项未达标、手形与骨架几何检查均通过的 37 条录制以 `wrist_amplitude_reduced_candidate` 准入，界面标注“手腕幅度略减”。动作库由 29 条扩至 66 条。
+- 词库 141 条中有动作的由 73 条增至 104 条（66 原生 + 38 内置），仍无动作的 37 条如实标注、不借用其他动作。
+- 插件版本号此前停留在 1.0.7，与安装包版本不一致；现已统一为 2.1.1，弹窗显示 v2.1.1 即表示新版本生效。
+- 新增 Windows 便携版：内置 PowerShell 静态服务器，解压即可运行，无需安装或管理员权限。新增 `sign-windows-demo.py` 打包脚本与 `sign-public-site.py` 公开发布裁剪工具（公开下载不含来源视频截图）。
+- 公开发布的 macOS 与 Windows 包均基于裁剪后的站点构建，两者站点内容一致。
 
 ### 2026-11-13：移除 AR 模式；自动播放优先手语库
 
