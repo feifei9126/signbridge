@@ -54,13 +54,15 @@ function playerHarness(options = {}) {
   let nextId = 0;
   const callbacks = new Map();
   const visited = [];
+  const interpolated = [];
   const rig = {
     capture: () => ({}),
     createTargets: (pose) => {
       visited.push(pose.name);
       return pose;
     },
-    interpolate: () => {},
+    interpolate: (_from, targets, amount) =>
+      interpolated.push({ targets, amount }),
     reset: () => visited.push("reset"),
   };
   const schedule = (callback, delay) => {
@@ -89,7 +91,7 @@ function playerHarness(options = {}) {
     }
     clock = end;
   }
-  return { player, advance, visited, callbacks };
+  return { player, advance, visited, callbacks, interpolated };
 }
 
 function motion(...names) {
@@ -139,6 +141,16 @@ test("stop cancels queued work and explicit play can replace a preview", () => {
   assert.deepEqual(visited.slice(2), ["preview", "replacement"]);
 });
 
+test("latest replacement cancels pending realtime subtitles immediately", () => {
+  const { player, advance, visited } = playerHarness();
+  player.enqueue(motion("current", "never"), { key: "old-current" });
+  player.enqueue(motion("pending"), { key: "old-pending" });
+  assert.equal(player.replace(motion("latest"), { key: "latest" }), true);
+  advance(1200);
+  assert.deepEqual(visited, ["current", "latest"]);
+  assert.equal(player.isPlaying, false);
+});
+
 test("completion fires once after the whole clip but not on cancellation", () => {
   let completed = 0;
   const { player, advance } = playerHarness({
@@ -155,4 +167,142 @@ test("completion fires once after the whole clip but not on cancellation", () =>
   player.stop();
   advance(1000);
   assert.equal(completed, 1);
+});
+
+test("T08 quaternion tracks interpolate sampled poses on the live player timeline", () => {
+  const { player, advance, interpolated } = playerHarness();
+  const samples = [{ frame: 0 }, { frame: 1 }, { frame: 2 }];
+  assert.equal(
+    player.enqueue({
+      type: "quaternion-track",
+      samples,
+      fps: 10,
+      duration: 0.3,
+    }),
+    true,
+  );
+  advance(48);
+  assert.ok(
+    interpolated.some(
+      (sample) =>
+        sample.targets === samples[1] &&
+        sample.amount > 0.4 &&
+        sample.amount < 0.6,
+    ),
+  );
+  advance(400);
+  assert.equal(player.isPlaying, false);
+});
+
+test("quaternion tracks blend from the current rig pose at a replacement boundary", () => {
+  let captureCount = 0;
+  const calls = [];
+  const callbacks = new Map();
+  let nextId = 0;
+  let clock = 0;
+  const rig = {
+    capture: () => ({ pose: captureCount++ === 0 ? "current" : "target" }),
+    interpolate: (from, to, amount) => calls.push({ from, to, amount }),
+    reset: () => {},
+  };
+  const player = createMotionPlayer(rig, {
+    requestFrame: (callback) => {
+      const id = ++nextId;
+      callbacks.set(id, callback);
+      return id;
+    },
+    cancelFrame: (id) => callbacks.delete(id),
+    setTimer: () => 0,
+    clearTimer: () => {},
+    now: () => clock,
+  });
+  player.replace({
+    type: "quaternion-track",
+    samples: [{ frame: 0 }, { frame: 1 }],
+    fps: 25,
+    duration: 0.2,
+  });
+  assert.ok(calls.some((call) => call.from.pose === "current"));
+});
+
+test("stopping a T08 track cancels its animation frame", () => {
+  const { player, callbacks } = playerHarness();
+  player.play({
+    type: "quaternion-track",
+    samples: [{ frame: 0 }, { frame: 1 }],
+    fps: 25,
+    duration: 0.08,
+  });
+  assert.equal(callbacks.size, 1);
+  player.stop();
+  assert.equal(callbacks.size, 0);
+  assert.equal(player.isPlaying, false);
+});
+
+test("a subtitle can atomically mix learned quaternion tracks and dictionary frames", () => {
+  const started = [];
+  const { player, advance, visited, interpolated } = playerHarness({
+    onMotionStart: (info) => started.push(info.sourceType),
+  });
+  const samples = [{ frame: 0 }, { frame: 1 }, { frame: 2 }];
+  assert.equal(
+    player.play({
+      type: "motion-sequence",
+      motions: [
+        {
+          type: "quaternion-track",
+          samples,
+          fps: 10,
+          duration: 0.3,
+          sourceInfo: { sourceType: "t08" },
+        },
+        { frames: motion("thanks"), sourceInfo: { sourceType: "dictionary" } },
+      ],
+    }),
+    true,
+  );
+  assert.deepEqual(started, ["t08"]);
+  advance(200);
+  assert.deepEqual(visited, []);
+  assert.ok(interpolated.some((value) => value.targets === samples[2]));
+  advance(200);
+  assert.deepEqual(started, ["t08", "dictionary"]);
+  assert.deepEqual(visited, ["thanks"]);
+  advance(500);
+  assert.equal(player.isPlaying, false);
+});
+test("source notifications occur on playback, not when a later subtitle is queued", () => {
+  const started = [];
+  const { player, advance } = playerHarness({
+    onMotionStart: (info) => started.push(info.sourceType),
+  });
+  player.enqueue({
+    frames: motion("learned"),
+    sourceInfo: { sourceType: "t08" },
+  });
+  player.enqueue({
+    frames: motion("dictionary"),
+    sourceInfo: { sourceType: "dictionary" },
+  });
+  assert.deepEqual(started, ["t08"]);
+  advance(600);
+  assert.deepEqual(started, ["t08", "dictionary"]);
+});
+test("invalid or nested mixed sequences fail atomically", () => {
+  assert.deepEqual(
+    normalizeMotionFrames({
+      type: "motion-sequence",
+      motions: [{ frames: motion("valid") }, null],
+    }),
+    [],
+  );
+  assert.deepEqual(
+    normalizeMotionFrames({
+      type: "motion-sequence",
+      motions: [
+        { type: "motion-sequence", motions: [{ frames: motion("nested") }] },
+      ],
+    }),
+    [],
+  );
 });

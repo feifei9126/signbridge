@@ -2,7 +2,7 @@ name: Verify
 
 on:
   push:
-    branches: [main]
+    branches: [main, codex/t08-avatar-demo]
   pull_request:
 
 permissions:
@@ -15,7 +15,7 @@ concurrency:
 jobs:
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
     defaults:
       run:
         working-directory: signbridge
@@ -30,5 +30,39 @@ jobs:
           cache-dependency-path: signbridge/package-lock.json
       - name: Install dependencies
         run: npm ci
-      - name: Verify
-        run: npm run verify
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install test dependencies
+        run: python -m pip install numpy==1.26.4 scipy pillow opencv-python-headless matplotlib
+      - name: Install media test tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+      - name: Verify and browser acceptance
+        run: npm run verify:release
+      - name: Python regression suite
+        run: npm run test:python
+      - name: Build and verify public motion ZIP
+        run: |
+          npm run build:motion
+          npm run package:motion -- --build dist --output "$RUNNER_TEMP/signbridge-public-motion.zip"
+          python -m zipfile -e "$RUNNER_TEMP/signbridge-public-motion.zip" "$RUNNER_TEMP/signbridge-public-motion"
+      - name: Public motion playback and extension routing
+        run: |
+          export SIGNBRIDGE_DEMO_BUILD_DIR="$RUNNER_TEMP/signbridge-public-motion"
+          export SIGNBRIDGE_PUBLIC_QA_DIR="$PWD/test-results/releases/public-motion-browser"
+          node tests/public-motion-browser-qa.mjs
+          export SIGNBRIDGE_EXTENSION_DIR="$RUNNER_TEMP/signbridge-public-motion"
+          export SIGNBRIDGE_EXTENSION_CHROME="$(node --input-type=module -e 'import {chromium} from "playwright"; console.log(chromium.executablePath())')"
+          export SIGNBRIDGE_REALTIME_QA_DIR="$PWD/test-results/releases/public-motion-extension"
+          node tests/realtime-motion-browser-qa.mjs
+      - name: Preserve acceptance reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: acceptance-reports
+          path: signbridge/test-results/releases/

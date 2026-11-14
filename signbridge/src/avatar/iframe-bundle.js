@@ -1,3 +1,4 @@
+import { createMotionCache } from "../demo/motion-cache.js";
 // BUILD: 1784252939651
 /**
  * SignBridge v17 — Multi-site + structured gestures + eased blending
@@ -13,6 +14,24 @@ import {
   compileTranslationMatchers,
 } from "./sign-language-data.js";
 import { createMotionLibrary, selectEnabledMotions } from "./motion-library.js";
+import { t, setLocale } from "../i18n/locales.js";
+import {
+  T08_CHECKPOINT_SHA256,
+  validateT08CandidateBundle,
+  validateT08Bundle,
+} from "./reference-motion-asset.js";
+import { createT08Retarget } from "../demo/demo-retarget.js";
+import {
+  validateExperimentalIndex,
+  createExperimentalLoader,
+} from "../demo/experimental-motion.js";
+import { planRealtimeText } from "./runtime-motion-plan.js";
+import {
+  validateNativeIndex,
+  decodeNativeClip,
+} from "../demo/native-motion.js";
+import { MOTION_SMOOTHING_PROFILE } from "../demo/motion-stabilization.js";
+import { resolveMotionDisplayPolicy } from "../demo/motion-policy.js";
 
 let renderer, scene, camera;
 let rig = null;
@@ -28,6 +47,198 @@ let translationMatchers = compileTranslationMatchers();
 let unsubscribeMotions = null;
 let motionLibraryVersion = 0;
 let motionLibraryIdentity = "[]";
+let t08ReferenceClips = [];
+let t08MotionBundlePromise = null;
+let t08CandidateBundlePromise = null;
+let t08Retarget = null;
+let t08CandidateRetarget = null;
+let experimentalLoader = null;
+let experimentalRetarget = null;
+let motionLibraryEntries = new Map();
+const t08TrackCache = createMotionCache({ maxEntries: 12, maxValues: 500000 });
+const nativeTrackCache = createMotionCache({
+  maxEntries: 12,
+  maxValues: 500000,
+});
+let nativeIndex = null;
+let nativeClipCache = new Map();
+
+async function loadNativeIndex() {
+  try {
+    const response = await fetch(
+      chrome.runtime.getURL("demo/native-index.json"),
+    );
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const data = await response.json();
+    if (data.unavailable) return;
+    nativeIndex = validateNativeIndex(data);
+    console.info(
+      "[SB] Native motion index ready:",
+      nativeIndex.clips.length,
+      "candidates",
+    );
+  } catch (error) {
+    nativeIndex = null;
+    console.warn("[SB] Native index unavailable; dictionary fallback:", error);
+  }
+}
+
+async function loadNativeClip(id) {
+  const entry = nativeIndex?.clips.find((clip) => clip.id === id);
+  if (!entry) throw new Error("native clip is not in the index");
+  if (nativeClipCache.has(id)) return nativeClipCache.get(id);
+  const response = await fetch(chrome.runtime.getURL("demo/" + entry.asset));
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  const bytes = await response.arrayBuffer();
+  const digest = [
+    ...new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)),
+  ]
+    .map((v) => v.toString(16).padStart(2, "0"))
+    .join("");
+  if (digest !== entry.sha256) throw new Error("native clip digest differs");
+  const clip = JSON.parse(new TextDecoder().decode(bytes));
+  const frames = decodeNativeClip(clip, entry);
+  const value = { clip, frames };
+  nativeClipCache.set(id, value);
+  while (nativeClipCache.size > 8)
+    nativeClipCache.delete(nativeClipCache.keys().next().value);
+  return value;
+}
+let translationQueue = Promise.resolve();
+let translationGeneration = 0;
+
+async function loadT08ReferenceIndex() {
+  try {
+    const response = await fetch(
+      chrome.runtime.getURL("avatar/t08-index.json"),
+    );
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const index = await response.json();
+    if (
+      index?.schema !== "signbridge-t08-runtime-index-v1" ||
+      index.checkpoint_sha256 !== T08_CHECKPOINT_SHA256 ||
+      ![14, 17].includes(index.clips?.length) ||
+      index.clips?.filter((clip) => !clip.runtime_candidate).length !== 14 ||
+      !index.clips.every(
+        (clip) =>
+          typeof clip.id === "string" &&
+          typeof clip.text === "string" &&
+          Array.isArray(clip.aliases) &&
+          Number.isFinite(clip.fps) &&
+          Number.isInteger(clip.frames) &&
+          typeof clip.runtime_candidate === "boolean",
+      )
+    )
+      throw new Error("T08 reference index provenance is invalid");
+    t08ReferenceClips = index.clips;
+    console.info(
+      "[SB] T08 runtime index ready:",
+      t08ReferenceClips.filter((clip) => !clip.runtime_candidate).length,
+      "reference +",
+      t08ReferenceClips.filter((clip) => clip.runtime_candidate).length,
+      "candidate phrases",
+    );
+  } catch (error) {
+    t08ReferenceClips = [];
+    console.warn("[SB] T08 index unavailable; dictionary fallback:", error);
+  }
+  try {
+    const response = await fetch(
+      chrome.runtime.getURL("demo/motion-library-v2.json"),
+    );
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const library = await response.json();
+    if (
+      library?.schema !== "signbridge-motion-library-v2" ||
+      !Array.isArray(library.entries)
+    )
+      throw new Error("Invalid motion library index");
+    motionLibraryEntries = new Map(
+      library.entries.map((entry) => [entry.id, entry]),
+    );
+  } catch (error) {
+    motionLibraryEntries = new Map();
+    console.warn("[SB] Motion library index unavailable:", error);
+  }
+  try {
+    const response = await fetch(
+      chrome.runtime.getURL("demo/experimental-index.json"),
+    );
+    if (!response.ok) throw new Error("Experimental index unavailable");
+    const data = await response.json();
+    if (!data.unavailable) {
+      const index = validateExperimentalIndex(data);
+      experimentalLoader = createExperimentalLoader(index, (path) =>
+        fetch(chrome.runtime.getURL("demo/" + path)),
+      );
+      experimentalRetarget = createT08Retarget(rig, modelRoot, index);
+      t08ReferenceClips.push(...index.clips);
+      console.info(
+        "[SB] Experimental fitted motions ready:",
+        index.clips.length,
+      );
+    }
+  } catch (error) {
+    console.warn(
+      "[SB] Experimental motions unavailable; dictionary fallback:",
+      error,
+    );
+  }
+}
+
+function motionDisplayPolicy(source, clip) {
+  return resolveMotionDisplayPolicy(
+    clip,
+    source,
+    motionLibraryEntries.get(clip.id),
+  );
+}
+
+function loadT08MotionBundle() {
+  if (!t08MotionBundlePromise) {
+    const pending = (async () => {
+      const response = await fetch(
+        chrome.runtime.getURL("demo/t08-motion.json"),
+      );
+      if (!response.ok) throw new Error(`T08 asset HTTP ${response.status}`);
+      const bundle = validateT08Bundle(await response.json());
+      if (bundle.checkpoint_sha256 !== T08_CHECKPOINT_SHA256)
+        throw new Error("T08 checkpoint differs from the runtime index");
+      t08Retarget = createT08Retarget(rig, modelRoot, bundle);
+      console.info("[SB] T08 token-decoded motion asset loaded");
+      return bundle;
+    })();
+    t08MotionBundlePromise = pending.catch((error) => {
+      t08MotionBundlePromise = null;
+      throw error;
+    });
+  }
+  return t08MotionBundlePromise;
+}
+
+function loadT08CandidateBundle() {
+  if (!t08CandidateBundlePromise) {
+    const pending = (async () => {
+      const response = await fetch(
+        chrome.runtime.getURL("demo/t08-candidates.json"),
+      );
+      if (!response.ok)
+        throw new Error(`T08 candidate HTTP ${response.status}`);
+      const bundle = validateT08CandidateBundle(await response.json());
+      t08CandidateRetarget = createT08Retarget(rig, modelRoot, bundle);
+      console.info(
+        "[SB] T08 motion candidate asset loaded:",
+        bundle.clips.length,
+      );
+      return bundle;
+    })();
+    t08CandidateBundlePromise = pending.catch((error) => {
+      t08CandidateBundlePromise = null;
+      throw error;
+    });
+  }
+  return t08CandidateBundlePromise;
+}
 
 async function loadMotionLibrary() {
   try {
@@ -40,6 +251,8 @@ async function loadMotionLibrary() {
         const motions = selectEnabledMotions(entries);
         const identity = JSON.stringify(motions);
         if (identity !== motionLibraryIdentity) {
+          translationGeneration += 1;
+          translationQueue = Promise.resolve();
           motionPlayer?.stop({ reset: true });
           translationMatchers = compileTranslationMatchers(motions);
           motionLibraryIdentity = identity;
@@ -50,6 +263,8 @@ async function loadMotionLibrary() {
         });
       } catch (error) {
         if (version !== motionLibraryVersion) return;
+        translationGeneration += 1;
+        translationQueue = Promise.resolve();
         motionPlayer?.stop({ reset: true });
         translationMatchers = compileTranslationMatchers();
         motionLibraryIdentity = "[]";
@@ -66,9 +281,182 @@ async function loadMotionLibrary() {
 // ===== 字幕 → 手语 =====
 
 function textToAnimation(text, manual = false) {
-  if (!text) return false;
-  const result = translateText(text, 12, translationMatchers);
-  if (!result) return false;
+  if (!text || !modelReady) return false;
+  if (manual) {
+    translationGeneration++;
+    translationQueue = Promise.resolve();
+    motionPlayer?.stop({ reset: true });
+  } else {
+    // Realtime subtitles are state updates, not a playlist. Invalidate every
+    // older load and keep the current pose until the newest motion is ready.
+    translationGeneration++;
+    translationQueue = Promise.resolve();
+    motionPlayer?.stop({ reset: false });
+  }
+  const generation = translationGeneration;
+  const plan = planRealtimeText(
+    text,
+    t08ReferenceClips,
+    translationMatchers,
+    nativeIndex?.clips || [],
+  );
+  console.info("[SB] Realtime motion plan:", {
+    items: plan.items.map(({ id, source, text }) => ({ id, source, text })),
+    unmatched: plan.unmatched,
+    truncated: plan.truncated,
+    remainingText: plan.remainingText,
+  });
+  if (!plan.items.length) return false;
+  const route = async () => {
+    if (!modelReady || generation !== translationGeneration) return;
+    const motions = [];
+    for (const item of plan.items) {
+      if (item.source === "dictionary") {
+        const motion = dictionaryMotion(item.text, item.translation);
+        if (motion) motions.push(motion);
+        continue;
+      }
+      if (item.source === "native") {
+        try {
+          const loaded = await loadNativeClip(item.id);
+          if (!modelReady || generation !== translationGeneration) return;
+          const clipsKey = `native:${item.id}:${loaded.clip.display_profile}`;
+          const compiled = nativeTrackCache.get(clipsKey, () => loaded.frames);
+          motions.push({
+            type: "quaternion-track",
+            samples: compiled.frames,
+            fps: loaded.clip.fps,
+            duration: loaded.clip.frames / loaded.clip.fps,
+            sourceInfo: {
+              sourceType: "native",
+              referenceId: loaded.clip.id,
+              frames: loaded.clip.frames,
+              stabilized: loaded.clip.display_profile !== "raw",
+              presentation: loaded.clip.display_profile,
+              matchedText: item.text,
+              label: t(
+                loaded.clip.wrist_amplitude_reduced
+                  ? "demoVocabStatusNativeReduced"
+                  : "demoVocabStatusNative",
+              ),
+            },
+          });
+        } catch (error) {
+          console.warn(
+            "[SB] Native playback unavailable; using dictionary:",
+            item.id,
+            error,
+          );
+          if (!modelReady || generation !== translationGeneration) return;
+          const fallback = dictionaryMotion(
+            item.text,
+            translateText(item.text, 12, translationMatchers),
+            item.id,
+            error.message,
+          );
+          if (fallback) motions.push(fallback);
+        }
+        continue;
+      }
+      try {
+        const sourceType = item.source;
+        const motionBundle =
+          sourceType === "experimental"
+            ? null
+            : sourceType === "candidate"
+              ? await loadT08CandidateBundle()
+              : await loadT08MotionBundle();
+        const clip =
+          sourceType === "experimental"
+            ? await experimentalLoader.load(item.id)
+            : motionBundle.clips.find((candidate) => candidate.id === item.id);
+        if (!modelReady || generation !== translationGeneration) return;
+        if (!clip) throw new Error("T08 clip is missing from its motion asset");
+        const policy = motionDisplayPolicy(sourceType, clip);
+        const compiled = t08TrackCache.get(
+          `${sourceType}:${clip.id}:${policy.profile}`,
+          () =>
+            (sourceType === "experimental"
+              ? experimentalRetarget
+              : sourceType === "candidate"
+                ? t08CandidateRetarget
+                : t08Retarget
+            ).compile(clip, {
+              stabilize: policy.enabled,
+              stabilizationProfile: policy.profile,
+            }),
+        );
+        motions.push({
+          type: "quaternion-track",
+          samples: compiled.frames,
+          fps: clip.fps,
+          duration: clip.frames / clip.fps,
+          sourceInfo: {
+            sourceType,
+            referenceId: clip.id,
+            modelOutput: clip.model_output,
+            presentation: policy.enabled
+              ? policy.profile || MOTION_SMOOTHING_PROFILE
+              : "raw",
+            frames: clip.frames,
+            stabilized: policy.enabled,
+            stabilizationEnabled: policy.enabled,
+            performance: {
+              cacheHit: compiled.cacheHit,
+              compileMs: compiled.compileMs,
+              numericCacheBytes: t08TrackCache.stats().numericBytes,
+            },
+            matchedText: item.text,
+            label: t(
+              sourceType === "experimental"
+                ? clip.quality_warning
+                  ? "demoExperimentalSmoothedWarningBadge"
+                  : "demoExperimentalSmoothedBadge"
+                : sourceType === "candidate"
+                  ? "demoCandidateBadge"
+                  : "demoSourceT08",
+            ),
+          },
+        });
+      } catch (error) {
+        console.warn(
+          "[SB] T08 playback unavailable; using dictionary:",
+          item.id,
+          error,
+        );
+        if (!modelReady || generation !== translationGeneration) return;
+        const fallback = dictionaryMotion(
+          item.text,
+          translateText(item.text, 12, translationMatchers),
+          item.id,
+          error.message,
+        );
+        if (fallback) motions.push(fallback);
+      }
+    }
+    if (!modelReady || generation !== translationGeneration || !motions.length)
+      return;
+    const motion = { type: "motion-sequence", motions };
+    if (manual) motionPlayer?.play(motion);
+    else
+      motionPlayer?.replace(motion, {
+        key: normalizeText(text).toLowerCase(),
+      });
+  };
+  const next = translationQueue.then(route, route);
+  translationQueue = next.catch((error) => {
+    console.error("[SB] Realtime motion dispatch failed:", error);
+  });
+  return true;
+}
+
+function dictionaryMotion(
+  text,
+  result,
+  referenceId = null,
+  fallbackReason = null,
+) {
+  if (!result?.matches.length) return null;
   console.log("[SB] Translation coverage:", {
     matches: result.matches.map((match) => match.text),
     motionIds: result.matches.map((match) => match.id),
@@ -76,13 +464,16 @@ function textToAnimation(text, manual = false) {
     truncated: result.truncated,
     remainingText: result.remainingText,
   });
-  if (!result.matches.length) return false;
-  if (manual) return motionPlayer?.play(result) || false;
-  return (
-    motionPlayer?.enqueue(result, {
-      key: normalizeText(text).toLowerCase(),
-    }) || false
-  );
+  return {
+    frames: result.frames,
+    sourceInfo: {
+      sourceType: "dictionary",
+      referenceId,
+      matchedText: text,
+      fallbackReason,
+      label: t(fallbackReason ? "demoSourceFallback" : "demoSourceDictionary"),
+    },
+  };
 }
 
 // ===== 初始化 =====
@@ -142,7 +533,16 @@ function init(modelUrl) {
       const boneCount = primaryMesh?.skeleton?.bones.length || 0;
       console.log("[SB] Bones:", boneCount);
       rig = createHumanoidRig(gltf.scene);
-      motionPlayer = createMotionPlayer(rig);
+      motionPlayer = createMotionPlayer(rig, {
+        onMotionStart(info) {
+          console.info(
+            "[SB] Realtime motion source:",
+            info.sourceType,
+            info.referenceId,
+          );
+          notify("MOTION_SOURCE", info);
+        },
+      });
       console.log(
         "[SB] Humanoid profile:",
         rig.profile.id,
@@ -163,6 +563,9 @@ function init(modelUrl) {
       baseModelY = gltf.scene.position.y;
       console.log("[SB] REST saved for", Object.keys(rig.rest).length, "bones");
 
+      await loadT08ReferenceIndex();
+      await loadNativeIndex();
+      if (!modelRoot) return;
       modelReady = true;
       modelLoading = false;
       await loadMotionLibrary();
@@ -344,6 +747,9 @@ window.addEventListener("message", (ev) => {
   }
   switch (ev.data.type) {
     case "INIT":
+      setLocale(
+        ev.data.config?.uiLocale === "auto" ? null : ev.data.config?.uiLocale,
+      );
       init(ev.data.modelUrl);
       break;
     case "SUBTITLE_TEXT":
@@ -352,6 +758,8 @@ window.addEventListener("message", (ev) => {
       }
       break;
     case "PLAYBACK_RESET":
+      translationGeneration += 1;
+      translationQueue = Promise.resolve();
       motionPlayer?.stop({ reset: true });
       break;
     case "RESIZE":
@@ -367,6 +775,8 @@ window.addEventListener("pagehide", disposeAvatar, { once: true });
 
 function disposeAvatar() {
   modelReady = false;
+  translationGeneration += 1;
+  translationQueue = Promise.resolve();
   motionLibraryVersion += 1;
   unsubscribeMotions?.();
   motionPlayer?.stop();
@@ -387,6 +797,14 @@ function disposeAvatar() {
     }
   });
   motionPlayer = null;
+  t08TrackCache.clear();
+  t08Retarget = null;
+  t08CandidateRetarget = null;
+  t08MotionBundlePromise = null;
+  t08CandidateBundlePromise = null;
+  experimentalLoader?.clear();
+  experimentalLoader = null;
+  experimentalRetarget = null;
   rig = null;
   modelRoot = null;
   renderer?.dispose();

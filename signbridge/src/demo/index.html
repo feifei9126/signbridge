@@ -1,0 +1,407 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>SignBridge Demo</title>
+    <link rel="icon" href="../icons/icon48.png" />
+    <link rel="stylesheet" href="demo.css" />
+  </head>
+  <body>
+    <header class="top">
+      <a class="brand" href="index.html" aria-label="SignBridge Demo"
+        ><span class="mark">SB</span><strong>SignBridge</strong
+        ><span class="version">DEMO / 02</span></a
+      >
+      <div class="top-right">
+        <span class="live-dot"></span><span data-i18n="demoLocal"></span>
+      </div>
+    </header>
+    <main>
+      <section class="intro">
+        <p class="eyebrow" data-i18n="demoEyebrow"></p>
+        <h1 data-i18n="demoHeading"></h1>
+        <p data-i18n="demoLead"></p>
+      </section>
+      <nav class="task-nav" data-i18n-aria="workbenchTasks">
+        <a
+          href="index.html"
+          aria-current="page"
+          data-i18n="workbenchMotion"
+        ></a>
+        <a
+          href="#research-details"
+          data-i18n="workbenchResearch"
+          id="open-research"
+        ></a>
+      </nav>
+      <section id="core-toolbar" class="routing-note" hidden>
+        <button id="return-core" type="button" data-i18n="coreReturn"></button>
+        <strong id="core-count"></strong>
+        <p id="core-scope" role="status"></p>
+        <h2 id="core-scene-title" hidden></h2>
+        <p data-i18n="corePlayableInstructions"></p>
+        <div id="core-samples" class="match-list"></div>
+        <details id="core-gap-examples">
+          <summary data-i18n="coreGapExamplesTitle"></summary>
+          <p data-i18n="coreGapExamplesNote"></p>
+          <div id="core-gap-samples" class="match-list"></div>
+        </details>
+      </section>
+      <div class="workspace">
+        <section class="composer" aria-labelledby="input-title">
+          <h2 id="input-title" data-i18n="demoInput"></h2>
+          <label class="sr-only" for="input" data-i18n="demoInput"></label
+          ><textarea
+            id="input"
+            rows="4"
+            maxlength="500"
+            data-i18n-placeholder="demoPlaceholder"
+          ></textarea>
+          <div class="input-footer">
+            <span id="chars"></span><span data-i18n="demoShortcut"></span>
+          </div>
+          <div id="playback-actions" class="primary-actions">
+            <button
+              id="play"
+              class="primary"
+              disabled
+              data-i18n="demoPlay"
+            ></button
+            ><button id="pause" disabled data-i18n="demoPause"></button
+            ><button id="stop" disabled data-i18n="demoStop"></button>
+          </div>
+          <div
+            id="status"
+            class="status"
+            role="status"
+            aria-live="polite"
+            data-i18n="demoLoading"
+          ></div>
+          <button id="retry" hidden data-i18n="demoRetry"></button>
+          <div class="coverage">
+            <div class="section-label">
+              <h3 data-i18n="demoMatches"></h3>
+              <span id="match-count"></span>
+            </div>
+            <div id="matches" class="match-list"></div>
+            <p id="unknown" class="unknown"></p>
+          </div>
+          <section id="core-evidence-panel" class="routing-note" hidden>
+            <h3 data-i18n="coreEvidenceHeading"></h3>
+            <div id="core-evidence-list"></div>
+          </section>
+          <section
+            id="native-repair-summary"
+            class="routing-note"
+            role="status"
+            hidden
+          ></section>
+          <section
+            id="semantic-panel"
+            class="semantic-panel"
+            aria-labelledby="semantic-title"
+            hidden
+          >
+            <h3 id="semantic-title" data-i18n="cslTitle"></h3>
+            <p data-i18n="cslScope"></p>
+            <p id="semantic-status" role="status"></p>
+            <dl id="semantic-roles"></dl>
+            <h4 data-i18n="cslDraft"></h4>
+            <p id="semantic-draft"></p>
+            <p id="semantic-gaps"></p>
+            <p id="semantic-unknown"></p>
+            <ul id="semantic-blockers"></ul>
+            <p id="semantic-source-note" data-i18n="cslSources"></p>
+            <details>
+              <summary data-i18n="cslMeaningKey"></summary>
+              <pre id="semantic-json"></pre>
+            </details>
+          </section>
+          <div id="motion-catalog" class="catalog">
+            <div class="section-label">
+              <h3 data-i18n="demoCatalog"></h3>
+              <span id="catalog-count"></span>
+            </div>
+            <div
+              class="mode-group catalog-switch"
+              role="group"
+              aria-label=""
+              data-i18n-aria="demoCatalogViews"
+            >
+              <button
+                type="button"
+                data-catalog-view="phrases"
+                aria-pressed="true"
+                data-i18n="demoPhraseTab"
+              ></button>
+              <button
+                type="button"
+                data-catalog-view="words"
+                aria-pressed="false"
+                data-i18n="demoWordTab"
+              ></button>
+              <button
+                type="button"
+                data-catalog-view="vocab"
+                aria-pressed="false"
+                data-i18n="demoVocabTab"
+              ></button>
+            </div>
+            <p id="catalog-note" class="catalog-note" aria-live="polite"></p>
+            <label class="sr-only" for="search" data-i18n="demoSearch"></label
+            ><input
+              type="search"
+              id="search"
+              data-i18n-placeholder="demoSearch"
+            />
+            <div id="catalog-list" class="catalog-list"></div>
+          </div>
+        </section>
+        <section class="stage-panel" aria-labelledby="stage-title">
+          <div class="stage-heading">
+            <div>
+              <p class="eyebrow" data-i18n="demoAvatarLabel"></p>
+              <h2 id="stage-title" data-i18n="demoStage"></h2>
+            </div>
+            <span
+              id="source-badge"
+              class="source-badge"
+              data-i18n="demoReadyBadge"
+            ></span>
+          </div>
+          <div class="viewport">
+            <iframe
+              id="avatar"
+              src="avatar.html"
+              title="SignBridge Avatar"
+            ></iframe>
+            <div id="loading" class="loading" data-i18n="demoLoading"></div>
+            <div class="frame-stamp">
+              <span id="current" data-i18n="demoAtRest"></span
+              ><span id="progress-text">0:00</span>
+            </div>
+          </div>
+          <div class="timeline"><div id="progress-bar"></div></div>
+          <div class="stage-controls">
+            <label for="speed"
+              ><span data-i18n="demoSpeed"></span
+              ><select id="speed">
+                <option value="0.5">0.5×</option>
+                <option value="0.75">0.75×</option>
+                <option value="1" selected>1×</option>
+                <option value="1.25">1.25×</option>
+                <option value="1.5">1.5×</option>
+              </select></label
+            >
+          </div>
+        </section>
+      </div>
+      <details id="research-details" class="research-details">
+        <summary data-i18n="workbenchResearch"></summary>
+        <p data-i18n="workbenchResearchLead"></p>
+        <section id="research-tools">
+          <h2 data-i18n="workbenchTools"></h2>
+          <p id="extension-tools-note" data-i18n="workbenchExtensionTools"></p>
+          <div id="extension-tools" hidden>
+            <details id="motion-authoring">
+              <summary data-i18n="workbenchAuthoring"></summary>
+              <div class="tool-links">
+                <a
+                  id="btnPoseEditor"
+                  href="../avatar/pose-editor.html"
+                  target="_blank"
+                  rel="noopener"
+                  data-i18n="workbenchPose"
+                ></a>
+                <a
+                  id="btnRecordMode"
+                  href="../avatar/record-mode.html"
+                  target="_blank"
+                  rel="noopener"
+                  data-i18n="workbenchSequence"
+                ></a>
+              </div>
+            </details>
+            <div class="tool-links">
+              <a
+                id="btnCoverage"
+                href="../tools/coverage.html"
+                target="_blank"
+                rel="noopener"
+                data-i18n="coverageTitle"
+              ></a>
+              <a
+                id="btnMotionReview"
+                href="../tools/motion-review.html"
+                target="_blank"
+                rel="noopener"
+                data-i18n="reviewTitle"
+              ></a>
+              <a
+                href="../options/asr-settings.html"
+                target="_blank"
+                rel="noopener"
+                data-i18n="settings"
+              ></a>
+            </div>
+          </div>
+        </section>
+        <section class="research-controls">
+          <h2 data-i18n="workbenchRouting"></h2>
+          <div class="mode-group" role="group" data-i18n-aria="demoMode">
+            <button
+              type="button"
+              class="mode active"
+              data-mode="auto"
+              aria-pressed="true"
+              data-i18n="demoAuto"
+            ></button
+            ><button
+              type="button"
+              class="mode"
+              data-mode="t08"
+              aria-pressed="false"
+              data-i18n="demoT08"
+            ></button
+            ><button
+              type="button"
+              class="mode"
+              data-mode="dictionary"
+              aria-pressed="false"
+              data-i18n="demoDictionary"
+            ></button>
+            <button
+              id="core-mode"
+              type="button"
+              class="mode"
+              data-mode="core"
+              aria-pressed="false"
+              data-i18n="coreReturn"
+              hidden
+            ></button>
+            <button
+              id="native-mode"
+              type="button"
+              class="mode"
+              data-mode="native"
+              aria-pressed="false"
+              data-i18n="nativeMode"
+              hidden
+            ></button>
+            <button
+              type="button"
+              class="mode"
+              data-mode="semantic"
+              aria-pressed="false"
+              data-i18n="cslMode"
+            ></button>
+          </div>
+          <p id="routing-note" class="routing-note" role="status"></p>
+
+          <h3 data-i18n="workbenchPresentation"></h3>
+          <p
+            class="research-warning"
+            data-i18n="optimizationAdaptiveWarning"
+          ></p>
+          <div class="research-presentation">
+            <div class="view-group" role="group" data-i18n-aria="demoView">
+              <button
+                data-view="front"
+                aria-pressed="true"
+                data-i18n="demoFront"
+              ></button
+              ><button
+                data-view="left"
+                aria-pressed="false"
+                data-i18n="demoLeft"
+              ></button
+              ><button
+                data-view="right"
+                aria-pressed="false"
+                data-i18n="demoRight"
+              ></button>
+            </div>
+            <label for="stabilization-profile"
+              ><span data-i18n="optimizationDisplayProfile"></span>
+              <select id="stabilization-profile">
+                <option
+                  value="asset"
+                  data-i18n="optimizationAssetProfile"
+                ></option>
+                <option
+                  value="adaptive"
+                  data-i18n="optimizationAdaptiveProfile"
+                ></option>
+              </select>
+            </label>
+            <label for="motion-smoothing" class="motion-smoothing">
+              <input type="checkbox" id="motion-smoothing" checked />
+              <span data-i18n="demoSmoothing"></span>
+            </label>
+          </div>
+        </section>
+        <div class="model-info">
+          <div>
+            <span data-i18n="demoLearned"></span
+            ><strong id="model-count">0</strong>
+          </div>
+          <div><span data-i18n="demoWords"></span><strong>52</strong></div>
+          <div>
+            <span data-i18n="demoCandidates"></span>
+            <strong id="candidate-count">0</strong>
+          </div>
+          <div>
+            <span data-i18n="demoExperimental"></span>
+            <strong id="experimental-count">0</strong>
+          </div>
+          <div id="native-count-panel" hidden>
+            <span data-i18n="nativeCount"></span
+            ><strong id="native-count">0</strong>
+          </div>
+        </div>
+        <details id="token-details">
+          <summary data-i18n="demoTokens"></summary>
+          <p data-i18n="demoTokenNote"></p>
+          <pre id="tokens"></pre>
+        </details>
+
+        <button
+          id="download"
+          class="text-button"
+          data-i18n="demoExport"
+        ></button>
+        <section class="research">
+          <div class="research-header">
+            <div>
+              <p class="eyebrow" data-i18n="demoEvidence"></p>
+              <h2 data-i18n="demoComparison"></h2>
+            </div>
+            <span data-i18n="demoReadonly"></span>
+          </div>
+          <div id="research-list" class="research-list"></div>
+          <div id="research-preview" hidden>
+            <div class="section-label">
+              <p id="research-caption"></p>
+              <button id="close-preview" data-i18n="demoClose"></button>
+            </div>
+            <img id="research-image" alt="" />
+          </div>
+        </section>
+        <details>
+          <summary data-i18n="demoHow"></summary>
+          <p data-i18n="demoHowBody"></p>
+          <p data-i18n="demoRetargetNote"></p>
+          <p id="asset-evidence"></p>
+        </details>
+      </details>
+      <footer class="footnote">
+        <p data-i18n="workbenchScope"></p>
+        <p id="candidate-warning" class="candidate-warning"></p>
+        <p id="experimental-warning" class="candidate-warning"></p>
+        <p id="native-warning" class="candidate-warning" hidden></p>
+      </footer>
+    </main>
+    <script type="module" src="demo.js"></script>
+  </body>
+</html>

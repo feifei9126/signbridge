@@ -1,0 +1,6 @@
+# Local CPU camera-coordinate audit and figures, verified on Python 3.12.
+# Install separately from the server's SMPLer-X/WiLoR CUDA environments.
+numpy==1.26.4
+scipy==1.17.1
+Pillow==11.3.0
+matplotlib==3.11.2

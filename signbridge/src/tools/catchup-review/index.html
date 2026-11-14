@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>SignBridge</title>
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="review.css" />
+  </head>
+  <body>
+    <header>
+      <p>SignBridge · 2026-10-13</p>
+      <h1 data-i18n="catchupTitle"></h1>
+      <p id="summary"></p>
+      <p id="limits" class="limits"></p>
+      <p>
+        <a href="fitting-reference-index.jsonl" data-i18n="catchupIndex"></a> ·
+        <a href="source-registry.json" data-i18n="catchupRegistry"></a> ·
+        <a href="summary.json" data-i18n="catchupReport"></a>
+      </p>
+    </header>
+    <main>
+      <div class="views">
+        <button
+          type="button"
+          data-view="references"
+          aria-pressed="true"
+          data-i18n="catchupReferences"
+        ></button>
+        <button
+          type="button"
+          data-view="sources"
+          aria-pressed="false"
+          data-i18n="catchupSources"
+        ></button>
+        <button
+          type="button"
+          data-view="subtitles"
+          aria-pressed="false"
+          data-i18n="catchupCaptions"
+        ></button>
+      </div>
+      <label for="search" data-i18n="catchupSearch"></label>
+      <input type="search" id="search" />
+      <div class="pager">
+        <button id="previous" data-i18n="catchupPrevious"></button>
+        <span id="count" role="status" aria-live="polite"></span>
+        <button id="next" data-i18n="catchupNext"></button>
+      </div>
+      <p id="media-status" role="status" aria-live="polite"></p>
+      <div id="list"></div>
+    </main>
+    <script src="review-data.js"></script>
+    <script type="module" src="review.js"></script>
+  </body>
+</html>

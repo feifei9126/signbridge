@@ -4,12 +4,13 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { resolveTestResultsDir } from "../scripts/test-results-dir.mjs";
 
 const { chromium } = await import(
   process.env.SIGNBRIDGE_PLAYWRIGHT_MODULE || "playwright"
 );
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
-const output = join(root, "test-results", "phase2-browser");
+const output = join(resolveTestResultsDir(root), "phase2-browser");
 await mkdir(output, { recursive: true });
 const profile = await mkdtemp(join(tmpdir(), "signbridge-phase2-"));
 const server = createServer((_request, response) => {

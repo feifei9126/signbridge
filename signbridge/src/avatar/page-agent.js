@@ -18,11 +18,6 @@ if (window.__SIGNBRIDGE_PAGE_AGENT__) {
     config: {},
   };
 
-  function recognitionLanguage() {
-    const language = state.config.sourceLanguage;
-    return language && language !== "auto" ? language : "zh-CN";
-  }
-
   function sendToIframe(type, data) {
     window.postMessage(
       { source: "signbridge-page", type, ...(data || {}) },
@@ -41,6 +36,48 @@ if (window.__SIGNBRIDGE_PAGE_AGENT__) {
     }
     state.subtitleEl.textContent = text || "";
     state.subtitleEl.style.opacity = text ? "1" : "0";
+  }
+
+  function showMotionSource(info) {
+    const { label } = info;
+    const overlay = document.querySelector("#signbridge-overlay");
+    if (!overlay || !label) return;
+    let badge = overlay.querySelector("#signbridge-motion-source");
+    if (!badge) {
+      badge = document.createElement("div");
+      badge.id = "signbridge-motion-source";
+      badge.setAttribute("role", "status");
+      badge.setAttribute("aria-live", "polite");
+      badge.style.cssText =
+        "position:absolute;left:8px;top:30px;z-index:30;padding:3px 7px;" +
+        "border-radius:4px;background:rgba(12,32,36,0.82);color:#fff;" +
+        "font:11px/1.4 sans-serif;pointer-events:none;";
+      overlay.appendChild(badge);
+    }
+    badge.textContent = label;
+    badge.dataset.sourceType = info.sourceType || "";
+    badge.dataset.referenceId = info.referenceId || "";
+    badge.dataset.modelOutput = info.modelOutput || "";
+    badge.dataset.presentation = info.presentation || "raw";
+    if (info.performance) {
+      badge.dataset.compileMs = String(
+        Number(info.performance.compileMs || 0).toFixed(2),
+      );
+      badge.dataset.cacheHit = String(info.performance.cacheHit === true);
+      badge.dataset.cacheBytes = String(
+        Number(info.performance.numericCacheBytes || 0),
+      );
+    }
+    badge.title = [
+      label,
+      info.referenceId,
+      info.fallbackReason,
+      info.performance
+        ? `${Number(info.performance.compileMs || 0).toFixed(2)}ms · ${info.performance.cacheHit ? "cache" : "compile"}`
+        : "",
+    ]
+      .filter(Boolean)
+      .join(" · ");
   }
 
   async function initialize(nextConfig = {}) {
@@ -88,7 +125,7 @@ if (window.__SIGNBRIDGE_PAGE_AGENT__) {
 
     // ===== 字幕捕获 =====
     state.capturer = new SubtitleCapturer({
-      language: recognitionLanguage(),
+      language: "zh-CN",
       onSubtitle: (result) => {
         if (!state.active || !result.text) return;
         if (result.text === state.lastText) return;
@@ -159,6 +196,9 @@ if (window.__SIGNBRIDGE_PAGE_AGENT__) {
         break;
       case "SIGNBRIDGE_CONFIG":
         state.config = { ...state.config, ...(ev.data.config || {}) };
+        break;
+      case "SIGNBRIDGE_MOTION_SOURCE":
+        showMotionSource(ev.data);
         break;
     }
   });

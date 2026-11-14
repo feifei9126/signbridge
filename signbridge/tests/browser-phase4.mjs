@@ -3,12 +3,13 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { resolveTestResultsDir } from "../scripts/test-results-dir.mjs";
 
 const { chromium } = await import(
   process.env.SIGNBRIDGE_PLAYWRIGHT_MODULE || "playwright"
 );
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
-const output = join(root, "test-results/phase4-browser");
+const output = join(resolveTestResultsDir(root), "phase4-browser");
 await mkdir(output, { recursive: true });
 const profile = await mkdtemp(join(tmpdir(), "signbridge-phase4-"));
 const checks = [];
@@ -75,7 +76,7 @@ try {
     "saved original",
   );
   await editor.locator("#motion-preview").click();
-  await editor.waitForTimeout(1100);
+  await editor.waitForTimeout(2200);
   await editor.locator("#motion-enable").click();
   await eventually(
     async () => Object.values(await saved())[0].enabled,

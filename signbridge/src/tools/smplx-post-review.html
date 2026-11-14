@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'self' file:; style-src 'self' file:; img-src 'self' file:; media-src 'self' file:; connect-src 'none'; base-uri 'none'; object-src 'none'; form-action 'none'"
+    />
+    <title data-i18n="postFitTitle"></title>
+    <link rel="stylesheet" href="review.css" />
+  </head>
+  <body>
+    <!-- Built by sign-smplx-post-review.py. Open index.html directly, no server.
+         review-data.js supplies scoped translations and all row metadata.
+         Media stays beneath this directory; no approval state is editable. -->
+    <main>
+      <header class="page-header">
+        <div>
+          <p class="eyebrow" data-i18n="postFitBrand"></p>
+          <h1 data-i18n="postFitTitle"></h1>
+          <p class="intro" data-i18n="postFitIntro"></p>
+        </div>
+        <div class="language-field">
+          <label for="post-fit-language" data-i18n="postFitLanguage"></label>
+          <select id="post-fit-language">
+            <option value="zh-CN" data-i18n="postFitChinese"></option>
+            <option value="en" data-i18n="postFitEnglish"></option>
+            <option value="ja" data-i18n="postFitJapanese"></option>
+          </select>
+        </div>
+      </header>
+      <aside class="notice" aria-labelledby="post-fit-limits-title">
+        <h2 id="post-fit-limits-title" data-i18n="postFitCandidateStatus"></h2>
+        <p data-i18n="postFitLimits"></p>
+      </aside>
+      <p id="post-fit-data-status" role="status" aria-live="polite"></p>
+      <section aria-labelledby="post-fit-summary-title">
+        <h2 id="post-fit-summary-title" data-i18n="postFitSummary"></h2>
+        <dl id="post-fit-summary" class="summary-grid"></dl>
+        <p id="post-fit-summary-note" class="muted"></p>
+      </section>
+      <section aria-labelledby="post-fit-candidates-title">
+        <h2 id="post-fit-candidates-title" data-i18n="postFitCandidates"></h2>
+        <div class="filters">
+          <div>
+            <label for="post-fit-search" data-i18n="postFitSearch"></label>
+            <input id="post-fit-search" type="search" autocomplete="off" />
+          </div>
+          <div>
+            <label for="post-fit-quality" data-i18n="postFitQuality"></label>
+            <select id="post-fit-quality"></select>
+          </div>
+        </div>
+        <p
+          id="post-fit-count"
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+        ></p>
+        <p
+          id="post-fit-empty"
+          class="empty"
+          data-i18n="postFitEmpty"
+          hidden
+        ></p>
+        <div id="post-fit-records" class="candidate-grid"></div>
+        <nav class="pagination" aria-labelledby="post-fit-candidates-title">
+          <button
+            id="post-fit-previous"
+            type="button"
+            data-i18n="postFitPrevious"
+            disabled
+          ></button>
+          <button
+            id="post-fit-next"
+            type="button"
+            data-i18n="postFitNext"
+            disabled
+          ></button>
+        </nav>
+      </section>
+      <footer data-i18n="postFitOffline"></footer>
+    </main>
+    <script src="review-data.js"></script>
+    <script src="review.js"></script>
+  </body>
+</html>

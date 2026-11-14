@@ -221,3 +221,30 @@ button.primary {
     grid-column: auto;
   }
 }
+
+[hidden] {
+  display: none !important;
+}
+details {
+  margin-top: 22px;
+  padding: 18px;
+  border: 1px solid #c5d1ca;
+  border-radius: 8px;
+  background: white;
+}
+summary {
+  cursor: pointer;
+  font-weight: 650;
+}
+details .form-grid,
+details h3 {
+  margin-top: 22px;
+}
+:focus-visible {
+  outline: 3px solid #996100;
+  outline-offset: 3px;
+}
+.segmented input:focus-visible + span {
+  outline: 3px solid #996100;
+  outline-offset: 3px;
+}

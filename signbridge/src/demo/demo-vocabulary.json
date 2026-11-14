@@ -1,0 +1,882 @@
+{
+  "schema": "signbridge-demo-vocabulary-ui-v1",
+  "human_approved": false,
+  "training_ready": false,
+  "model_training_ready": false,
+  "text_verified": "",
+  "semantics_approved": false,
+  "boundaries_approved": false,
+  "training_started": false,
+  "humanApproved": false,
+  "summary": {
+    "total_entries": 141,
+    "motion_status": {
+      "builtin_handmade_pose": 38,
+      "wrist_amplitude_reduced_candidate": 37,
+      "list_only": 16,
+      "isolated_by_technical_gate": 21,
+      "native_display_candidate": 29
+    },
+    "builtin_glosses_found": 52,
+    "model_107_unresolved": [],
+    "db_vs_validated_conflicts": []
+  },
+  "entries": [
+    {
+      "text": "一",
+      "forms": ["一"],
+      "status": "builtin_handmade_pose",
+      "nativeId": null
+    },
+    {
+      "text": "三",
+      "forms": ["三"],
+      "status": "builtin_handmade_pose",
+      "nativeId": null
+    },
+    {
+      "text": "上",
+      "forms": ["上"],
+      "status": "builtin_handmade_pose",
+      "nativeId": null
+    },
+    {
+      "text": "上午",
+      "forms": ["上午"],
+      "status": "wrist_amplitude_reduced_candidate",
+      "nativeId": "native_foundation_92dd38fc45ba93ee5454df21"
+    },
+    {
+      "text": "上午好",
+      "forms": ["上午好"],
+      "status": "list_only",
+      "nativeId": null
+    },
+    {
+      "text": "下",
+      "forms": ["下"],
+      "status": "builtin_handmade_pose",
+      "nativeId": null
+    },
+    {
+      "text": "下午",
+      "forms": ["下午"],
+      "status": "list_only",
+      "nativeId": null
+    },
+    {
+      "text": "下午好",
+      "forms": ["下午好"],
+      "status": "wrist_amplitude_reduced_candidate",
+      "nativeId": "native_foundation_7d0032b631c51c0278d573a0"
+    },
+    {
+      "text": "不",
+      "forms": ["不"],
+      "status": "builtin_handmade_pose",
+      "nativeId": null
+    },
+    {
+      "text": "不一样",
+      "forms": ["不一样"],
+      "status": "isolated_by_technical_gate",
+      "nativeId": null
+    },
+    {
+      "text": "不喜欢",
+      "forms": ["不喜欢"],
+      "status": "wrist_amplitude_reduced_candidate",
+      "nativeId": "native_foundation_a953de522eac2867a1f9ca86"
+    },
+    {
+      "text": "不客气",
+      "forms": ["不客气"],
+      "status": "isolated_by_technical_gate",
+      "nativeId": null
+    },
+    {
+      "text": "不想",
+      "forms": ["不想"],
+      "status": "list_only",
+      "nativeId": null
+    },
+    {
+      "text": "不能",
+      "forms": ["不能"],
+      "status": "isolated_by_technical_gate",
+      "nativeId": null
+    },
+    {
+      "text": "不舒服",
+      "forms": ["不舒服"],
+      "status": "list_only",
+      "nativeId": null
+    },
+    {
+      "text": "中午",
+      "forms": ["中午"],
+      "status": "list_only",
+      "nativeId": null
+    },
+    {
+      "text": "中午好",
+      "forms": ["中午好"],
+      "status": "wrist_amplitude_reduced_candidate",
+      "nativeId": "native_foundation_ad6bda381617ee61cb6eeee8"
+    },
+    {
+      "text": "也",
+      "forms": ["也"],
+      "status": "builtin_handmade_pose",
+      "nativeId": null
+    },
+    {
+      "text": "买",
+      "forms": ["买"],
+      "status": "isolated_by_technical_gate",
+      "nativeId": null
+    },
+    {
+      "text": "二",
+      "forms": ["二"],
+      "status": "builtin_handmade_pose",
+      "nativeId": null
+    },
+    {
+      "text": "人",
+      "forms": ["人"],
+      "status": "builtin_handmade_pose",
+      "nativeId": null
+    },
+    {
+      "text": "什么",
+      "forms": ["什么"],
+      "status": "builtin_handmade_pose",
+      "nativeId": null
+    },
+    {
+      "text": "今天",
+      "forms": ["今天"],
+      "status": "wrist_amplitude_reduced_candidate",
+      "nativeId": "native_foundation_48e8ee7157b53ff4673e76c8"
+    },
+    {
+      "text": "今年",
+      "forms": ["今年"],
+      "status": "isolated_by_technical_gate",
+      "nativeId": null
+    },
+    {
+      "text": "他",
+      "forms": ["他"],
+      "status": "builtin_handmade_pose",
+      "nativeId": null
+    },
+    {
+      "text": "他们",
+      "forms": ["他们"],
+      "status": "wrist_amplitude_reduced_candidate",
+      "nativeId": "native_foundation_22c426139a4b47af74d81b26"
+    },
+    {
+      "text": "伤心",
+      "forms": ["伤心"],
+      "status": "wrist_amplitude_reduced_candidate",
+      "nativeId": "native_foundation_c2d9b2874a80681be6be4cd1"
+    },
+    {
+      "text": "但是",
+      "forms": ["但是"],
+      "status": "builtin_handmade_pose",
+      "nativeId": null
+    },
+    {
+      "text": "你",
+      "forms": ["你"],
+      "status": "native_display_candidate",
+      "nativeId": "native_foundation_87b3069826763334918dcbd1"
+    },
+    {
+      "text": "你们",
+      "forms": ["你们"],
+      "status": "wrist_amplitude_reduced_candidate",
+      "nativeId": "native_foundation_97944e64ab509f850bb2b697"
+    },
+    {
+      "text": "你们好",
+      "forms": ["你们好"],
+      "status": "wrist_amplitude_reduced_candidate",
+      "nativeId": "native_foundation_2d637abd468a88bffa4a8a16"
+    },
+    {
+      "text": "你叫什么名字",
+      "forms": ["你叫什么名字"],
+      "status": "list_only",
+      "nativeId": null
+    },
+    {
+      "text": "你好",
+      "forms": ["你好"],
+      "status": "wrist_amplitude_reduced_candidate",
+      "nativeId": "native_foundation_10f6eace682b1329858bcbb9"
+    },
+    {
+      "text": "你好吗",
+      "forms": ["你好吗"],
+      "status": "wrist_amplitude_reduced_candidate",
+      "nativeId": "native_foundation_3af3b5596b6b4f85744895a5"
+    },
+    {
+      "text": "你家在哪里",
+      "forms": ["你家在哪里"],
+      "status": "native_display_candidate",
+      "nativeId": "native_foundation_1565a3b8703a680e47f5fae9"
+    },
+    {
+      "text": "做",
+      "forms": ["做"],
+      "status": "builtin_handmade_pose",
+      "nativeId": null
+    },
+    {
+      "text": "再见",
+      "forms": ["再见"],
+      "status": "wrist_amplitude_reduced_candidate",
+      "nativeId": "native_foundation_17d4f43b803cbc8b81e8366d"
+    },
+    {
+      "text": "几月几号",
+      "forms": ["几月几号"],
+      "status": "native_display_candidate",
+      "nativeId": "native_foundation_4253c81ffa46f865bafa9c4c"
+    },
+    {
+      "text": "几点了",
+      "forms": ["几点了"],
+      "status": "list_only",
+      "nativeId": null
+    },
+    {
+      "text": "前",
+      "forms": ["前"],
+      "status": "list_only",
+      "nativeId": null
+    },
+    {
+      "text": "医院",
+      "forms": ["医院"],
+      "status": "native_display_candidate",
+      "nativeId": "native_foundation_c94013ed998039b956cbfa22"
+    },
+    {
+      "text": "卖",
+      "forms": ["卖"],
+      "status": "isolated_by_technical_gate",
+      "nativeId": null
+    },
+    {
+      "text": "去",
+      "forms": ["去"],
+      "status": "native_display_candidate",
+      "nativeId": "native_foundation_8aa406275395b463358111e6"
+    },
+    {
+      "text": "发信息",
+      "forms": ["发信息"],
+      "status": "isolated_by_technical_gate",
+      "nativeId": null
+    },
+    {
+      "text": "可以",
+      "forms": ["可以"],
+      "status": "native_display_candidate",
+      "nativeId": "native_foundation_e296fc29a620b75047c6f389"
+    },
+    {
+      "text": "右",
+      "forms": ["右"],
+      "status": "list_only",
+      "nativeId": null
+    },
+    {
+      "text": "吃",
+      "forms": ["吃"],
+      "status": "wrist_amplitude_reduced_candidate",
+      "nativeId": "native_foundation_03f4befa7e531d34565894da"
+    },
+    {
+      "text": "同学",
+      "forms": ["同学"],
+      "status": "isolated_by_technical_gate",
+      "nativeId": null
+    },
+    {
+      "text": "后",
+      "forms": ["后"],
+      "status": "list_only",
+      "nativeId": null
+    },
+    {
+      "text": "听",
+      "forms": ["听"],
+      "status": "wrist_amplitude_reduced_candidate",
+      "nativeId": "native_foundation_54169aa0c3976a245e166d07"
+    },
+    {
+      "text": "周末",
+      "forms": ["周末"],
+      "status": "native_display_candidate",
+      "nativeId": "native_foundation_ccc7833abd261db1f910587b"
+    },
+    {
+      "text": "和",
+      "forms": ["和"],
+      "status": "builtin_handmade_pose",
+      "nativeId": null
+    },
+    {
+      "text": "哥哥",
+      "forms": ["哥哥"],
+      "status": "wrist_amplitude_reduced_candidate",
+      "nativeId": "native_foundation_45ab36e18b4580160ff47341"
+    },
+    {
+      "text": "哪",
+      "forms": ["哪"],
+      "status": "builtin_handmade_pose",
+      "nativeId": null
+    },
+    {
+      "text": "商店",
+      "forms": ["商店"],
+      "status": "native_display_candidate",
+      "nativeId": "native_foundation_e81a84b32d7dba20805fb603"
+    },
+    {
+      "text": "喜欢",
+      "forms": ["喜欢"],
+      "status": "native_display_candidate",
+      "nativeId": "native_foundation_11db64461f615ebbbdcd89f3"
+    },
+    {
+      "text": "喝",
+      "forms": ["喝"],
+      "status": "wrist_amplitude_reduced_candidate",
+      "nativeId": "native_foundation_6ecef3ebb640b248a739e666"
+    },
+    {
+      "text": "图书馆",
+      "forms": ["图书馆"],
+      "status": "isolated_by_technical_gate",
+      "nativeId": null
+    },
+    {
+      "text": "复习",
+      "forms": ["复习"],
+      "status": "wrist_amplitude_reduced_candidate",
+      "nativeId": "native_foundation_bc6188dfe420d9e75c566b96"
+    },
+    {
+      "text": "外",
+      "forms": ["外"],
+      "status": "list_only",
+      "nativeId": null
+    },
+    {
+      "text": "多",
+      "forms": ["多"],
+      "status": "builtin_handmade_pose",
+      "nativeId": null
+    },
+    {
+      "text": "大",
+      "forms": ["大"],
+      "status": "builtin_handmade_pose",
+      "nativeId": null
+    },
+    {
+      "text": "大家",
+      "forms": ["大家"],
+      "status": "wrist_amplitude_reduced_candidate",
+      "nativeId": "native_foundation_512fc9411a88bde110d6b428"
+    },
+    {
+      "text": "太",
+      "forms": ["太"],
+      "status": "builtin_handmade_pose",
+      "nativeId": null
+    },
+    {
+      "text": "奶奶",
+      "forms": ["奶奶"],
+      "status": "native_display_candidate",
+      "nativeId": "native_foundation_77c5762e2faf9d185e3e693c"
+    },
+    {
+      "text": "好",
+      "forms": ["好"],
+      "status": "wrist_amplitude_reduced_candidate",
+      "nativeId": "native_foundation_dd40cd6921369f20a3c6273b"
+    },
+    {
+      "text": "如果",
+      "forms": ["如果"],
+      "status": "builtin_handmade_pose",
+      "nativeId": null
+    },
+    {
+      "text": "妈妈",
+      "forms": ["妈妈"],
+      "status": "wrist_amplitude_reduced_candidate",
+      "nativeId": "native_foundation_8bed36911193bb846003da81"
+    },
+    {
+      "text": "妹妹",
+      "forms": ["妹妹"],
+      "status": "wrist_amplitude_reduced_candidate",
+      "nativeId": "native_foundation_0b67453589355e157c13d342"
+    },
+    {
+      "text": "姐姐",
+      "forms": ["姐姐"],
+      "status": "wrist_amplitude_reduced_candidate",
+      "nativeId": "native_foundation_9ce5a69fa5ea821e5ffc40d4"
+    },
+    {
+      "text": "学习",
+      "forms": ["学习"],
+      "status": "wrist_amplitude_reduced_candidate",
+      "nativeId": "native_foundation_7406cc37b01cdc538b466ee7"
+    },
+    {
+      "text": "学校",
+      "forms": ["学校"],
+      "status": "isolated_by_technical_gate",
+      "nativeId": null
+    },
+    {
+      "text": "害怕",
+      "forms": ["害怕"],
+      "status": "wrist_amplitude_reduced_candidate",
+      "nativeId": "native_foundation_b5a0aac7becb083377633f49"
+    },
+    {
+      "text": "家",
+      "forms": ["家（房子）", "家"],
+      "status": "list_only",
+      "nativeId": null
+    },
+    {
+      "text": "对不起",
+      "forms": ["对不起"],
+      "status": "isolated_by_technical_gate",
+      "nativeId": null
+    },
+    {
+      "text": "小",
+      "forms": ["小"],
+      "status": "builtin_handmade_pose",
+      "nativeId": null
+    },
+    {
+      "text": "工作",
+      "forms": ["工作"],
+      "status": "native_display_candidate",
+      "nativeId": "native_foundation_551c21ce4ede50a8c530b89f"
+    },
+    {
+      "text": "左",
+      "forms": ["左"],
+      "status": "list_only",
+      "nativeId": null
+    },
+    {
+      "text": "市民",
+      "forms": ["市民"],
+      "status": "isolated_by_technical_gate",
+      "nativeId": null
+    },
+    {
+      "text": "帮助",
+      "forms": ["帮助"],
+      "status": "native_display_candidate",
+      "nativeId": "native_foundation_1cc51c1e0c1552636fe4e02f"
+    },
+    {
+      "text": "开始",
+      "forms": ["开始"],
+      "status": "native_display_candidate",
+      "nativeId": "native_foundation_b6a16752ecf173008e396245"
+    },
+    {
+      "text": "开心",
+      "forms": ["开心"],
+      "status": "builtin_handmade_pose",
+      "nativeId": null
+    },
+    {
+      "text": "弟弟",
+      "forms": ["弟弟"],
+      "status": "wrist_amplitude_reduced_candidate",
+      "nativeId": "native_foundation_e5bc9dd2030c8a9d5b0cbbd2"
+    },
+    {
+      "text": "很",
+      "forms": ["很"],
+      "status": "builtin_handmade_pose",
+      "nativeId": null
+    },
+    {
+      "text": "怎么",
+      "forms": ["怎么"],
+      "status": "builtin_handmade_pose",
+      "nativeId": null
+    },
+    {
+      "text": "想",
+      "forms": ["想"],
+      "status": "wrist_amplitude_reduced_candidate",
+      "nativeId": "native_foundation_52749ab3d14c1b925bb8834a"
+    },
+    {
+      "text": "我",
+      "forms": ["我"],
+      "status": "native_display_candidate",
+      "nativeId": "native_foundation_863e08d654b38d05b8519bca"
+    },
+    {
+      "text": "我不想说话",
+      "forms": ["我不想说话"],
+      "status": "list_only",
+      "nativeId": null
+    },
+    {
+      "text": "我们",
+      "forms": ["我们"],
+      "status": "native_display_candidate",
+      "nativeId": "native_foundation_f6970ee2ed64bf87758ea3e4"
+    },
+    {
+      "text": "我很好",
+      "forms": ["我很好"],
+      "status": "wrist_amplitude_reduced_candidate",
+      "nativeId": "native_foundation_37dd33377be7be02fd563459"
+    },
+    {
+      "text": "新",
+      "forms": ["新"],
+      "status": "builtin_handmade_pose",
+      "nativeId": null
+    },
+    {
+      "text": "无线上网",
+      "forms": ["无线上网"],
+      "status": "isolated_by_technical_gate",
+      "nativeId": null
+    },
+    {
+      "text": "早上",
+      "forms": ["早上"],
+      "status": "list_only",
+      "nativeId": null
+    },
+    {
+      "text": "早上好",
+      "forms": ["早上好"],
+      "status": "wrist_amplitude_reduced_candidate",
+      "nativeId": "native_foundation_682919e6c1663f42a3058380"
+    },
+    {
+      "text": "时间",
+      "forms": ["时间"],
+      "status": "native_display_candidate",
+      "nativeId": "native_foundation_22df0b086718987956bd442a"
+    },
+    {
+      "text": "明天",
+      "forms": ["明天"],
+      "status": "wrist_amplitude_reduced_candidate",
+      "nativeId": "native_foundation_b0d3766a377188a5802dfbca"
+    },
+    {
+      "text": "明天见",
+      "forms": ["明天见"],
+      "status": "native_display_candidate",
+      "nativeId": "native_foundation_59e8125c044b271d2d793ac6"
+    },
+    {
+      "text": "明年",
+      "forms": ["明年"],
+      "status": "isolated_by_technical_gate",
+      "nativeId": null
+    },
+    {
+      "text": "昨天",
+      "forms": ["昨天"],
+      "status": "wrist_amplitude_reduced_candidate",
+      "nativeId": "native_foundation_b8dfeaa4fb56f5d0a0d0c0a8"
+    },
+    {
+      "text": "是",
+      "forms": ["是"],
+      "status": "builtin_handmade_pose",
+      "nativeId": null
+    },
+    {
+      "text": "晚上",
+      "forms": ["晚上"],
+      "status": "wrist_amplitude_reduced_candidate",
+      "nativeId": "native_foundation_a276da1abd19e8ed85a59447"
+    },
+    {
+      "text": "晚上好",
+      "forms": ["晚上好"],
+      "status": "wrist_amplitude_reduced_candidate",
+      "nativeId": "native_foundation_ce603f6b52873be9156feaaa"
+    },
+    {
+      "text": "有",
+      "forms": ["有"],
+      "status": "builtin_handmade_pose",
+      "nativeId": null
+    },
+    {
+      "text": "朋友",
+      "forms": ["朋友"],
+      "status": "isolated_by_technical_gate",
+      "nativeId": null
+    },
+    {
+      "text": "机场",
+      "forms": ["机场"],
+      "status": "isolated_by_technical_gate",
+      "nativeId": null
+    },
+    {
+      "text": "来",
+      "forms": ["来"],
+      "status": "wrist_amplitude_reduced_candidate",
+      "nativeId": "native_foundation_1bc19594dfe8a0d8f5753833"
+    },
+    {
+      "text": "欢迎",
+      "forms": ["欢迎"],
+      "status": "builtin_handmade_pose",
+      "nativeId": null
+    },
+    {
+      "text": "每周",
+      "forms": ["每周"],
+      "status": "wrist_amplitude_reduced_candidate",
+      "nativeId": "native_foundation_1f97b6ce78978e1399d9e549"
+    },
+    {
+      "text": "每天",
+      "forms": ["每天"],
+      "status": "wrist_amplitude_reduced_candidate",
+      "nativeId": "native_foundation_17f8d7f1bc661234817b51c7"
+    },
+    {
+      "text": "没关系",
+      "forms": ["没关系"],
+      "status": "native_display_candidate",
+      "nativeId": "native_foundation_5e2059f657af354b31831255"
+    },
+    {
+      "text": "没有",
+      "forms": ["没有"],
+      "status": "native_display_candidate",
+      "nativeId": "native_foundation_5f2a5fb1de8eab1fe4a148c0"
+    },
+    {
+      "text": "火车站",
+      "forms": ["火车站"],
+      "status": "native_display_candidate",
+      "nativeId": "native_foundation_7e75dba567cb801f2e8ace12"
+    },
+    {
+      "text": "爱",
+      "forms": ["爱"],
+      "status": "builtin_handmade_pose",
+      "nativeId": null
+    },
+    {
+      "text": "爸爸",
+      "forms": ["爸爸"],
+      "status": "wrist_amplitude_reduced_candidate",
+      "nativeId": "native_foundation_e4923b1112caed90cb0c9981"
+    },
+    {
+      "text": "现在",
+      "forms": ["现在"],
+      "status": "native_display_candidate",
+      "nativeId": "native_foundation_abc53acf61e10eb08cb7b037"
+    },
+    {
+      "text": "生气",
+      "forms": ["生气"],
+      "status": "native_display_candidate",
+      "nativeId": "native_foundation_fe8fa2d7e48828fb66535d62"
+    },
+    {
+      "text": "白天",
+      "forms": ["白天"],
+      "status": "isolated_by_technical_gate",
+      "nativeId": null
+    },
+    {
+      "text": "看",
+      "forms": ["看"],
+      "status": "builtin_handmade_pose",
+      "nativeId": null
+    },
+    {
+      "text": "真",
+      "forms": ["真"],
+      "status": "builtin_handmade_pose",
+      "nativeId": null
+    },
+    {
+      "text": "知道",
+      "forms": ["知道"],
+      "status": "builtin_handmade_pose",
+      "nativeId": null
+    },
+    {
+      "text": "累",
+      "forms": ["累"],
+      "status": "native_display_candidate",
+      "nativeId": "native_foundation_5ad02b56b11ca9c8a8d600c9"
+    },
+    {
+      "text": "练习",
+      "forms": ["练习"],
+      "status": "native_display_candidate",
+      "nativeId": "native_foundation_80d77f64b5a226e9cbb1d00f"
+    },
+    {
+      "text": "给",
+      "forms": ["给"],
+      "status": "isolated_by_technical_gate",
+      "nativeId": null
+    },
+    {
+      "text": "老",
+      "forms": ["老"],
+      "status": "builtin_handmade_pose",
+      "nativeId": null
+    },
+    {
+      "text": "老师",
+      "forms": ["老师"],
+      "status": "isolated_by_technical_gate",
+      "nativeId": null
+    },
+    {
+      "text": "考试",
+      "forms": ["考试"],
+      "status": "isolated_by_technical_gate",
+      "nativeId": null
+    },
+    {
+      "text": "自己",
+      "forms": ["自己"],
+      "status": "builtin_handmade_pose",
+      "nativeId": null
+    },
+    {
+      "text": "舒服",
+      "forms": ["舒服"],
+      "status": "native_display_candidate",
+      "nativeId": "native_foundation_f17dd18d58f111fed51da0db"
+    },
+    {
+      "text": "要",
+      "forms": ["要"],
+      "status": "builtin_handmade_pose",
+      "nativeId": null
+    },
+    {
+      "text": "说",
+      "forms": ["说"],
+      "status": "wrist_amplitude_reduced_candidate",
+      "nativeId": "native_foundation_682ed3acec3319814f4950c2"
+    },
+    {
+      "text": "请",
+      "forms": ["请"],
+      "status": "builtin_handmade_pose",
+      "nativeId": null
+    },
+    {
+      "text": "谁",
+      "forms": ["谁"],
+      "status": "builtin_handmade_pose",
+      "nativeId": null
+    },
+    {
+      "text": "谢谢",
+      "forms": ["谢谢"],
+      "status": "native_display_candidate",
+      "nativeId": "native_foundation_98305507977dcebe16ea508a"
+    },
+    {
+      "text": "超市",
+      "forms": ["超市"],
+      "status": "native_display_candidate",
+      "nativeId": "native_foundation_736273d86c69edc55cfa8a8a"
+    },
+    {
+      "text": "这",
+      "forms": ["这"],
+      "status": "builtin_handmade_pose",
+      "nativeId": null
+    },
+    {
+      "text": "选择",
+      "forms": ["选择"],
+      "status": "native_display_candidate",
+      "nativeId": "native_foundation_aec0f937c4475ffc7cedf46f"
+    },
+    {
+      "text": "那",
+      "forms": ["那"],
+      "status": "builtin_handmade_pose",
+      "nativeId": null
+    },
+    {
+      "text": "都",
+      "forms": ["都"],
+      "status": "builtin_handmade_pose",
+      "nativeId": null
+    },
+    {
+      "text": "里",
+      "forms": ["里"],
+      "status": "list_only",
+      "nativeId": null
+    },
+    {
+      "text": "银行",
+      "forms": ["银行"],
+      "status": "native_display_candidate",
+      "nativeId": "native_foundation_ccd613161f8faee8c74625c7"
+    },
+    {
+      "text": "食堂",
+      "forms": ["食堂"],
+      "status": "isolated_by_technical_gate",
+      "nativeId": null
+    }
+  ],
+  "input_sha256": {
+    "db_all_units": "f1e2845a1b516db4cb9e2e0e7bf4eb3d670c85e9dc6598f8433edbf7513e969c",
+    "validated_labels": "76aabcb8c278c150c3dbc8e8946037ee33a7f3e8eb3dbf19dc9631387447ab14",
+    "class_mapping": "91af580e4b4ee7c1158124161fc09f68973bb294995c7e763926006fe0f46196",
+    "native_index": "a86e8fffa459bad3007e4c770989c602794521869eae7887d33120b5181acfd6",
+    "canonical_index": "081aee438167d25c2f2b5eb96c9f3b5725e501546e9b38c88397f7b79ec628a8",
+    "builtin_dictionary": "e8086aca6df852a26240263976612fbc38db90f3beb07be5438598300967116b"
+  },
+  "tool_sha256": "9093b963d932b3012b4ceccf1a895f7f20818eb57f933e5ba6fd382203607167",
+  "policy": "list_only entries have no motion and must not borrow another motion; all flags false"
+}

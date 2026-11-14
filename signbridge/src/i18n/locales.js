@@ -1,9 +1,1657 @@
+const WORKBENCH_ZH = {
+  corePlayableInstructions: "先选择下方可播放例句，再点击“播放动作”。",
+  coreGapExamplesTitle: "暂不能播放的例句（查看原因）",
+  coreGapExamplesNote: "这些例句仅用于查看缺词或方向问题，不会播放动画。",
+  coreGapExampleLabel: "{text} · 仅分析，不能播放",
+  coreDirectionUnavailable:
+    "“我帮你／你帮我”的方向动作尚未确认，当前只分析、不播放。可先选择“我跑步”等可播放例句。",
+  coreReadyToPlay: "可播放 {count} 个动作；点击“播放动作”开始。",
+  coreMissingSource: "缺少动作 · 未使用内置后备",
+  coreScenarioTitle: "日常生活与出行 · 固定场景演示",
+  coreScenePlayable: "有核心动作支持的有限中文表达草案",
+  coreSceneGap: "缺词或方向未确认：仅查看解析，不播放",
+  coreReturn: "核心演示",
+  coreCount: "{count} 个原片对齐候选单元",
+  coreScope:
+    "默认只使用核心动作。原片帧区间由助手核对，词义和词界尚未人工批准；不回退旧动作。",
+  coreResearchScope:
+    "研究对照：当前使用全候选、旧拟合或内置来源，未经过本轮核心词界筛选。返回核心演示可恢复受限范围。",
+  coreModeDescription:
+    "只匹配原片对齐的核心单元。缺词、方向缺口或不支持的句式会保留整句并停止组合。",
+  coreCatalog:
+    "{count} 个有原片区间和修复骨骼来源的核心候选；不含整句查表或内置后备。",
+  coreSource: "原片区间 · 核心候选（词义未批准）",
+  coreGap: "缺少核心动作：{words}。整句已保留，未回退旧动作。",
+  coreBlocked: "句式或动作证据仍有缺口，保留原文并暂停播放。",
+  coreExact: "已找到核心候选区间；这是原片标签支持的演示，不代表语义批准。",
+  coreEvidenceHeading: "本次动作的原片与帧区间",
+  coreOriginal: "{word}：查看原片（源片段第 {start}–{end} 帧）",
+  coreAlignment: "{word}：查看来源记录",
+  coreIssueDirection:
+    "帮助的施事/受事已解析，但缺少经核对的指向动作，暂不播放。",
+  coreIssueScope: "否定、情态或多分句范围超出本轮表达约束，暂不组合。",
+  coreIssueQuestion: "疑问或多分句所需动作证据未齐，暂不组合。",
+  coreIssueUnknown: "输入未被当前有限句式完整解析，原文未丢弃。",
+  coreInvalidAsset: "核心动作来源或帧区间校验失败",
+  nativeMode: "新骨骼候选展示",
+  nativeRepairSummary:
+    "当前为动作修复版：{count} 段已重做肩臂比例映射、手指去抖与穿插筛查。问题片段已移出；词义仍未核准。",
+  nativeCatalog:
+    "本轮 {count} 段技术候选；同名动作保留不同版本。候选标签尚未核准。",
+  nativeExactNote: "匹配到完整视频候选；这是标签检索，尚未核准词义。",
+  nativeUnitSources:
+    "组合仅为 Demo 草案，各单元来源：{sources}。新候选与内置单元均未获得本轮语义批准。",
+  nativeModeDescription:
+    "仅使用技术筛选通过的新骨骼候选；基本角色句可混合明确标注的内置单元。词义、词界及中国手语语法未核准。",
+  nativeCount: "新骨骼候选",
+  nativeSource: "原视频拟合 · 技术候选（未核准词义）",
+  nativeWarning:
+    "新库通过人物骨骼数值筛查，仍不保证零抖动或语义正确。候选需主动选择；他/我们等没有新动作时明确使用内置单元。",
+  nativeInvalidAsset: "新骨骼候选资源校验失败",
+  nativeToken: "原视频 SMPL-X 拟合并预编译为人物四元数；未经过新模型训练。",
+  optimizationAdaptiveWarning:
+    "自适应过滤仅为研究对照：六批95条动作未有片段同时通过抖动、手腕与动作范围数值门槛；不会自动应用。逐条复核前请保留原方案或原始显示。",
+  optimizationDisplayProfile: "显示过滤对照",
+  optimizationAssetProfile: "原有配置（默认）",
+  optimizationAdaptiveProfile: "实验对照：孤立尖峰，非推荐配置",
+
+  workbenchCatalogCount:
+    "当前可选 {count} 条。匹配表示有动作数据，不代表手语含义已核准。",
+  workbenchScope:
+    "研究演示：当前播放已有动作。未覆盖内容会提示；动作播放不代表文字已被理解。",
+  workbenchServiceHandoff:
+    "意思分析由本机服务提供。按钮会先检查服务是否已启动；跳转不携带口令或输入文字。",
+  workbenchOpenService: "打开本机服务分析页",
+  workbenchCsl: "当前支持：中国手语",
+  workbenchTextPreview: "文字预览",
+  workbenchOpen: "打开工作台",
+  workbenchModelDemo: "模型演示 Demo",
+  workbenchSettings: "SignBridge 设置",
+  workbenchSettingsLead:
+    "显示与声音统一设置。网页字幕按中文读取，声音识别可单独配置语言。",
+  workbenchDisplay: "显示",
+  workbenchSystemLanguage: "跟随系统",
+  workbenchChinese: "中文",
+  workbenchLocaleChinese: "简体中文",
+  workbenchLocaleEnglish: "English",
+  workbenchLocaleJapanese: "日本語",
+  workbenchAsrLead:
+    "无字幕时可在插件中主动开启声音识别。默认使用本地 Whisper；下载模型不会自动开始录音。",
+  workbenchAdvancedAsr: "高级声音设置：识别方式、模型与音频参数",
+  workbenchSettingsSaved:
+    "显示和声音设置已保存。已打开的虚拟人大小同步更新；界面语言重新打开相关页面后生效。",
+  workbenchTasks: "工作台任务",
+  workbenchMotion: "动作演示",
+  workbenchMeaning: "意思分析（训练模型）",
+  workbenchResearch: "研究工具与技术详情",
+  workbenchResearchLead:
+    "制作和核验已有动作，查看来源或比较规则分析。这里的工具不会自动产生中国手语批准。",
+  workbenchTools: "动作制作与检查",
+  workbenchExtensionTools:
+    "动作制作、覆盖／补词与验收工具需要 Chrome 扩展环境。请加载本次构建的扩展目录，再从插件打开工作台。",
+  workbenchAuthoring: "动作制作",
+  workbenchPose: "编辑单帧姿势",
+  workbenchSequence: "编排多帧动作",
+  workbenchRouting: "来源选择与规则对照",
+  workbenchModeAutoDescription:
+    "自动匹配：优先使用完整参考句，再按可用动作补齐词库片段；缺失内容会标出，不会静默替换。",
+  workbenchModeT08Description:
+    "参考与实验动作：只筛选已有 T08 参考和拟合候选，不回退到内置词库；候选不代表语义或动作质量已批准。",
+  workbenchModeDictionaryDescription:
+    "内置词库：仅使用已收录的词条动作。当前已切到词条目录，不调用 T08 参考句。",
+  workbenchModeSemanticDescription:
+    "规则研究仅显示中文解析草案，不播放动作，也不调用训练角色模型。",
+  workbenchPresentation: "视角与显示处理",
+  workbenchRuleOnly:
+    "当前为规则分析对照，只输出草案；不连接训练模型，也不播放动作。",
+  workbenchForcedSource: "当前限定了动作来源。关闭研究区域即可恢复自动匹配。",
+  workbenchStart: "开始字幕辅助",
+  workbenchStop: "停止辅助",
+  workbenchRunning: "字幕辅助中",
+};
+const WORKBENCH_EN = {
+  corePlayableInstructions:
+    "Choose a playable example below, then click Play motion.",
+  coreGapExamplesTitle: "Unavailable examples (view reasons)",
+  coreGapExamplesNote:
+    "These examples show missing motions or unresolved direction. They do not play animation.",
+  coreGapExampleLabel: "{text} · Analysis only, no playback",
+  coreDirectionUnavailable:
+    "The direction for “I help you / you help me” is unverified. Analysis only. Choose a playable example such as “我跑步”.",
+  coreReadyToPlay: "{count} motions available. Click Play motion to start.",
+  coreMissingSource: "Missing motion · No authored fallback used",
+  coreScenarioTitle: "Daily life and travel · Frozen scenario demo",
+  coreScenePlayable: "Bounded Chinese draft with core motion support",
+  coreSceneGap:
+    "Missing motion or unverified direction: analysis only, no playback",
+  coreReturn: "Core demo",
+  coreCount: "{count} source-aligned candidate units",
+  coreScope:
+    "Core motions only. Assistant-proposed source intervals; meanings and boundaries are not human-approved. No legacy fallback.",
+  coreResearchScope:
+    "Research comparison: full candidates, legacy fits or authored units are outside the core boundary screen. Return to the core demo for the bounded scope.",
+  coreModeDescription:
+    "Match source-aligned core units only. Missing signs, direction or unsupported structure retain the entire input and block composition.",
+  coreCatalog:
+    "{count} source-bound core candidates; no whole-sentence lookup or authored fallback.",
+  coreSource: "Source interval · Core candidate (meaning unapproved)",
+  coreGap:
+    "Missing core motions: {words}. Entire input retained; no legacy fallback.",
+  coreBlocked:
+    "Sentence structure or motion evidence is incomplete. Input retained; playback blocked.",
+  coreExact:
+    "Source-supported core interval found; candidate demo only, no semantic approval.",
+  coreEvidenceHeading: "Source video and frame interval",
+  coreOriginal: "{word}: original clip (source-clip frames {start}–{end})",
+  coreAlignment: "{word}: provenance record",
+  coreIssueDirection:
+    "Actor and recipient parsed, but directional help motion is unverified; playback blocked.",
+  coreIssueScope:
+    "Negation, modality or clause scope exceeds the bounded contract.",
+  coreIssueQuestion:
+    "Question or multiple-clause motion evidence is incomplete.",
+  coreIssueUnknown:
+    "Input is outside the bounded parser; the original is retained.",
+  coreInvalidAsset:
+    "Core motion provenance or frame-interval validation failed",
+  nativeMode: "New skeleton candidates",
+  nativeRepairSummary:
+    "Motion repair build: {count} clips rebuilt with proportion-aware arms, finger denoising and penetration screening. Failed clips excluded; meanings unverified.",
+  nativeCatalog:
+    "{count} technical candidates; same-label variants retained. Candidate meanings are unverified.",
+  nativeExactNote:
+    "Complete video candidate matched by label; meaning remains unverified.",
+  nativeUnitSources:
+    "Demo draft unit sources: {sources}. No new semantic approval is inferred.",
+  nativeModeDescription:
+    "Technical candidates with bounded role drafts. Authored fallback units are labeled. Meaning, boundaries and CSL grammar remain unverified.",
+  nativeCount: "New skeleton candidates",
+  nativeSource: "Video fit · Technical candidate (meaning unverified)",
+  nativeWarning:
+    "Target-rig numeric checks do not guarantee jitter-free or semantically correct motion. Select candidates explicitly; missing he/we motions use labeled authored units.",
+  nativeInvalidAsset: "Native candidate asset verification failed",
+  nativeToken:
+    "Video SMPL-X fit precompiled to avatar quaternions; no new model training.",
+  optimizationAdaptiveWarning:
+    "Adaptive filtering is comparison-only: 0 of 95 motions met the combined jitter, wrist and range gate. It is never applied automatically.",
+  optimizationDisplayProfile: "Display filter comparison",
+  optimizationAssetProfile: "Asset profile (default)",
+  optimizationAdaptiveProfile: "Experimental isolated-spike filter",
+
+  workbenchCatalogCount:
+    "{count} entries available. Matching indicates motion data, not linguistic approval.",
+  workbenchScope:
+    "Research demo: plays existing motions and reports gaps. Meaning analysis and motion playback are separate tasks.",
+  workbenchServiceHandoff:
+    "Meaning analysis runs in the local service. Open its analysis page and enter the token there. Navigation carries no token or input text.",
+  workbenchOpenService: "Open local analysis service",
+  workbenchCsl: "Supported: Chinese Sign Language",
+  workbenchTextPreview: "Text preview",
+  workbenchOpen: "Open workspace",
+  workbenchModelDemo: "Model Demo",
+  workbenchSettings: "SignBridge settings",
+  workbenchSettingsLead:
+    "Display and audio in one place. Subtitles are read as Chinese; ASR language is configured separately.",
+  workbenchDisplay: "Display",
+  workbenchSystemLanguage: "Use system language",
+  workbenchChinese: "Chinese",
+  workbenchLocaleChinese: "简体中文",
+  workbenchLocaleEnglish: "English",
+  workbenchLocaleJapanese: "日本語",
+  workbenchAsrLead:
+    "Enable audio recognition from the extension when subtitles are unavailable. Local Whisper is the default; downloading a model does not start recording.",
+  workbenchAdvancedAsr: "Advanced audio: provider, model and capture settings",
+  workbenchSettingsSaved:
+    "Display and audio settings saved. Open avatars resize now; reopen other pages to apply the interface language.",
+  workbenchTasks: "Workspace tasks",
+  workbenchMotion: "Motion preview",
+  workbenchMeaning: "Meaning analysis (trained model)",
+  workbenchResearch: "Research tools and technical details",
+  workbenchResearchLead:
+    "Create and review existing motions, inspect sources or compare rule analysis. These tools never grant CSL approval automatically.",
+  workbenchTools: "Motion creation and checks",
+  workbenchExtensionTools:
+    "Motion creation, coverage and review require the Chrome extension. Load this build as an extension and open the workspace from its popup.",
+  workbenchAuthoring: "Create motions",
+  workbenchPose: "Edit a single pose",
+  workbenchSequence: "Arrange motion frames",
+  workbenchRouting: "Source selection and rule comparison",
+  workbenchModeAutoDescription:
+    "Automatic matching: prefer complete reference phrases, then fill gaps with available dictionary entries. Unsupported text remains visible.",
+  workbenchModeT08Description:
+    "Reference and experimental motions: use existing T08 references and fit candidates only; do not fall back to dictionary motions.",
+  workbenchModeDictionaryDescription:
+    "Built-in dictionary: use recorded word motions only. The catalog switches to word entries and excludes T08 phrase references.",
+  workbenchModeSemanticDescription:
+    "Rule research shows a Chinese analysis draft only; it does not play motion or call the trained role model.",
+  workbenchPresentation: "View and display processing",
+  workbenchRuleOnly:
+    "Rule comparison produces a draft only. It does not connect to the trained model or play motion.",
+  workbenchForcedSource:
+    "Motion sources are restricted. Close research details to restore automatic matching.",
+  workbenchStart: "Start subtitle assistance",
+  workbenchStop: "Stop assistance",
+  workbenchRunning: "Subtitle assistance active",
+};
+const WORKBENCH_JA = {
+  corePlayableInstructions:
+    "下の再生可能な例文を選び、「動作を再生」を押してください。",
+  coreGapExamplesTitle: "再生できない例文（理由を見る）",
+  coreGapExamplesNote:
+    "動作の不足や方向の問題を確認する例文です。アニメーションは再生されません。",
+  coreGapExampleLabel: "{text}・解析のみ、再生不可",
+  coreDirectionUnavailable:
+    "「私があなたを助ける／あなたが私を助ける」の方向動作は未確認です。解析のみ。「我跑步」などの再生可能な例文を選んでください。",
+  coreReadyToPlay:
+    "{count} 個の動作を再生できます。「動作を再生」を押してください。",
+  coreMissingSource: "動作不足・内蔵動作への代替なし",
+  coreScenarioTitle: "日常生活と移動・固定シナリオデモ",
+  coreScenePlayable: "コア動作に対応した限定的な中国語表現の草案",
+  coreSceneGap: "動作不足または方向未確認。解析のみで再生しません",
+  coreReturn: "コアデモ",
+  coreCount: "原動画対応の候補 {count} 単位",
+  coreScope:
+    "コア動作のみ。区間は助手の候補判断で、意味と語境界は人の承認なし。旧動作へ自動移行しません。",
+  coreResearchScope:
+    "研究比較：全候補・旧動作・内蔵動作は今回のコア境界検査の範囲外です。コアデモへ戻ると範囲を限定します。",
+  coreModeDescription:
+    "原動画に対応するコア単位だけを使用。不足や方向、未対応文型は全文を保持し再生を停止します。",
+  coreCatalog:
+    "出典付きコア候補 {count} 件。文全体検索や内蔵動作への自動移行なし。",
+  coreSource: "原動画区間・コア候補（語義未承認）",
+  coreGap: "不足するコア動作：{words}。全文を保持し、旧動作へ移行しません。",
+  coreBlocked: "文構造または動作根拠が不足。原文を保持して再生を停止します。",
+  coreExact:
+    "原動画に対応する候補区間です。意味の承認を示すものではありません。",
+  coreEvidenceHeading: "原動画とフレーム区間",
+  coreOriginal: "{word}：原動画（元クリップの {start}–{end} フレーム）",
+  coreAlignment: "{word}：出典記録",
+  coreIssueDirection:
+    "動作者と対象は解析済みですが、助ける方向の動作は未確認です。",
+  coreIssueScope: "否定・法性・節の範囲が今回の制約を超えています。",
+  coreIssueQuestion: "疑問や複文に必要な動作根拠が不足しています。",
+  coreIssueUnknown: "限定文型で全文を解析できません。原文は保持されます。",
+  coreInvalidAsset: "コア動作の出典またはフレーム区間検証に失敗しました",
+  nativeMode: "新しい骨格候補",
+  nativeRepairSummary:
+    "動作修正版：{count} 件の腕の比率、指の揺れ、交差を再検査。問題候補は除外。語義は未確認です。",
+  nativeCatalog: "技術候補 {count} 件。同名の別動作を保持。語義は未確認です。",
+  nativeExactNote: "ラベルで動画全体の候補を検索しました。語義は未確認です。",
+  nativeUnitSources:
+    "デモ草案の単位ごとの出典：{sources}。意味の承認は行いません。",
+  nativeModeDescription:
+    "数値検査済み候補と限定的な役割表現。内蔵動作は明示。語義、境界、中国手話文法は未確認です。",
+  nativeCount: "新しい骨格候補",
+  nativeSource: "動画フィット・技術候補（語義未確認）",
+  nativeWarning:
+    "骨格の数値検査は揺れの完全除去や意味の正しさを保証しません。候補は明示的に選択し、不足する代名詞は内蔵動作と表示します。",
+  nativeInvalidAsset: "骨格候補の検証に失敗しました",
+  nativeToken:
+    "動画の SMPL-X フィットから人物四元数を事前生成。新しいモデル学習はありません。",
+  optimizationAdaptiveWarning:
+    "適応型フィルターは比較専用です。95件中、揺れ・手首・動作範囲の基準をすべて満たしたものはありません。自動適用されません。",
+  optimizationDisplayProfile: "表示フィルター比較",
+  optimizationAssetProfile: "既存設定（既定）",
+  optimizationAdaptiveProfile: "実験：孤立スパイク除去",
+
+  workbenchCatalogCount:
+    "選択可能：{count} 件。一致は動作データの存在を示し、手話の意味の承認ではありません。",
+  workbenchScope:
+    "研究デモ：既存の動作を再生し、未対応の内容を表示します。意味分析と動作再生は別々の操作です。",
+  workbenchServiceHandoff:
+    "ブラウザーのデモと推論サービスのポートが異なる場合、サービスの分析ページを開いて口令を入力してください。移動時に口令や入力文は送りません。",
+  workbenchOpenService: "ローカル分析サービスを開く",
+  workbenchCsl: "対応： 中国手話",
+  workbenchTextPreview: "テキストのプレビュー",
+  workbenchOpen: "ワークスペースを開く",
+  workbenchModelDemo: "モデル Demo",
+  workbenchSettings: "SignBridge 設定",
+  workbenchSettingsLead:
+    "Display and audio in one place. Subtitles are read as Chinese; ASR language is configured separately.",
+  workbenchDisplay: "表示",
+  workbenchSystemLanguage: "システム言語に合わせる",
+  workbenchChinese: "中国語",
+  workbenchLocaleChinese: "简体中文",
+  workbenchLocaleEnglish: "English",
+  workbenchLocaleJapanese: "日本語",
+  workbenchAsrLead:
+    "Enable audio recognition from the extension when subtitles are unavailable. Local Whisper is the default; downloading a model does not start recording.",
+  workbenchAdvancedAsr: "Advanced audio: provider, model and capture settings",
+  workbenchSettingsSaved:
+    "Display and audio settings saved. Open avatars resize now; reopen other pages to apply the interface language.",
+  workbenchTasks: "ワークスペースの操作",
+  workbenchMotion: "動作プレビュー",
+  workbenchMeaning: "意味分析（学習済みモデル）",
+  workbenchResearch: "研究ツールと技術情報",
+  workbenchResearchLead:
+    "Create and review existing motions, inspect sources or compare rule analysis. These tools never grant CSL approval automatically.",
+  workbenchTools: "動作の作成と確認",
+  workbenchExtensionTools:
+    "Motion creation, coverage and review require the Chrome extension. Load this build as an extension and open the workspace from its popup.",
+  workbenchAuthoring: "動作を作成",
+  workbenchPose: "単一姿勢の編集",
+  workbenchSequence: "複数フレームの編成",
+  workbenchRouting: "動作ソースと規則の比較",
+  workbenchModeAutoDescription:
+    "自動照合：文全体の参考動作を優先し、不足分を利用可能な辞書動作で補います。対応できない文字は表示します。",
+  workbenchModeT08Description:
+    "参考・実験動作：既存のT08参考動作とフィット候補のみを使い、辞書動作にはフォールバックしません。",
+  workbenchModeDictionaryDescription:
+    "内蔵辞書：登録済み単語動作のみを使います。カタログを単語一覧に切り替え、T08文全体の参考動作は除外します。",
+  workbenchModeSemanticDescription:
+    "規則研究は中国語の解析案を表示するだけです。動作を再生せず、学習済み役割モデルも呼び出しません。",
+  workbenchPresentation: "視点と表示処理",
+  workbenchRuleOnly:
+    "Rule comparison produces a draft only. It does not connect to the trained model or play motion.",
+  workbenchForcedSource:
+    "Motion sources are restricted. Close research details to restore automatic matching.",
+  workbenchStart: "字幕支援を開始",
+  workbenchStop: "支援を停止",
+  workbenchRunning: "字幕支援中",
+};
+
+const PRIVATE_ZH = {
+  privateScopeExperiment:
+    "作用域对照实验：复用冻结角色权重，仅加受限事件结构约束；这是合成中文工程评估，不是中国手语理解或准确率。",
+  privateScopeAnalyzed:
+    "作用域结构已解析；动作仍需中国手语词级、空间和非手部对齐审核。",
+
+  privateEventStructure: "事件与作用域（冻结模型＋结构约束实验）",
+  privatePlanEvidence:
+    "语义组成：{components}。缺少候选证据：{gaps}。候选均待手语对齐复核，不生成或播放动作。",
+  privatePlanReview: "全部仍需核准",
+
+  privateTitle: "SignBridge · 中国手语理解研究版",
+  privateScope:
+    "当前已训练：受限中文语义角色解析。训练标签为助手合成中文示例，尚未训练出中国手语翻译或视频识别能力。",
+  privateEndpoint: "本机推理服务地址",
+  privateToken: "本次服务的会话口令",
+  privateTokenHelp:
+    "口令由本机服务终端生成，仅在本页面内存中使用；重启服务后失效。",
+  privateSentence: "输入一句中文（最多500字）",
+  privateAnalyze: "解析意思",
+  privateDisconnect: "清空会话",
+  privateResult: "语义解析结果",
+  privateWaiting: "启动本机服务并填写会话口令后可解析。",
+  privateAnalyzing: "正在调用本机训练模型…",
+  privateParsed: "已解析角色；尚需中国手语动作对齐与表达核验。",
+  privateAbstained: "该句超出已训练范围或存在歧义；已停止解析，请保留原文。",
+  privateMotionGap:
+    "手语输出暂未启用：词级动作边界、空间指代和非手部表达仍需核对。这里不会用整句检索或手工词库播放代替理解。",
+  privateProtectionScope:
+    "此客户端不包含完整词库、动作数据或模型权重。页面展示的结果仍可被复制；已发出的旧版安装包无法撤回。",
+  privateModel: "本次模型：{model}",
+  privateDisconnected: "会话已清空。",
+  privateEndpointInvalid: "请使用明确端口的 http://127.0.0.1 本机服务地址。",
+  privateTokenInvalid: "请填写本次终端生成的完整会话口令。",
+  privateTextInvalid: "请输入1至500字的中文。",
+  privateUnauthorized: "口令无效或已失效，请使用当前服务终端的口令。",
+  privateForbidden: "服务拒绝了来源；插件需在启动服务时加入其准确的扩展来源。",
+  privateRateLimited: "请求过于频繁，请稍后重试。",
+  privateBusy: "服务忙，请稍后重试。",
+  privateRequestFailed: "推理请求失败，请检查本机服务。",
+  privateResponseInvalid: "服务返回内容不符合当前模型接口。",
+  privateConnectionFailed:
+    "无法连接本机服务或请求已超时，请检查服务地址和运行状态。",
+  privateServiceUnavailableStatus: "本机语义服务未运行，尚未离开当前页面。",
+  privateServiceUnavailable:
+    "没有检测到本机语义服务。请在项目仓库根目录打开终端并运行下面的命令；服务启动后回到这里重试。",
+  privateServiceStartFromRoot: "启动命令（在 SignBridge 项目仓库根目录运行）：",
+  privateServiceCommand:
+    ".venv-sign-data/bin/python signbridge/src/tools/sign-private-serve.py --model local-data/csl-understanding-20261017-rLaeiN/learned-roles-v3 --client local-data/existing-resources-optimization-20261019-v1/thin-client-v1.0.5 --port 8770 --scope-experiment --unit-candidates local-data/existing-resources-optimization-20261019-v1/unit-candidates-final/candidates.json",
+  privateRoles: {
+    actor: "谁／施事",
+    predicate: "动作／状态",
+    patient: "对谁／受事",
+    goal: "目标地点",
+    time: "时间",
+    negation: "否定",
+    modal: "意愿／能力／必要性",
+    question: "疑问",
+    aspect: "体貌",
+    politeness: "请求",
+    degree: "程度",
+  },
+};
+const PRIVATE_EN = {
+  privateScopeExperiment:
+    "Scope comparison: frozen role weights with bounded event-structure constraints. Synthetic Chinese engineering evaluation only; not CSL understanding or accuracy.",
+  privateScopeAnalyzed:
+    "Event scope parsed; CSL lexical, spatial and nonmanual alignment still requires review.",
+
+  privateEventStructure: "Event scope (frozen model + explicit constraints)",
+  privatePlanEvidence:
+    "Meaning components: {components}. Candidate evidence gaps: {gaps}. All candidates await CSL alignment; no motion generation or playback.",
+  privatePlanReview: "all still require review",
+
+  privateTitle: "SignBridge · CSL understanding research",
+  privateScope:
+    "Trained capability: bounded Chinese semantic roles, using assistant synthetic Chinese labels. CSL translation and video recognition are not trained.",
+  privateEndpoint: "Local inference service",
+  privateToken: "Session token",
+  privateTokenHelp:
+    "The local service prints a new token in its terminal. This page holds it in memory only; restart invalidates it.",
+  privateSentence: "Chinese sentence (up to 500 characters)",
+  privateAnalyze: "Analyze meaning",
+  privateDisconnect: "Clear session",
+  privateResult: "Semantic result",
+  privateWaiting: "Start the local service and enter its session token.",
+  privateAnalyzing: "Running the local trained model…",
+  privateParsed:
+    "Roles parsed; CSL motion alignment and realization still require review.",
+  privateAbstained:
+    "Unsupported or ambiguous sentence. Parsing stopped; retain the original text.",
+  privateMotionGap:
+    "Signing output awaits word-level motion alignment, spatial reference and nonmanual review. No retrieval or dictionary playback substitutes for understanding here.",
+  privateProtectionScope:
+    "This client includes no complete lexicon, motion data or model weights. Displayed results can still be copied; previously distributed packages cannot be recalled.",
+  privateModel: "Model: {model}",
+  privateDisconnected: "Session cleared.",
+  privateEndpointInvalid:
+    "Use an http://127.0.0.1 address with an explicit local service port.",
+  privateTokenInvalid:
+    "Enter the complete token from the current service terminal.",
+  privateTextInvalid: "Enter 1–500 characters.",
+  privateUnauthorized:
+    "Invalid or expired token. Use the current service terminal token.",
+  privateForbidden:
+    "Origin rejected. Start the service with this exact extension origin allowed.",
+  privateRateLimited: "Too many requests. Try again later.",
+  privateBusy: "Service busy. Try again shortly.",
+  privateRequestFailed: "Inference request failed. Check the local service.",
+  privateResponseInvalid: "Unexpected model response.",
+  privateConnectionFailed:
+    "Local service unavailable or request timed out. Check the address and service.",
+  privateServiceUnavailableStatus:
+    "The local meaning service is not running. You have not left this page.",
+  privateServiceUnavailable:
+    "The local meaning service was not detected. Open a terminal at the SignBridge repository root, run the command below, then return here and retry.",
+  privateServiceStartFromRoot: "Start command (run at the repository root):",
+  privateServiceCommand:
+    ".venv-sign-data/bin/python signbridge/src/tools/sign-private-serve.py --model local-data/csl-understanding-20261017-rLaeiN/learned-roles-v3 --client local-data/existing-resources-optimization-20261019-v1/thin-client-v1.0.5 --port 8770 --scope-experiment --unit-candidates local-data/existing-resources-optimization-20261019-v1/unit-candidates-final/candidates.json",
+  privateRoles: {
+    actor: "Actor",
+    predicate: "Action / state",
+    patient: "Patient / recipient",
+    goal: "Goal",
+    time: "Time",
+    negation: "Negation",
+    modal: "Modality",
+    question: "Question",
+    aspect: "Aspect",
+    politeness: "Request",
+    degree: "Degree",
+  },
+};
+const SEMANTIC_ZH = {
+  cslMode: "中文意思分析（规则研究）",
+  cslAnalysisOnly:
+    "仅分析中文意思：未完成中国手语词级对齐与语言复核，不播放动作。",
+  cslDemoPreviewReady:
+    "Demo已完成有限语义路由并播放词条组合；这不是已核准的中国手语语法。",
+  cslTitle: "意思分析与表达草案",
+  cslScope:
+    "有限规则原型：先分析意思，再检查动作。不是已训练的中国手语理解模型；词序、手型、空间关系和表情仍需核对。",
+  cslActor: "施事 / 谁",
+  cslPredicate: "动作 / 状态",
+  cslPatient: "受事 / 对谁",
+  cslGoal: "地点 / 目标",
+  cslTime: "时间",
+  cslNegation: "否定及范围",
+  cslModality: "意愿 / 能力 / 必要性",
+  cslQuestion: "疑问",
+  cslDegree: "程度",
+  cslPoliteness: "请求",
+  cslUnset: "未明确",
+  cslDraft: "候选表达单元（非固定中国手语语序）",
+  cslNoDraft: "句法超出原型范围，请核对原文。",
+  cslGaps: "缺少动作证据：{words}",
+  cslUnknown: "保留的未解析内容：{words}",
+  cslMeaningKey: "机器语义表示（草案）",
+  cslNoMatch: "该语义计划仍有证据缺口，不能播放为完整表达。",
+  cslSources: "词级ID仅作为草案引用；分析结果不会触发词库或视频动作播放。",
+  cslIssues: {
+    csl_alignment_unreviewed:
+      "中国手语词级对齐、空间指代和非手部语法尚未复核。",
+    empty_input: "请输入一句中文。",
+    unknown_input: "仍有未解析的词或符号。",
+    unsupported_predicate_structure: "多个动作或缺少谓词，需进一步标注。",
+    ambiguous_scope: "否定、情态或时间的范围有歧义。",
+    actor_unresolved: "句中执行动作的人尚未明确。",
+    ambiguous_participants: "人物关系超出当前简单句范围。",
+    unsupported_operator_order: "否定或情态位置超出已支持结构。",
+    unsupported_predicate_arguments: "动作的参与关系需进一步核对。",
+    goal_unresolved: "目标地点或动作受事尚未解析清楚。",
+    question_role_unresolved: "疑问词的语义角色尚未确认。",
+    multiple_clauses: "包含多分句，原型不会擅自合并。",
+    unassigned_meaning: "仍有未归属的语义单元。",
+    unsupported_degree_scope: "程度修饰的范围尚未确认。",
+    motion_evidence_missing: "部分概念没有可靠的独立动作资产。",
+    nonmanual_question_unavailable: "疑问需要的面部或头部表达尚未实现。",
+    spatial_agreement_unavailable: "帮助的方向、人物空间指代尚未核验。",
+    directional_agreement_approximated:
+      "人物方向暂用 Demo 近似处理，尚未完成中国手语空间指代核验。",
+    modal_interpretation_unreviewed: "情态含义不能直接用一个词库动作替代。",
+    input_limit: "超过500字，尾部保留并停止组合。",
+  },
+};
+const SEMANTIC_EN = {
+  cslMode: "Chinese meaning analysis (rules)",
+  cslAnalysisOnly:
+    "Chinese analysis only: CSL alignment and language review are incomplete. Motion playback is disabled.",
+  cslDemoPreviewReady:
+    "The demo routed a bounded semantic template and is playing dictionary units; this is not validated CSL grammar.",
+  cslTitle: "Meaning and expression draft",
+  cslScope:
+    "Bounded rule prototype: analyze meaning, then check motion evidence. This is not a trained CSL understanding model. Order, handshape, spatial agreement and nonmanuals remain unverified.",
+  cslActor: "Actor",
+  cslPredicate: "Action / state",
+  cslPatient: "Patient / recipient",
+  cslGoal: "Location / goal",
+  cslTime: "Time",
+  cslNegation: "Negation and scope",
+  cslModality: "Desire / ability / obligation",
+  cslQuestion: "Question",
+  cslDegree: "Degree",
+  cslPoliteness: "Request",
+  cslUnset: "Unspecified",
+  cslDraft: "Candidate units (not a fixed CSL word order)",
+  cslNoDraft: "Outside the supported syntax. Review the original input.",
+  cslGaps: "Missing motion evidence: {words}",
+  cslUnknown: "Unparsed content preserved: {words}",
+  cslMeaningKey: "Machine meaning representation (draft)",
+  cslNoMatch:
+    "Evidence is missing; this plan cannot play as a complete expression.",
+  cslSources:
+    "Word IDs are draft references only. Analysis never triggers dictionary or video motion playback.",
+  cslIssues: {
+    csl_alignment_unreviewed:
+      "CSL word alignment, spatial reference and nonmanual grammar remain unreviewed.",
+    empty_input: "Enter one Chinese sentence.",
+    unknown_input: "Some words or symbols remain unparsed.",
+    unsupported_predicate_structure:
+      "Multiple actions or a missing predicate require annotation.",
+    ambiguous_scope: "Negation, modality or time scope is ambiguous.",
+    actor_unresolved: "The actor is unresolved.",
+    ambiguous_participants:
+      "Participant relations exceed this simple-clause prototype.",
+    unsupported_operator_order: "Negation or modality order is unsupported.",
+    unsupported_predicate_arguments: "Predicate arguments require review.",
+    goal_unresolved: "The goal or patient is unresolved.",
+    question_role_unresolved: "The question role is unresolved.",
+    multiple_clauses: "Multiple clauses cannot be silently merged.",
+    unassigned_meaning: "Some meaning units have no assigned role.",
+    unsupported_degree_scope: "Degree scope is unresolved.",
+    motion_evidence_missing:
+      "Some concepts have no reliable independent motion.",
+    nonmanual_question_unavailable:
+      "Question-related facial and head expressions are unavailable.",
+    spatial_agreement_unavailable:
+      "Direction and spatial reference for help remain unverified.",
+    directional_agreement_approximated:
+      "Participant direction uses a demo approximation; CSL spatial reference is unverified.",
+    modal_interpretation_unreviewed:
+      "Modal meaning cannot be replaced by one dictionary motion.",
+    input_limit:
+      "Input exceeds 500 characters; the tail is retained and composition stopped.",
+  },
+};
+const SEMANTIC_JA = {
+  ...SEMANTIC_EN,
+  cslMode: "中国語の意味分析（規則研究）",
+  cslAnalysisOnly:
+    "中国語の意味分析のみです。中国手話の語単位対応と確認は未完了のため、動作は再生しません。",
+  cslTitle: "意味分析と表現案",
+  cslScope:
+    "限定した規則による試作です。意味を分析して動作資料を確認します。学習済みの中国手話理解モデルではなく、語順・手形・空間表現・表情は未確認です。",
+  cslActor: "動作主",
+  cslPredicate: "動作・状態",
+  cslPatient: "対象・受け手",
+  cslGoal: "場所・目標",
+  cslTime: "時",
+  cslNegation: "否定と範囲",
+  cslModality: "希望・能力・必要性",
+  cslQuestion: "疑問",
+  cslDegree: "程度",
+  cslPoliteness: "依頼",
+  cslUnset: "未指定",
+  cslDraft: "表現単位案（固定した中国手話の語順ではありません）",
+  cslNoDraft: "構文が試作の範囲外です。原文を確認してください。",
+  cslGaps: "動作資料の不足：{words}",
+  cslUnknown: "未解析の内容を保持：{words}",
+  cslMeaningKey: "意味の機械表現（案）",
+  cslNoMatch: "資料が不足しているため、完全な表現として再生できません。",
+  cslSources:
+    "既存の手作成辞書を使います。動画の候補は自動的に有効化しません。",
+};
+const DEMO_ZH = {
+  intakeRefinementTitle: "来源 {name} · 动作边界复核",
+  intakeRefinementPending: "文字与边界建议 · 未人工确认",
+  intakePrevious: "原候选窗口 {start}–{end}s：{text}",
+  intakeBefore: "原候选窗口（供对比）",
+  intakeAfter: "调整后的候选窗口",
+  intakeRefinedWindow:
+    "调整后名义区间 {start}–{end}s；实际解码 {frames} 帧 / {duration}s。临近视频结尾的动作仍需核对是否完整。",
+  intakeCoverageComparison:
+    "观测到至少一只手的帧占比：原窗口 {before}% → 调整后 {after}%。这是不同窗口的取材对比，不代表检测器准确率提升。",
+  intakeTitle: "来源 {name} · 新视频复核",
+  intakeSummary:
+    "{files} 个文件 / {unique} 份不同内容；{screened} 个来源完成 OCR，{candidates} 条文字候选；{references} 段、{frames} 帧完成 2D 参考。",
+  intakeLimits:
+    "字幕语义、动作边界、镜像、手别和人物分组待确认。这里只展示 OCR 候选及二维观测，没有生成新的 SMPL-X 动作或训练模型；training_ready=false。",
+  intakePending: "OCR候选 · 未复核",
+  intakeWindow: "名义区间 {start}–{end}s · OCR均值 {confidence}",
+  intakeOriginal: "查看授权原视频区间",
+  intakeDuplicate: "与旧批次内容重复",
+  catchupTitle: "手语视频续处理 · 原片与手部参考",
+  catchupSummary:
+    "{files} 个视频文件 / {sources} 份不同内容 · 新增 {windows} 段连续参考 / {frames} 帧 · 另有 {sampled} 帧独立手部观测",
+  catchupLimits:
+    "本页是标注候选和技术观测。字幕可能有错字或多句对话，边界、镜像和人物分组待确认；未开始训练，未生成新的 SMPL-X 参数。5帧抽样不代表整段已标注。",
+  catchupReferences: "新增连续片段",
+  catchupSources: "全部视频进度",
+  catchupCaptions: "原始字幕候选",
+  catchupIndex: "程序调用索引",
+  catchupRegistry: "完整来源登记",
+  catchupReport: "阶段报告",
+  catchupSearch: "搜索句子、视频名或来源 ID",
+  catchupPage: "{count} 项 · 第 {page}/{pages} 页",
+  catchupPrevious: "上一页",
+  catchupNext: "下一页",
+  catchupOriginal: "原片候选窗口",
+  catchupOverlay: "关键点叠加预览",
+  catchupSync: "同步播放 / 暂停",
+  catchupKeyframes: "展开5帧原图与手部裁剪",
+  catchupKeyframeAlt: "{text} 的原图与估计手部槽裁剪",
+  catchupIndependentAlt: "该来源5个独立抽样帧的手部观测",
+  catchupCoverage:
+    "技术观测可用帧：left {left}/{frames}，right {right}/{frames}；这不是准确率或解剖侧别核验。",
+  catchupSourceStages:
+    "旧参考 {prior} 段 · 旧连续动作 {motions} 段 · 新连续参考 {fresh} 段 · 新独立抽样 {sampled} 帧；完整视频处理仍见报告。",
+  catchupHksl:
+    "标题提示香港手语，语言尚待核验；独立保存，未纳入中国手语句子训练。",
+  catchupEmptyCaption: "无可读取字幕",
+  catchupMediaError: "媒体播放失败，请检查本地文件并重试。",
+  demoSample: "工作忙吗？谢谢",
+  demoRetry: "重新加载演示",
+  demoLimit: "每次最多播放40个动作，其余文字列在暂不支持内容中。",
+  demoCheckpoint: "Checkpoint：{hash} · {steps}步",
+  demoWebGL: "3D渲染环境不可用",
+  demoOpen: "打开演示工作台",
+  demoLocal: "本地离线演示",
+  demoExport: "导出本次结果",
+  demoEyebrow: "让手语动起来 · 实验演示",
+  demoHeading: "从文字，到看得见的表达",
+  demoLead: "选择片段或输入文字，在虚拟人上播放参考动作、实验重建与词库动作。",
+  demoInput: "输入文字",
+  demoMode: "动作来源模式",
+  demoAuto: "自动匹配",
+  demoT08: "参考与实验动作",
+  demoDictionary: "内置词库",
+  demoPlaceholder: "试试：工作忙吗？谢谢",
+  demoShortcut: "Ctrl / ⌘ + Enter 播放",
+  demoPlay: "播放动作",
+  demoPause: "暂停",
+  demoResume: "继续",
+  demoStop: "停止",
+  demoLoading: "正在加载角色与动作…",
+  demoMatches: "已识别内容",
+  demoCatalog: "短句与词库",
+  demoCatalogViews: "短句或词库动作",
+  demoPhraseTab: "短句与片段",
+  demoWordTab: "单词动作",
+  demoVocabTab: "基础词库",
+  demoVocabNote:
+    "共 {total} 条常用词：{native} 条有原生动作候选，{pose} 条有内置手工姿势，{none} 条暂时只有词表、没有动作。所有动作均未经人工审核。",
+  demoVocabNoMotion:
+    "“{text}”暂时没有动作，只在词表中展示，不会用别的动作代替。",
+  demoVocabStatusNative: "有动作（原生候选，未经审核）",
+  demoVocabStatusNativeReduced: "有动作（原生候选，手腕幅度略减）",
+  demoVocabStatusPose: "有动作（内置手工姿势）",
+  demoVocabStatusNone: "仅词表（暂无动作）",
+  demoPhraseSourceNote:
+    "共 {total} 条：{reference} 条 T08 参考、{candidate} 条候选、{experimental} 条实验重建、{composed} 条词库组合。",
+  demoWordSourceNote:
+    "共 {count} 个内置词条；词条动画不是本轮新增的句子训练结果。",
+  demoSearch: "搜索短句或词条",
+  demoAvatarLabel: "当前项目角色 · Godette",
+  demoStage: "虚拟人物",
+  demoReadyBadge: "准备就绪",
+  demoAtRest: "待机",
+  demoView: "视角",
+  demoFront: "正面",
+  demoLeft: "左侧",
+  demoRight: "右侧",
+  demoSpeed: "速度",
+  demoSmoothing: "动作平滑",
+  demoExperimentalSmoothedBadge: "SMPL-X · 实验重建 · 平滑",
+  demoAdaptiveFilteredBadge: "SMPL-X · 实验重建 · 隔离尖峰对照",
+  demoAdaptiveFilteredWarningBadge: "SMPL-X · 尖峰对照 · 原始风险仍在",
+  demoExperimentalSmoothedWarningBadge: "SMPL-X · 实验平滑 · 原始跳变较大",
+  demoExperimentalRawBadge: "SMPL-X · 实验重建 · 原始",
+  demoModel: "研究模型",
+  demoLearned: "T08原参考句",
+  demoWords: "内置词库动作",
+  demoCandidates: "候选参考动作",
+  demoExperimental: "实验重建动作",
+  demoExperimentalBadge: "SMPL-X · 实验重建",
+  demoExperimentalWarningBadge: "SMPL-X · 实验重建 · 跳变较大",
+  demoExperimentalToken:
+    "当前为视频拟合的 SMPL-X 实验动作，未经过 T08 token 解码，未更新模型权重。",
+  demoExperimentalWarning:
+    "实验动作保留未经动作质量、镜像和人物核验的状态；仅用于 Demo，可能出现手型误差、跳变或穿模。",
+  demoExperimentalApprovedWarning:
+    "当前拟合动作已通过动作质量人工审核，仅用于本地研究演示。镜像方向、惯用手、人物身份、中文含义和词界仍未确认；它们不是训练数据、未更新模型权重，演示仍可能有手型误差、跳变或穿模。",
+  demoExperimentalMixedWarning:
+    "部分拟合动作已通过动作质量人工审核；其余动作仍待审核。全部动作仅用于研究演示。镜像方向、惯用手、人物身份、中文含义和词界仍未确认，也未用于训练或更新模型权重。",
+  demoExperimentalPreviewWarning:
+    "第 6 批人物预览：文字和动作首尾是未核验候选，可能夹带相邻教学动作。请对照原片检查手型、方向和抖动；镜像、人物及动作质量仍待确认。显示平滑只改变播放效果，未训练模型。",
+  demoInvalidExperimentalAsset: "实验动作文件不完整或来源校验失败",
+  demoCandidateBadge: "T08 tokenizer · 候选重建",
+  demoCandidateDetail: "T08候选 · 归一化误差 {mse}",
+  demoInvalidCandidateAsset: "候选动作来源或审核状态不符",
+  demoCandidateWarning:
+    "新增3条候选句：由现有T08权重编码/解码，未更新权重；重建误差高于原14条，镜像方向和人物分组未确认。仅供Demo比较，不作为准确翻译或正式训练数据。",
+  demoTokens: "查看最近播放的动作编码",
+  demoTokenNote:
+    "下方为实际 T08 编码的 token。播放来自这些 token 的离线解码结果；浏览器不执行 PyTorch。",
+  demoEvidence: "重建证据",
+  demoComparison: "研究关键帧对照",
+  demoReadonly: "只读候选 · 点击放大",
+  demoClose: "收起对照",
+  demoScope:
+    "实验性展示：T08 负责已有参考动作的编码/重建；文字用于检索，内置词库用于补充。未覆盖文字不会自动生成手语，拼接也不代表正确的手语语法。",
+  demoHow: "这份 Demo 怎样工作？",
+  demoHowBody:
+    "目录合并了 T08 参考与候选、视频拟合的实验动作和词库组合；重复文字只保留一个入口。实验动作未更新模型权重；词库组合并非句级训练或经手语者核验的翻译。",
+  demoRetargetNote:
+    "SMPL-X 姿态通过源骨架与角色 REST 校准后转换为四元数。根部、下身保持角色待机，表情系数尚未完整映射。手型和穿模仍为实验效果。",
+  demoReady: "已就绪，输入文字或选择片段。",
+  demoNoMatch: "暂未匹配到可用动作，请从下方选择一个例子。",
+  demoUnknown: "暂不支持：{text}",
+  demoAllMatched: "已覆盖全部输入内容。",
+  demoSemanticPreview:
+    "已按人物、动作和关系组织动作；这是 Demo 语义近似，尚未核准中国手语语法。",
+  demoCount: "{count} 个动作",
+  demoPlaying: "正在播放 {index}/{count}：{text}",
+  demoPaused: "已暂停，可继续或停止。",
+  demoStopped: "已停止并回到待机。",
+  demoFinished: "本次播放完成。",
+  demoFailed: "加载失败：{detail}。请重新加载页面。",
+  demoTokenEmpty: "播放一段 T08 参考短句后，可查看三路编码。",
+  demoDictionaryToken: "当前播放内置词库动作，不使用 T08 token。",
+  demoSourceT08: "T08 · 参考动作重建",
+  demoSourceSemantic: "语义路由 · 词条组合（Demo近似）",
+  demoSourceDictionary: "词库 · 内置动作",
+  demoSourceFallback: "词库回退 · 参考动作加载失败",
+  demoSourceComposition: "词库组合 · 逐词播放，非句级训练",
+  demoResearchLabel: "{text} · {series} · 原图 / baseline / candidate",
+  demoResearchMissing: "此工作区尚未打包研究对照图。",
+  demoPartialAsset: "T08 资产不可用，现有词库仍可播放。",
+  demoExported: "本次匹配与来源报告已下载。",
+  demoInvalidMode: "未知动作模式",
+  demoInvalidAsset: "T08资产格式或checkpoint来源不符",
+  demoInvalidRotation: "无效姿态旋转",
+  demoMissingBone: "角色缺少必要手部骨骼",
+  demoNotReady: "角色尚未加载完成",
+  demoTooLong: "输入过长，仅匹配前500个字符。",
+};
+const DEMO_EN = {
+  intakeRefinementTitle: "Source {name} · Motion boundary review",
+  intakeRefinementPending: "Text/boundary proposal · Not human-confirmed",
+  intakePrevious: "Previous candidate window {start}–{end}s: {text}",
+  intakeBefore: "Previous candidate window",
+  intakeAfter: "Revised candidate window",
+  intakeRefinedWindow:
+    "Revised nominal window {start}–{end}s; {frames} decoded frames / {duration}s. Check completion near the original video end.",
+  intakeCoverageComparison:
+    "Frames with at least one observed hand: {before}% → {after}%. Different windows are compared; this is not improved detector accuracy.",
+  intakeTitle: "Source {name} · New video review",
+  intakeSummary:
+    "{files} files / {unique} unique contents; {screened} sources screened, {candidates} caption candidates; {references} 2D references / {frames} frames.",
+  intakeLimits:
+    "Text meaning, boundaries, mirroring, handedness and signer groups are unverified. OCR candidates and 2D observations only; no new SMPL-X motions or model training. training_ready=false.",
+  intakePending: "OCR candidate · Unreviewed",
+  intakeWindow:
+    "Nominal window {start}–{end}s · Mean OCR confidence {confidence}",
+  intakeOriginal: "Open authorized source interval",
+  intakeDuplicate: "Same bytes as an earlier source",
+  catchupTitle: "Video catch-up · Source clips and hand references",
+  catchupSummary:
+    "{files} video files / {sources} unique contents · {windows} new reference windows / {frames} frames · {sampled} independent hand observations",
+  catchupLimits:
+    "Caption candidates and estimated observations only. Text, boundaries, mirroring and signer groups are unverified; no new training or SMPL-X parameters. Five samples do not annotate an entire video.",
+  catchupReferences: "New continuous windows",
+  catchupSources: "All source progress",
+  catchupCaptions: "Raw caption candidates",
+  catchupIndex: "Fitting index",
+  catchupRegistry: "Source registry",
+  catchupReport: "Stage report",
+  catchupSearch: "Search text, video name or source ID",
+  catchupPage: "{count} items · Page {page}/{pages}",
+  catchupPrevious: "Previous",
+  catchupNext: "Next",
+  catchupOriginal: "Source candidate window",
+  catchupOverlay: "Landmark preview",
+  catchupSync: "Play / pause together",
+  catchupKeyframes: "Five source frames and hand crops",
+  catchupKeyframeAlt: "Source images and estimated hand crops for {text}",
+  catchupIndependentAlt: "Five independent hand observation samples",
+  catchupCoverage:
+    "Eligible estimated frames: left {left}/{frames}, right {right}/{frames}; this is not accuracy or anatomical verification.",
+  catchupSourceStages:
+    "{prior} prior references · {motions} prior motions · {fresh} new reference windows · {sampled} independent samples. Whole-video completion remains described in the report.",
+  catchupHksl:
+    "Title suggests Hong Kong Sign Language; unverified, stored separately and excluded from CSL sentence training.",
+  catchupEmptyCaption: "No readable caption",
+  catchupMediaError: "Media playback failed. Check the local files and retry.",
+  demoOpen: "Open demo workspace",
+  demoLocal: "Local offline demo",
+  demoExport: "Export session",
+  demoEyebrow: "Sign language in motion · Experimental demo",
+  demoHeading: "Words you can see",
+  demoLead:
+    "Choose a clip or enter text to play reference motions, experimental fits and dictionary motions.",
+  demoInput: "Text input",
+  demoMode: "Motion source",
+  demoAuto: "Automatic",
+  demoT08: "Reference / experimental",
+  demoDictionary: "Dictionary",
+  demoPlaceholder: "Try: 工作忙吗？谢谢",
+  demoSample: "工作忙吗？谢谢",
+  demoShortcut: "Ctrl / ⌘ + Enter to play",
+  demoPlay: "Play",
+  demoPause: "Pause",
+  demoResume: "Resume",
+  demoStop: "Stop",
+  demoRetry: "Reload demo",
+  demoLoading: "Loading avatar and motions…",
+  demoMatches: "Matched text",
+  demoCatalog: "Phrases and dictionary",
+  demoCatalogViews: "Phrase or dictionary view",
+  demoPhraseTab: "Phrases / clips",
+  demoWordTab: "Dictionary motions",
+  demoVocabTab: "Basic vocabulary",
+  demoVocabNote:
+    "{total} common words: {native} with native motion candidates, {pose} with built-in hand-made poses, {none} listed only (no motion yet). No motion has been human-reviewed.",
+  demoVocabNoMotion:
+    "No motion exists for “{text}” yet. It is listed only and no other motion is substituted.",
+  demoVocabStatusNative: "Has motion (native candidate, unreviewed)",
+  demoVocabStatusNativeReduced:
+    "Has motion (native candidate, reduced wrist amplitude)",
+  demoVocabStatusPose: "Has motion (built-in hand-made pose)",
+  demoVocabStatusNone: "Listed only (no motion yet)",
+  demoPhraseSourceNote:
+    "{total} entries: {reference} T08 references, {candidate} candidates, {experimental} experimental fits, {composed} dictionary compositions.",
+  demoWordSourceNote:
+    "{count} built-in entries. These word motions are not new sentence-training results.",
+  demoSearch: "Search phrases or dictionary entries",
+  demoAvatarLabel: "Project avatar · Godette",
+  demoStage: "Avatar",
+  demoReadyBadge: "Ready",
+  demoAtRest: "Idle",
+  demoView: "View",
+  demoFront: "Front",
+  demoLeft: "Left",
+  demoRight: "Right",
+  demoSpeed: "Speed",
+  demoSmoothing: "Motion smoothing",
+  demoExperimentalSmoothedBadge: "SMPL-X · Experimental fit · Smoothed",
+  demoAdaptiveFilteredBadge:
+    "SMPL-X · Experimental fit · isolated-spike comparison",
+  demoAdaptiveFilteredWarningBadge:
+    "SMPL-X · Spike comparison · raw risk remains",
+  demoExperimentalSmoothedWarningBadge:
+    "SMPL-X · Experimental · Smoothed · Raw jitter flagged",
+  demoExperimentalRawBadge: "SMPL-X · Experimental fit · Raw",
+  demoModel: "Research model",
+  demoLearned: "Original T08 phrases",
+  demoWords: "Dictionary motions",
+  demoCandidates: "Motion candidates",
+  demoExperimental: "Experimental fits",
+  demoExperimentalBadge: "SMPL-X · Experimental fit",
+  demoExperimentalWarningBadge: "SMPL-X · Experimental fit · High jitter",
+  demoExperimentalToken:
+    "Video-fitted SMPL-X motion, not T08 token decoding. No model weights were updated.",
+  demoExperimentalWarning:
+    "Experimental motions have unreviewed motion quality, mirroring and signer identity. Demo only; hand errors, jitter and mesh intersections may occur.",
+  demoExperimentalApprovedWarning:
+    "Fitted motions passed human motion-quality review for local research demos only. Mirroring, handedness, signer identity, Chinese meaning and boundaries remain unverified. These are not training data; no model weights were updated, and hand errors, jitter or mesh intersections may still occur.",
+  demoExperimentalMixedWarning:
+    "Some fitted motions passed human motion-quality review; others remain unreviewed. All are research-demo only. Mirroring, handedness, signer identity, Chinese meaning and boundaries remain unverified; no training or weight updates occurred.",
+  demoExperimentalPreviewWarning:
+    "Source-6 avatar preview: text and motion boundaries are unverified proposals and may include adjacent teaching demonstrations. Compare with the source for hand shapes, direction and jitter. Mirror, signer and motion quality remain unreviewed. Display smoothing changes playback only; no model was trained.",
+  demoInvalidExperimentalAsset:
+    "Incomplete experimental motion or provenance mismatch",
+  demoCandidateBadge: "T08 tokenizer · Candidate reconstruction",
+  demoCandidateDetail: "T08 candidate · normalized error {mse}",
+  demoInvalidCandidateAsset:
+    "Candidate motion provenance or review contract differs",
+  demoCandidateWarning:
+    "Three added phrase candidates are encoded/decoded with the existing T08 weights; weights were not updated. Reconstruction error is higher than for the original 14, and mirroring/signer grouping remain unconfirmed. Demo comparison only; not approved translation or training data.",
+  demoTokens: "Last played motion tokens",
+  demoTokenNote:
+    "Actual T08 tokens are shown below. Playback uses their offline decoded motions; the browser does not run PyTorch.",
+  demoEvidence: "Reconstruction evidence",
+  demoComparison: "Research keyframe comparisons",
+  demoReadonly: "Read-only candidates · Click to enlarge",
+  demoClose: "Close comparison",
+  demoScope:
+    "Experimental showcase: T08 encodes and reconstructs existing reference motions. Text retrieves clips; dictionary entries supplement coverage. Unsupported text is reported. Concatenation does not establish correct sign language grammar.",
+  demoHow: "How does this demo work?",
+  demoHowBody:
+    "The catalog merges T08 references and candidates, video-fitted experimental motions and dictionary compositions. Duplicate text has one entry. Experimental fits do not update model weights; dictionary compositions are not sentence-trained or sign-expert reviewed.",
+  demoRetargetNote:
+    "SMPL-X poses are calibrated to the avatar skeleton and played as quaternions. The root and lower body remain at rest; facial coefficients are not mapped. Hand shapes and mesh contact remain experimental.",
+  demoReady: "Ready. Enter text or choose an example.",
+  demoNoMatch: "No motion matched. Choose an example below.",
+  demoUnknown: "Not supported: {text}",
+  demoAllMatched: "All input text is covered.",
+  demoSemanticPreview:
+    "Motion was organized by person, action and relation; this is an unverified demo approximation, not validated CSL grammar.",
+  demoCount: "{count} motions",
+  demoPlaying: "Playing {index}/{count}: {text}",
+  demoPaused: "Paused. Resume or stop.",
+  demoStopped: "Stopped and reset to idle.",
+  demoFinished: "Playback complete.",
+  demoFailed: "Playback unavailable: {detail}. Reload to retry.",
+  demoTokenEmpty:
+    "Play a T08 reference phrase to inspect its three token streams.",
+  demoDictionaryToken:
+    "The last played dictionary motion does not use T08 tokens.",
+  demoSourceT08: "T08 · Reference reconstruction",
+  demoSourceSemantic:
+    "Semantic route · dictionary composition (demo approximation)",
+  demoSourceDictionary: "Dictionary · Built-in motion",
+  demoSourceFallback: "Dictionary fallback · Reference unavailable",
+  demoSourceComposition:
+    "Dictionary composition · Word-by-word, not sentence-trained",
+  demoResearchLabel: "{text} · {series} · Original / baseline / candidate",
+  demoResearchMissing:
+    "No research comparisons were packaged in this workspace.",
+  demoPartialAsset:
+    "T08 assets unavailable. Dictionary motions can still play.",
+  demoExported: "Session matching and provenance report downloaded.",
+  demoInvalidMode: "Unknown motion mode",
+  demoInvalidAsset: "Invalid T08 asset or checkpoint provenance",
+  demoInvalidRotation: "Invalid pose rotation",
+  demoMissingBone: "Required avatar hand bones are missing",
+  demoNotReady: "Avatar is still loading",
+  demoTooLong: "Only the first 500 characters are matched.",
+  demoLimit:
+    "Up to 40 motions per playback; the remaining text is listed as unsupported.",
+  demoCheckpoint: "Checkpoint: {hash} · {steps} steps",
+  demoWebGL: "3D rendering context unavailable",
+};
+
+const POST_FIT_ZH = {
+  postFitBrand: "SignBridge · 手语研究",
+  postFitTitle: "重建后候选离线复核",
+  postFitIntro:
+    "逐条查看原始片段、精确输入 JPEG 与原生 SMPL-X 渲染。标签与质量标记均仅为候选资料。",
+  postFitLanguage: "界面语言",
+  postFitChinese: "简体中文",
+  postFitEnglish: "English",
+  postFitJapanese: "日本語",
+  postFitCandidateStatus: "仅候选 · 质量待复核",
+  postFitCandidateOnly:
+    "仅候选与质量标记。未经人工、语义或训练批准；不具备训练或模型训练就绪状态。",
+  postFitLimits:
+    "结构与原始旋转筛查不代表人工视觉批准。碰撞、语义质量及人工视觉质量均未评估。缺失检测保留实际渲染图像并隔离，不填充姿势、不插值、不自动批准。",
+  postFitSummary: "候选媒体构建汇总",
+  postFitCandidates: "全部候选",
+  postFitSearch: "搜索候选标签、ID 或来源",
+  postFitQuality: "审计质量标记",
+  postFitAllQuality: "全部质量标记",
+  postFitUnknown: "未知",
+  postFitNoneReported: "审计未报告",
+  postFitQuarantined: "隔离候选 · 仍需复核",
+  postFitReviewFrames: "联系表帧号（从 1 开始，按所列顺序）",
+  postFitMissingDetections: "缺失检测帧号",
+  postFitMetrics: "原始旋转指标（非语义或视觉批准）",
+  postFitMediaLegend:
+    "左：原始输入；右：原生 SMPL-X 渲染。联系表按所列帧顺序；对照视频左侧为原始片段。",
+  postFitContactAlt: "{label} 的候选原始输入与原生渲染联系表",
+  postFitOpenContact: "打开候选联系表",
+  postFitMediaUnavailable:
+    "未提供可安全打开的候选联系表。请查看媒体构建失败记录。",
+  postFitMediaError: "本地候选媒体读取失败。请查看报告与文件完整性。",
+  postFitShowOriginal: "按需打开原始片段（原字节副本）",
+  postFitShowComparison: "按需打开完整并排对照",
+  postFitHideMedia: "关闭此视频",
+  postFitProvenance: "来源、质量标记与媒体失败记录",
+  postFitAnnotation: "标注 ID",
+  postFitChunk: "分块",
+  postFitSource: "来源 ID",
+  postFitSourceHash: "来源 SHA-256（可能不是此片段哈希）",
+  postFitAuditStatus: "审计记录状态",
+  postFitFps: "提供的帧率",
+  postFitExpectedFrames: "预期帧数",
+  postFitProcessedFrames: "已验证对照帧数",
+  postFitClipPath: "原始片段路径",
+  postFitInputDirectory: "原始输入目录",
+  postFitRenderDirectory: "原生渲染目录",
+  postFitFitDirectory: "拟合目录",
+  postFitTechnicalErrors: "审计技术错误",
+  postFitFailures: "媒体构建失败记录",
+  postFitMediaHashes: "媒体 SHA-256",
+  postFitPageCount:
+    "第 {start}–{end} 条，共 {count} 条候选 · 第 {page}/{pages} 页",
+  postFitPrevious: "上一页",
+  postFitNext: "下一页",
+  postFitEmpty: "没有符合当前搜索与质量筛选条件的候选。",
+  postFitTotalCandidates: "审计总候选数",
+  postFitSuccessfulMedia: "已验证媒体文件数",
+  postFitFailedCandidates: "媒体未齐全的候选数",
+  postFitFailureCount: "失败记录数",
+  postFitMissingData:
+    "缺少本地候选数据。请将生成的 review-data.js 保留在此页旁。",
+  postFitOffline:
+    "离线候选复核 · 每页最多 24 条 · 视频仅按需打开 · 不连接网络或写入批准状态。",
+  postFitUnassessedQuality: "碰撞、语义质量、人工视觉质量：均未评估。",
+};
+
+const POST_FIT_EN = {
+  postFitBrand: "SignBridge · Sign language research",
+  postFitTitle: "Post-reconstruction candidate review",
+  postFitIntro:
+    "Inspect every original clip, exact input JPEG and native SMPL-X render offline. Labels and quality flags remain candidate evidence.",
+  postFitLanguage: "Interface language",
+  postFitChinese: "Simplified Chinese",
+  postFitEnglish: "English",
+  postFitJapanese: "Japanese",
+  postFitCandidateStatus: "Candidate only · quality review pending",
+  postFitCandidateOnly:
+    "Candidate and quality flags only. No human, semantic or training approval; neither training-ready nor model-training-ready.",
+  postFitLimits:
+    "Structural and raw rotational screening is not human visual approval. Collision, semantic quality and human visual quality are unassessed. Missing detections retain actual render images in quarantine; no pose filling, interpolation or automatic approval.",
+  postFitSummary: "Candidate media build summary",
+  postFitCandidates: "All candidates",
+  postFitSearch: "Search candidate labels, IDs or sources",
+  postFitQuality: "Audit quality flag",
+  postFitAllQuality: "All quality flags",
+  postFitUnknown: "Unknown",
+  postFitNoneReported: "None reported by the audit",
+  postFitQuarantined: "Quarantined candidate · review pending",
+  postFitReviewFrames: "Contact frame indices (one-based, in listed order)",
+  postFitMissingDetections: "Missing detection frame indices",
+  postFitMetrics: "Raw rotation metrics (not semantic or visual approval)",
+  postFitMediaLegend:
+    "Left: original input. Right: native SMPL-X render. Contact rows follow the listed indices; the comparison video uses the original clip on the left.",
+  postFitContactAlt:
+    "Candidate original input versus native render contact sheet for {label}",
+  postFitOpenContact: "Open candidate contact sheet",
+  postFitMediaUnavailable:
+    "No safe candidate contact sheet is available. Inspect media build failures.",
+  postFitMediaError:
+    "Local candidate media could not load. Check the report and file integrity.",
+  postFitShowOriginal: "Open original clip on demand (byte-for-byte copy)",
+  postFitShowComparison: "Open full side-by-side comparison on demand",
+  postFitHideMedia: "Close this video",
+  postFitProvenance: "Provenance, quality flags and media failures",
+  postFitAnnotation: "Annotation ID",
+  postFitChunk: "Chunk",
+  postFitSource: "Source ID",
+  postFitSourceHash: "Source SHA-256 (may differ from the clip hash)",
+  postFitAuditStatus: "Audit record status",
+  postFitFps: "Provided frame rate",
+  postFitExpectedFrames: "Expected frames",
+  postFitProcessedFrames: "Verified comparison frames",
+  postFitClipPath: "Original clip path",
+  postFitInputDirectory: "Original input directory",
+  postFitRenderDirectory: "Native render directory",
+  postFitFitDirectory: "Fit directory",
+  postFitTechnicalErrors: "Audit technical errors",
+  postFitFailures: "Media build failures",
+  postFitMediaHashes: "Media SHA-256",
+  postFitPageCount: "Candidates {start}–{end} of {count} · page {page}/{pages}",
+  postFitPrevious: "Previous",
+  postFitNext: "Next",
+  postFitEmpty: "No candidates match the current search and quality filter.",
+  postFitTotalCandidates: "Total audit candidates",
+  postFitSuccessfulMedia: "Verified media files",
+  postFitFailedCandidates: "Candidates with incomplete media",
+  postFitFailureCount: "Failure records",
+  postFitMissingData:
+    "Local candidate data is missing. Keep the generated review-data.js beside this page.",
+  postFitOffline:
+    "Offline candidate review · at most 24 per page · videos open on demand · no network or approval-state writes.",
+  postFitUnassessedQuality:
+    "Collision, semantic quality and human visual quality: all unassessed.",
+};
+
+const POST_FIT_JA = {
+  postFitBrand: "SignBridge · 手話研究",
+  postFitTitle: "再構築後の候補のオフライン確認",
+  postFitIntro:
+    "各候補の元動画、正確な入力 JPEG、ネイティブ SMPL-X 描画を確認します。ラベルと品質フラグは候補資料です。",
+  postFitLanguage: "表示言語",
+  postFitChinese: "簡体字中国語",
+  postFitEnglish: "English",
+  postFitJapanese: "日本語",
+  postFitCandidateStatus: "候補のみ · 品質確認待ち",
+  postFitCandidateOnly:
+    "候補と品質フラグのみです。人による確認・意味・学習の承認はなく、学習およびモデル学習の準備完了を示しません。",
+  postFitLimits:
+    "構造と生の回転値の検査は目視による承認ではありません。衝突・意味の品質・人による視覚品質は未評価です。検出欠落は実際の描画画像のまま隔離し、姿勢補完・補間・自動承認は行いません。",
+  postFitSummary: "候補メディア生成の集計",
+  postFitCandidates: "すべての候補",
+  postFitSearch: "候補ラベル・ID・出典を検索",
+  postFitQuality: "監査品質フラグ",
+  postFitAllQuality: "すべての品質フラグ",
+  postFitUnknown: "不明",
+  postFitNoneReported: "監査では報告なし",
+  postFitQuarantined: "隔離候補 · 確認待ち",
+  postFitReviewFrames: "一覧のフレーム番号（1 始まり、記載順）",
+  postFitMissingDetections: "検出欠落フレーム番号",
+  postFitMetrics: "生の回転指標（意味や目視の承認ではありません）",
+  postFitMediaLegend:
+    "左：元の入力。右：ネイティブ SMPL-X 描画。一覧は記載されたフレーム順です。比較動画の左側は元動画です。",
+  postFitContactAlt: "{label} の元入力とネイティブ描画の候補コンタクトシート",
+  postFitOpenContact: "候補コンタクトシートを開く",
+  postFitMediaUnavailable:
+    "安全に開ける候補コンタクトシートがありません。生成失敗の記録を確認してください。",
+  postFitMediaError:
+    "候補メディアを読み込めません。レポートとファイルの整合性を確認してください。",
+  postFitShowOriginal: "元動画を必要時に開く（バイト単位のコピー）",
+  postFitShowComparison: "全フレームの並列比較を必要時に開く",
+  postFitHideMedia: "この動画を閉じる",
+  postFitProvenance: "出典・品質フラグ・メディア生成失敗",
+  postFitAnnotation: "注釈 ID",
+  postFitChunk: "チャンク",
+  postFitSource: "出典 ID",
+  postFitSourceHash: "出典 SHA-256（動画ハッシュと異なる場合があります）",
+  postFitAuditStatus: "監査記録の状態",
+  postFitFps: "指定フレームレート",
+  postFitExpectedFrames: "想定フレーム数",
+  postFitProcessedFrames: "検証済み比較フレーム数",
+  postFitClipPath: "元動画のパス",
+  postFitInputDirectory: "元入力ディレクトリ",
+  postFitRenderDirectory: "ネイティブ描画ディレクトリ",
+  postFitFitDirectory: "フィットディレクトリ",
+  postFitTechnicalErrors: "監査の技術エラー",
+  postFitFailures: "メディア生成失敗",
+  postFitMediaHashes: "メディア SHA-256",
+  postFitPageCount: "候補 {start}–{end} / {count} 件 · {page}/{pages} ページ",
+  postFitPrevious: "前へ",
+  postFitNext: "次へ",
+  postFitEmpty: "現在の検索・品質条件に一致する候補はありません。",
+  postFitTotalCandidates: "監査候補の総数",
+  postFitSuccessfulMedia: "検証済みメディア数",
+  postFitFailedCandidates: "メディア未完備の候補数",
+  postFitFailureCount: "失敗記録数",
+  postFitMissingData:
+    "候補データがありません。生成された review-data.js をこのページと同じ場所に置いてください。",
+  postFitOffline:
+    "オフライン候補確認 · 1 ページ最大 24 件 · 動画は必要時のみ · 通信や承認状態の書き込みはありません。",
+  postFitUnassessedQuality:
+    "衝突・意味の品質・人による視覚品質：すべて未評価。",
+};
+
+const WORD_MOTION_ZH = {
+  wordMotionBrand: "SignBridge · 手语动作研究",
+  wordMotionTitle: "词语动作候选审阅",
+  wordMotionIntro:
+    "离线查看词语级候选视频、关键帧和来源记录。原始标签只是待核验线索。",
+  wordMotionLanguage: "界面语言",
+  wordMotionChinese: "简体中文",
+  wordMotionEnglish: "English",
+  wordMotionJapanese: "日本語",
+  wordMotionUnverified: "候选资料，尚未核实",
+  wordMotionCandidateUnverified: "仅为候选。手语语义和词语边界均未经核实。",
+  wordMotionLimits:
+    "候选标签不代表已核准的手语含义；词语边界与人工批准状态不由此页面确认。已有 3D 文件仅是上半身展示投影，不是完整 SMPL-X 动作，也不是经核验的手语动作；没有原生代词动作。训练和模型训练就绪状态也不会在此确认。摘要数字仅是数据生成方提供的统计，不表示来源完整或候选已审完。",
+  wordMotionSummary: "数据摘要",
+  wordMotionVideos: "视频数",
+  wordMotionUniqueSources: "唯一来源",
+  wordMotionCandidateCount: "候选数",
+  wordMotionMaterialized: "已生成候选记录",
+  wordMotionUniqueLabels: "唯一标签",
+  wordMotionNativeCount: "已有 3D 展示投影",
+  wordMotionUnknown: "未知",
+  wordMotionSummaryNote:
+    "当前页面载入 {count} 条候选记录；统计数字按数据文件原样显示。",
+  wordMotionMissingData:
+    "未找到有效候选数据。请将 review-data.js 放在本页旁边，并在其之前定义 SIGNBRIDGE_WORD_MOTIONS。",
+  wordMotionCandidates: "候选记录",
+  wordMotionSearch: "搜索文字、批次、来源或备注",
+  wordMotionKind: "证据类型",
+  wordMotionAllEvidence: "全部证据",
+  wordMotionNativeFilter: "含已有展示投影",
+  wordMotion2dFilter: "仅 2D / 视频",
+  wordMotionBatch: "来源批次",
+  wordMotionAllBatches: "全部批次",
+  wordMotionScope: "来源语言范围",
+  wordMotionAllScopes: "全部语言范围",
+  wordMotionScopeCslUnconfirmed: "CSL 来源范围未确认 · 非已验证标准 CSL",
+  wordMotionScopeRegional: "区域变体候选 · 单独审阅，非已验证标准 CSL",
+  wordMotionScopeFingerspelling: "字母／指拼候选 · 单独审阅，非已验证标准 CSL",
+  wordMotionScopeUnknown: "来源语言范围未知 · 非已验证标准 CSL",
+  wordMotionScopeStatus: "原始语言范围状态",
+  wordMotionFocus: "常用词语",
+  wordMotionAllWords: "全部",
+  wordMotionFocusI: "我",
+  wordMotionFocusYou: "你",
+  wordMotionFocusHe: "他",
+  wordMotionFocusWe: "我们",
+  wordMotionPage: "{count} 条候选 · 显示 {start}–{end} · 第 {page}/{pages} 页",
+  wordMotionCoverage: "来源覆盖记录",
+  wordMotionCoverageHelp:
+    "覆盖记录仅展示生成方提供的来源状态，不推断未列入来源，也不表示候选审阅完成。",
+  wordMotionCoveragePage:
+    "{count} 条来源 · 显示 {start}–{end} · 第 {page}/{pages} 页",
+  wordMotionCoverageCaption: "来源批次与候选数量",
+  wordMotionSourceId: "来源 ID",
+  wordMotionOriginalPath: "原始路径（仅文本）",
+  wordMotionSourceStatus: "来源状态",
+  wordMotionSeconds: "来源窗口 {start}–{end} 秒",
+  wordMotionClip: "候选原始片段",
+  wordMotionClipAlt: "{text} 的候选来源片段",
+  wordMotionMediaError: "媒体无法读取；请检查本地文件和相对路径。",
+  wordMotionClipUnavailable: "未提供可安全打开的本地片段。",
+  wordMotionSheet: "展开关键帧联系表",
+  wordMotionSheetAlt: "{text} 的候选关键帧联系表",
+  wordMotionSheetUnavailable: "未提供可安全打开的联系表。",
+  wordMotionNativeAsset: "打开本地 3D 展示投影文件",
+  wordMotionNativeUnavailable:
+    "数据标记为已有展示投影，但没有可安全打开的投影文件。",
+  wordMotionRawLabel: "提议标签 · 未核验",
+  wordMotionNoLabel: "未提供提议标签",
+  wordMotionNativeReported:
+    "数据标记：已有展示投影；非完整动作、已核验手语动作或代词原生动作",
+  wordMotion2dReported: "数据标记：2D / 视频证据（未经内容核验）",
+  wordMotionProvenance: "来源与候选元数据",
+  wordMotionCandidateId: "候选 ID",
+  wordMotionSourceHash: "来源 SHA-256",
+  wordMotionWindow: "来源片段窗口",
+  wordMotionEvidenceKind: "证据类别",
+  wordMotionLabelStatus: "标签状态",
+  wordMotionFlags: "复核标记",
+  wordMotionNotes: "备注",
+  wordMotionEmpty: "没有符合当前搜索与筛选条件的候选。",
+  wordMotionPrevious: "上一页",
+  wordMotionNext: "下一页",
+  wordMotionOffline: "本地离线审阅 · 不连接网络、不批准候选、不写入训练状态。",
+};
+
+const WORD_MOTION_EN = {
+  wordMotionBrand: "SignBridge · Sign language research",
+  wordMotionTitle: "Word-motion candidate review",
+  wordMotionIntro:
+    "Review word-level candidate clips, contact sheets and source records offline. Proposed labels are unverified leads.",
+  wordMotionLanguage: "Interface language",
+  wordMotionChinese: "Simplified Chinese",
+  wordMotionEnglish: "English",
+  wordMotionJapanese: "Japanese",
+  wordMotionUnverified: "Candidate material · not verified",
+  wordMotionCandidateUnverified:
+    "Candidate only. Sign meaning and word boundaries are unverified.",
+  wordMotionLimits:
+    "A proposed label is not an approved sign meaning. This page does not verify word boundaries or human approval, and does not confirm training or model-training readiness. Existing 3D files are upper-body display projections, not full SMPL-X motion or verified sign actions; none are pronoun-native. Summary figures are supplied by the data producer; they do not establish source completeness or completed review.",
+  wordMotionSummary: "Data summary",
+  wordMotionVideos: "Videos",
+  wordMotionUniqueSources: "Unique sources",
+  wordMotionCandidateCount: "Candidates",
+  wordMotionMaterialized: "Materialized candidate records",
+  wordMotionUniqueLabels: "Unique labels",
+  wordMotionNativeCount: "Existing 3D display projections",
+  wordMotionUnknown: "Unknown",
+  wordMotionSummaryNote:
+    "This page loaded {count} candidate records; summary figures are shown as provided.",
+  wordMotionMissingData:
+    "No valid candidate data found. Place review-data.js beside this page and define SIGNBRIDGE_WORD_MOTIONS before it loads.",
+  wordMotionCandidates: "Candidate records",
+  wordMotionSearch: "Search text, batch, source or notes",
+  wordMotionKind: "Evidence type",
+  wordMotionAllEvidence: "All evidence",
+  wordMotionNativeFilter: "With existing projection",
+  wordMotion2dFilter: "2D / video only",
+  wordMotionBatch: "Source batch",
+  wordMotionAllBatches: "All batches",
+  wordMotionScope: "Source language scope",
+  wordMotionAllScopes: "All language scopes",
+  wordMotionScopeCslUnconfirmed:
+    "CSL source scope unconfirmed · not verified standard CSL",
+  wordMotionScopeRegional:
+    "Regional variant candidate · separate review, not verified standard CSL",
+  wordMotionScopeFingerspelling:
+    "Alphabet / fingerspelling candidate · separate review, not verified standard CSL",
+  wordMotionScopeUnknown: "Source scope unknown · not verified standard CSL",
+  wordMotionScopeStatus: "Raw language-scope status",
+  wordMotionFocus: "Common words",
+  wordMotionAllWords: "All",
+  wordMotionFocusI: "我",
+  wordMotionFocusYou: "你",
+  wordMotionFocusHe: "他",
+  wordMotionFocusWe: "我们",
+  wordMotionPage:
+    "{count} candidates · showing {start}–{end} · page {page}/{pages}",
+  wordMotionCoverage: "Source coverage records",
+  wordMotionCoverageHelp:
+    "Coverage rows show source status supplied by the data producer. They do not infer unlisted sources or indicate that candidates were fully reviewed.",
+  wordMotionCoveragePage:
+    "{count} sources · showing {start}–{end} · page {page}/{pages}",
+  wordMotionCoverageCaption: "Source batches and candidate counts",
+  wordMotionSourceId: "Source ID",
+  wordMotionOriginalPath: "Original path (text only)",
+  wordMotionSourceStatus: "Source status",
+  wordMotionSeconds: "Source window {start}–{end} seconds",
+  wordMotionClip: "Candidate source clip",
+  wordMotionClipAlt: "Candidate source clip for {text}",
+  wordMotionMediaError:
+    "Media could not be read. Check the local file and relative path.",
+  wordMotionClipUnavailable: "No safe local clip was provided.",
+  wordMotionSheet: "Expand contact sheet",
+  wordMotionSheetAlt: "Candidate contact sheet for {text}",
+  wordMotionSheetUnavailable: "No safe contact sheet was provided.",
+  wordMotionNativeAsset: "Open local 3D display projection",
+  wordMotionNativeUnavailable:
+    "An existing display projection is reported, but no safe local projection file is available.",
+  wordMotionRawLabel: "Proposed label · unverified",
+  wordMotionNoLabel: "No proposed label provided",
+  wordMotionNativeReported:
+    "Existing display projection; not full motion, verified action, or pronoun-native motion",
+  wordMotion2dReported:
+    "Data reports 2D / video evidence (content not verified)",
+  wordMotionProvenance: "Source and candidate metadata",
+  wordMotionCandidateId: "Candidate ID",
+  wordMotionSourceHash: "Source SHA-256",
+  wordMotionWindow: "Source clip window",
+  wordMotionEvidenceKind: "Evidence kind",
+  wordMotionLabelStatus: "Label status",
+  wordMotionFlags: "Review flags",
+  wordMotionNotes: "Notes",
+  wordMotionEmpty: "No candidates match the current search and filters.",
+  wordMotionPrevious: "Previous",
+  wordMotionNext: "Next",
+  wordMotionOffline:
+    "Offline local review · no network, candidate approval or training-state writes.",
+};
+
+const WORD_MOTION_JA = {
+  wordMotionBrand: "SignBridge · 手話研究",
+  wordMotionTitle: "単語動作候補の確認",
+  wordMotionIntro:
+    "単語レベルの候補動画、コンタクトシート、出典記録をオフラインで確認します。提案ラベルは未検証の手掛かりです。",
+  wordMotionLanguage: "表示言語",
+  wordMotionChinese: "簡体字中国語",
+  wordMotionEnglish: "英語",
+  wordMotionJapanese: "日本語",
+  wordMotionUnverified: "候補資料 · 未検証",
+  wordMotionCandidateUnverified:
+    "候補のみです。手話の意味と単語境界は未検証です。",
+  wordMotionLimits:
+    "提案ラベルは承認済みの手話の意味ではありません。このページでは単語境界や人による承認を検証せず、学習やモデル学習の準備状況も確認しません。既存の3Dファイルは上半身の表示投影であり、全身のSMPL-X動作や検証済みの手話動作ではありません。代名詞のネイティブ動作はありません。集計値はデータ作成者が提供した値であり、出典の網羅性や確認の完了を示しません。",
+  wordMotionSummary: "データ概要",
+  wordMotionVideos: "動画数",
+  wordMotionUniqueSources: "一意の出典",
+  wordMotionCandidateCount: "候補数",
+  wordMotionMaterialized: "生成済み候補レコード",
+  wordMotionUniqueLabels: "一意のラベル",
+  wordMotionNativeCount: "既存の3D表示投影",
+  wordMotionUnknown: "不明",
+  wordMotionSummaryNote:
+    "このページに読み込まれた候補レコードは {count} 件です。集計値は提供されたまま表示します。",
+  wordMotionMissingData:
+    "有効な候補データがありません。このページと同じ場所に review-data.js を置き、読み込み前に SIGNBRIDGE_WORD_MOTIONS を定義してください。",
+  wordMotionCandidates: "候補レコード",
+  wordMotionSearch: "テキスト、バッチ、出典、メモを検索",
+  wordMotionKind: "証拠の種類",
+  wordMotionAllEvidence: "すべての証拠",
+  wordMotionNativeFilter: "既存の表示投影あり",
+  wordMotion2dFilter: "2D / 動画のみ",
+  wordMotionBatch: "出典バッチ",
+  wordMotionAllBatches: "すべてのバッチ",
+  wordMotionScope: "出典の言語範囲",
+  wordMotionAllScopes: "すべての言語範囲",
+  wordMotionScopeCslUnconfirmed:
+    "CSL の出典範囲は未確認 · 標準 CSL として未検証",
+  wordMotionScopeRegional: "地域変種の候補 · 別途確認、標準 CSL として未検証",
+  wordMotionScopeFingerspelling:
+    "アルファベット／指文字の候補 · 別途確認、標準 CSL として未検証",
+  wordMotionScopeUnknown: "出典の言語範囲は不明 · 標準 CSL として未検証",
+  wordMotionScopeStatus: "元の言語範囲ステータス",
+  wordMotionFocus: "よく使う単語",
+  wordMotionAllWords: "すべて",
+  wordMotionFocusI: "我",
+  wordMotionFocusYou: "你",
+  wordMotionFocusHe: "他",
+  wordMotionFocusWe: "我们",
+  wordMotionPage: "候補 {count} 件 · {start}～{end} 件 · {page}/{pages} ページ",
+  wordMotionCoverage: "出典カバレッジ記録",
+  wordMotionCoverageHelp:
+    "各行にはデータ作成者が提供した出典状態を表示します。未記載の出典を推測せず、候補の確認完了も示しません。",
+  wordMotionCoveragePage:
+    "出典 {count} 件 · {start}～{end} 件 · {page}/{pages} ページ",
+  wordMotionCoverageCaption: "出典バッチと候補数",
+  wordMotionSourceId: "出典 ID",
+  wordMotionOriginalPath: "元のパス（テキストのみ）",
+  wordMotionSourceStatus: "出典状態",
+  wordMotionSeconds: "出典区間 {start}～{end} 秒",
+  wordMotionClip: "候補の出典動画",
+  wordMotionClipAlt: "{text} の候補出典動画",
+  wordMotionMediaError:
+    "メディアを読み込めません。ローカルファイルと相対パスを確認してください。",
+  wordMotionClipUnavailable: "安全なローカル動画はありません。",
+  wordMotionSheet: "コンタクトシートを開く",
+  wordMotionSheetAlt: "{text} の候補コンタクトシート",
+  wordMotionSheetUnavailable: "安全なコンタクトシートはありません。",
+  wordMotionNativeAsset: "ローカルの3D表示投影を開く",
+  wordMotionNativeUnavailable:
+    "既存の表示投影ありと記録されていますが、安全なローカル投影ファイルはありません。",
+  wordMotionRawLabel: "提案ラベル · 未検証",
+  wordMotionNoLabel: "提案ラベルなし",
+  wordMotionNativeReported:
+    "既存の表示投影です。全身動作、検証済みの手話動作、代名詞のネイティブ動作ではありません",
+  wordMotion2dReported: "データ上は2D / 動画の証拠あり（内容未検証）",
+  wordMotionProvenance: "出典と候補のメタデータ",
+  wordMotionCandidateId: "候補 ID",
+  wordMotionSourceHash: "出典 SHA-256",
+  wordMotionWindow: "出典動画区間",
+  wordMotionEvidenceKind: "証拠の種類",
+  wordMotionLabelStatus: "ラベル状態",
+  wordMotionFlags: "確認フラグ",
+  wordMotionNotes: "メモ",
+  wordMotionEmpty: "現在の検索条件に一致する候補はありません。",
+  wordMotionPrevious: "前へ",
+  wordMotionNext: "次へ",
+  wordMotionOffline:
+    "オフラインのローカル確認 · 通信、候補の承認、学習状態の変更はありません。",
+};
+
 /**
  * SignBridge 国际化支持
  * Supports: zh-CN, en, ja
  */
+const MODEL_DEMO_ZH = {
+  nativeTitle: "SignBridge 演示版",
+  nativeLoading: "正在启动本机模型，首次打开请稍候…",
+  nativeReady: "模型已就绪 · 全程本机推理",
+  nativeOpen: "打开演示",
+  nativePlugin: "打开插件文件夹",
+  nativeQuit: "退出并停止服务",
+  nativeNote: "内置模型和动作，全程本机运行；退出此程序会停止服务。",
+  nativeFailed: "模型启动失败，请查看运行记录。",
+  nativeLog: "查看运行记录",
+  nativePluginGuide:
+    "在 Chrome 扩展管理页启用开发者模式，选择“加载已解压的扩展程序”，加载下面已校验并导出的 chrome-extension 文件夹。点击“复制插件路径”后，可在文件选择框按⌘⇧G并粘贴路径。模型演示服务地址：",
+  nativeOK: "知道了",
+  nativeCopyPluginPath: "复制插件路径",
+  nativeChangePlugin: "更改插件位置",
+  nativePluginLocation: "插件位置：",
+  nativePluginUnset: "尚未选择，请点击“更改插件位置”。",
+  nativeChoosePlugin: "选择插件保存文件夹",
+  nativeChoosePluginHelp:
+    "请选择新建的空文件夹；插件文件会直接保存在这里。不要选择包含个人文件的目录。",
+  nativeChoose: "选择此文件夹",
+  nativeChooseInstaller: "选择…",
+  nativeWizardTitle: "SignBridge 安装向导",
+  nativeQuitInstaller: "退出安装向导",
+  nativeWizardLead:
+    "先选择插件文件夹，再安装桌面演示程序。以后程序会直接打开你选的文件夹。",
+  nativeWizardFolder: "插件保存到",
+  nativeWizardContinue: "保存插件位置",
+  nativeWizardBusy: "正在校验并保存插件…",
+  nativeWizardReady:
+    "插件位置已保存。点击“完成”关闭向导，再双击本向导旁的 SignBridge-Demo.pkg 完成桌面安装。",
+  nativeWizardFinish: "完成",
+  nativeWizardFailed:
+    "所选位置不可用或含有其他文件。请选择空文件夹，未改动原目录。",
+  nativeWizardNote:
+    "Chrome仍需手动加载此文件夹。关闭系统安装窗口不会删除已保存的插件。",
+  nativeWizardOpenFolder: "打开已保存插件",
+
+  nativePluginFailed: "插件文件夹打开失败",
+  nativePluginFailureHelp:
+    "插件文件未通过校验或导出目录不可用，请重新安装此版本后再试。",
+  nativeInstallName: "SignBridge 演示版（Apple 芯片 Mac）",
+  nativeLiteStartFailed: "启动失败，请退出后重新打开。",
+  nativeLiteInstallPlugin: "安装浏览器插件",
+  nativeLiteInstallHelp:
+    "请选择一个空文件夹，程序会把插件保存进去并为你打开。之后在 Chrome 打开扩展页，打开右上角的开发者模式，点击加载已解压的扩展程序，再选择这个文件夹。",
+  nativeLiteInstallDone: "插件已保存，文件夹已打开。",
+  nativeLiteOpenExtensions: "打开 Chrome 扩展页",
+  nativeLiteChromeMissing: "没有找到 Chrome，请先安装 Chrome 浏览器。",
+
+  connectionTitle: "连接本机模型服务",
+  connectionHelp:
+    "先双击安装包中的“启动模型Demo.command”，保持终端开启，再点击连接。只授权本机地址，不上传输入。",
+  endpoint: "本机服务地址",
+  connect: "授权并连接",
+  invalidEndpoint: "仅支持 http://127.0.0.1:端口，请检查本机服务地址。",
+  permissionRequired: "点击“授权并连接”，允许插件访问本机模型服务。",
+  permissionDenied: "未获得本机访问授权，请点击“授权并连接”重试。",
+  incompatible: "本机服务的模型或动作版本不匹配，请启动同一安装包中的服务。",
+  badge: "研究 Demo",
+  avatarLabel: "手语人物参考播放器",
+  title: "SignBridge · 本机模型演示",
+  label: "真实模型 · 有限中文语义",
+  heading: "看见句子里的关系",
+  lead: "输入中文，查看模型学到的人物、事件与否定范围，再检查现有动作是否覆盖。",
+  scope:
+    "研究 Demo：中文语义、动作预览和正确中国手语表达分别验证。人物预览不代表手语语义已批准。",
+  input: "输入一句中文",
+  placeholder: "试试：我帮你、你帮我、我不想去、我想不去",
+  analyze: "分析意思",
+  loading: "正在连接本机模型…",
+  ready: "模型已就绪 · 全程本机推理",
+  working: "模型正在分析…",
+  disconnected:
+    "本机模型服务不可用，请用交付目录的“启动模型Demo.command”打开。",
+  retry: "重新连接",
+  parsed: "已解析有限中文结构",
+  refused: "超出当前范围，已保留拒绝",
+  idle: "选择例句或输入中文，查看真实模型输出。",
+  meaning: "这句话的意思结构",
+  operators: "作用范围（从外到内）",
+  none: "无",
+  empty: "暂无结果",
+  rule: "包含显式类型一致性处理，原始角色未改。",
+  learned: "学习模型输出，经过显式合同检查。",
+  raw: "原始模型与技术依据",
+  performance: "本次模型推理 {ms} 毫秒",
+  model: "语义检查点 {hash}",
+  stage: "人物动作参考",
+  play: "播放匹配参考",
+  pause: "暂停",
+  resume: "继续",
+  stop: "停止",
+  speed: "播放速度",
+  front: "正面",
+  left: "左侧",
+  right: "右侧",
+  idleMotion: "人物已就绪，等待选择动作。",
+  avatarLoading: "正在加载人物与动作…",
+  playing: "正在播放：{text}",
+  finished: "播放结束，可重播或切换。",
+  stopped: "已停止",
+  paused: "已暂停",
+  unavailable: "当前意思没有完整、已审阅的对应动作。未使用内置词库或拼接后备。",
+  gapDirection: "人物方向尚未确认，只展示语义，不播放“帮助”方向动作。",
+  gapOperator: "否定／情态的动作与非手部表达证据不足，暂不组合。",
+  gapRefused: "模型拒绝的输入不会自动播放动作。",
+  matched: "仅匹配已有完整标签参考；没有确认词界或手语语义。",
+  catalog: "已有拟合动作 · 独立参考预览",
+  catalogNote:
+    "以下片段具有历史“动作质量”人工审阅记录并通过本次技术筛选。点击仅预览原片拟合，不代表模型理解了这些标签。",
+  reference: "独立参考预览：{text}，不是本次模型翻译。",
+  evidence: "动作来源与质量记录",
+  approval: "历史审阅范围：动作质量；词义与词界未批准。",
+  source: "原视频 SMPL-X 拟合 · {seconds} 秒 · 稳定显示配置",
+  noPromise: "显示层平滑会保留原数据；数值筛选不保证零抖动或零穿插。",
+  error: "操作失败，请重试：{reason}",
+  serviceError: "服务暂时繁忙或连接中断",
+  assetError: "动作资源加载失败，已停止播放。",
+  oldWorkbench: "原动作工作台",
+  local: "仅本机 · 不上传输入",
+  sampleLabel: "语义对照例句",
+  shortcuts: "Ctrl / ⌘ + Enter 分析；修改输入立即停止旧动作。",
+  role: {
+    actor: "人物／施事",
+    predicate: "事件",
+    patient: "对象／受事",
+    goal: "目标",
+    time: "时间",
+    negation: "否定",
+    modal: "情态",
+    aspect: "事件状态",
+  },
+};
+const MODEL_DEMO_EN = {
+  ...MODEL_DEMO_ZH,
+  connectionTitle: "Connect local model service",
+  connectionHelp:
+    "Run the packaged model Demo launcher, keep its terminal open, then connect. Inputs stay on this computer.",
+  endpoint: "Local service address",
+  connect: "Allow and connect",
+  invalidEndpoint: "Use http://127.0.0.1:port only.",
+  permissionRequired: "Allow loopback access to connect the model service.",
+  permissionDenied:
+    "Loopback access was declined. Click Allow and connect to retry.",
+  incompatible:
+    "The model or motion assets differ. Start the service from this package.",
+  title: "SignBridge · Local model demo",
+  label: "Real model · bounded Chinese semantics",
+  heading: "See the relationships in a sentence",
+  lead: "Inspect learned Chinese roles and scope, then check motion coverage.",
+  input: "Enter one Chinese sentence",
+  analyze: "Analyze meaning",
+  loading: "Connecting to local model…",
+  ready: "Model ready · local inference",
+  scope:
+    "Research demo: Chinese analysis, motion preview and CSL correctness are evaluated separately.",
+  disconnected:
+    "Local service unavailable. Open the packaged model Demo launcher.",
+  retry: "Reconnect",
+  working: "Analyzing…",
+  parsed: "Bounded Chinese structure parsed",
+  refused: "Outside supported scope; abstained",
+  meaning: "Meaning structure",
+  operators: "Scope, outside to inside",
+  stage: "Motion reference",
+  play: "Play matched reference",
+  pause: "Pause",
+  resume: "Resume",
+  stop: "Stop",
+  speed: "Playback speed",
+  front: "Front",
+  left: "Left",
+  right: "Right",
+  catalog: "Existing fits · independent reference previews",
+  raw: "Raw model output and evidence",
+  oldWorkbench: "Original motion workbench",
+  local: "Local only · no input upload",
+};
+
 const LOCALES = {
   "zh-CN": {
+    ...POST_FIT_ZH,
+    ...WORD_MOTION_ZH,
+    ...DEMO_ZH,
+    ...SEMANTIC_ZH,
+    ...PRIVATE_ZH,
+    ...WORKBENCH_ZH,
+    modelDemo: MODEL_DEMO_ZH,
     batchTitle: "本批补词清单 · 最多 8 个",
     batchManual: "手动加入完整词组（可选，避免分词误拆）",
     batchInvalidWord:
@@ -378,7 +2026,8 @@ const LOCALES = {
     asrSave: "保存设置",
     asrPermissionDenied: "未授予该服务地址的网络权限。",
     asrSaved: "设置已保存。",
-    asrInvalidConfig: "设置无效，请检查服务地址和模型。",
+    asrInvalidConfig:
+      "设置无效：远程服务需HTTPS；HTTP仅允许127.0.0.1、localhost或[::1]本机地址，URL不可含账号密码。",
     asrTesting: "正在测试识别服务...",
     asrTestPassed: "连接测试通过。",
     asrTestFailed: "连接测试失败",
@@ -410,6 +2059,13 @@ const LOCALES = {
     },
   },
   en: {
+    ...POST_FIT_EN,
+    ...WORD_MOTION_EN,
+    ...DEMO_EN,
+    ...SEMANTIC_EN,
+    ...PRIVATE_EN,
+    ...WORKBENCH_EN,
+    modelDemo: MODEL_DEMO_EN,
     batchTitle: "Vocabulary batch · up to 8 items",
     batchManual:
       "Add a complete phrase manually (optional, avoids token-splitting mistakes)",
@@ -815,7 +2471,8 @@ const LOCALES = {
     asrSave: "Save settings",
     asrPermissionDenied: "Network access to this service was not granted.",
     asrSaved: "Settings saved.",
-    asrInvalidConfig: "Invalid settings. Check the endpoint and model.",
+    asrInvalidConfig:
+      "Invalid settings: use HTTPS remotely or HTTP on loopback only. URL credentials are not allowed.",
     asrTesting: "Testing the recognition service...",
     asrTestPassed: "Connection test passed.",
     asrTestFailed: "Connection test failed",
@@ -847,6 +2504,22 @@ const LOCALES = {
     },
   },
   ja: {
+    ...POST_FIT_JA,
+    ...WORD_MOTION_JA,
+    ...DEMO_EN,
+    ...SEMANTIC_JA,
+    ...PRIVATE_EN,
+    ...WORKBENCH_JA,
+    modelDemo: MODEL_DEMO_EN,
+    workbenchServiceHandoff:
+      "意味分析はローカルサービスで実行します。ボタンで起動状態を確認してからページを開きます。移動時に口令や入力文は送りません。",
+    privateServiceUnavailableStatus:
+      "ローカル意味分析サービスが起動していません。このページから移動していません。",
+    privateServiceUnavailable:
+      "ローカル意味分析サービスを確認できません。SignBridge リポジトリのルートでターミナルを開き、次のコマンドを実行してから再試行してください。",
+    privateServiceStartFromRoot: "起動コマンド（リポジトリのルートで実行）：",
+    privateServiceCommand:
+      ".venv-sign-data/bin/python signbridge/src/tools/sign-private-serve.py --model local-data/csl-understanding-20261017-rLaeiN/learned-roles-v3 --client local-data/existing-resources-optimization-20261019-v1/thin-client-v1.0.5 --port 8770 --scope-experiment --unit-candidates local-data/existing-resources-optimization-20261019-v1/unit-candidates-final/candidates.json",
     batchTitle: "今回の語彙追加リスト · 最大 8 件",
     batchManual: "語句を手動で追加（任意・分割の誤りを回避）",
     batchInvalidWord:
@@ -1249,7 +2922,8 @@ const LOCALES = {
     asrSave: "設定を保存",
     asrPermissionDenied: "このサービスへのネットワーク権限がありません。",
     asrSaved: "設定を保存しました。",
-    asrInvalidConfig: "設定が無効です。URL とモデルを確認してください。",
+    asrInvalidConfig:
+      "リモートURLにはHTTPSが必要です。HTTPはループバックのみ許可し、URLの認証情報は禁止します。",
     asrTesting: "認識サービスをテストしています...",
     asrTestPassed: "接続テストに成功しました。",
     asrTestFailed: "接続テストに失敗しました",

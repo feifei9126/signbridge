@@ -3,12 +3,13 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { resolveTestResultsDir } from "../scripts/test-results-dir.mjs";
 
 const { chromium } = await import(
   process.env.SIGNBRIDGE_PLAYWRIGHT_MODULE || "playwright"
 );
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
-const output = join(root, "test-results/phase3-browser");
+const output = join(resolveTestResultsDir(root), "phase3-browser");
 await mkdir(output, { recursive: true });
 const profile = await mkdtemp(join(tmpdir(), "signbridge-phase3-"));
 const checks = [];
@@ -51,8 +52,13 @@ try {
   const origin = `chrome-extension://${new URL(worker.url()).host}`;
   const popup = await context.newPage();
   await popup.goto(`${origin}/popup/index.html`);
+  const workspaceOpened = context.waitForEvent("page");
+  await popup.locator("#btnDemo").click();
+  const workspace = await workspaceOpened;
+  await workspace.waitForURL(`${origin}/demo/index.html`);
+  await workspace.locator("#research-details > summary").click();
   const newPage = context.waitForEvent("page");
-  await popup.locator("#btnCoverage").click();
+  await workspace.locator("#btnCoverage").click();
   const page = await newPage;
   await page.waitForURL(`${origin}/tools/coverage.html`);
   await eventually(
@@ -62,7 +68,7 @@ try {
       ),
     "coverage ready",
   );
-  checks.push("popup opens the built, CSP-safe, localized coverage page");
+  checks.push("workspace opens the built, CSP-safe, localized coverage page");
 
   const analyze = async () => {
     await page.locator("#coverage-analyze").click();

@@ -5,17 +5,39 @@ import {
   writeFileSync,
   existsSync,
   readFileSync,
-  rmSync,
+  readdirSync,
+  statSync,
 } from "fs";
 import { deflateSync } from "zlib";
 import { createHash } from "crypto";
-import { join, dirname } from "path";
+import { join, dirname, resolve } from "path";
 import { fileURLToPath } from "url";
+import {
+  prepareBuildDirectory,
+  resolveBuildProfile,
+} from "./build-contract.mjs";
+import { readResearchAssets } from "./research-assets.mjs";
+import {
+  readPublicMotionAssets,
+  PUBLIC_MOTION_ROOT,
+} from "./public-motion-assets.mjs";
+import { buildMotionLibrary } from "../src/tools/motion-library-audit.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, "..");
-const DIST = join(ROOT, "dist");
+const DIST = resolve(process.env.SIGNBRIDGE_BUILD_DIR || join(ROOT, "dist"));
 const TOOLS = join(ROOT, "tools");
+const requestedProfile = process.argv
+  .find((arg) => arg.startsWith("--profile="))
+  ?.split("=")[1];
+const profile = resolveBuildProfile({
+  ...process.env,
+  ...(requestedProfile ? { SIGNBRIDGE_BUILD_PROFILE: requestedProfile } : {}),
+});
+const researchInputs =
+  profile.name === "public-motion-demo"
+    ? readPublicMotionAssets()
+    : readResearchAssets(profile);
 
 function dp(...parts) {
   const p = join(DIST, ...parts);
@@ -100,8 +122,17 @@ async function bundle(entry, outfile, opts = {}) {
 
 async function build() {
   console.log("\n🔵 SignBridge Build\n");
-  rmSync(DIST, { recursive: true, force: true });
-  mkdirSync(DIST, { recursive: true });
+  prepareBuildDirectory(
+    ROOT,
+    DIST,
+    [
+      profile.assets,
+      profile.experimental,
+      profile.native,
+      profile.manifest,
+      PUBLIC_MOTION_ROOT,
+    ].filter(Boolean),
+  );
 
   copyFileSync(join(ROOT, "manifest.json"), dp("manifest.json"));
   console.log("  ✓ manifest.json");
@@ -157,6 +188,17 @@ async function build() {
       outfile: dp("avatar/iframe-bundle.js"),
       bundle: true,
       external: ["./three.module.js", "./jsm/loaders/GLTFLoader.js"],
+      plugins: [
+        {
+          name: "runtime-three-module",
+          setup(build) {
+            build.onResolve({ filter: /^three$/ }, () => ({
+              path: "./three.module.js",
+              external: true,
+            }));
+          },
+        },
+      ],
       format: "esm",
       platform: "browser",
       target: "es2022",
@@ -236,6 +278,7 @@ async function build() {
   }
   console.log("  ✓ offscreen/audio-capture.{html,js}");
 
+  await buildDemo();
   await buildPoseEditor();
   await buildRecordMode();
   for (const tool of ["coverage", "motion-review"]) {
@@ -255,7 +298,240 @@ async function build() {
     console.log("  ✓ avatar/help.html");
   }
 
-  console.log("\n✅ Build complete!\n");
+  if (researchInputs?.publication) {
+    writeFileSync(
+      dp("PUBLIC-MOTION.json"),
+      JSON.stringify(researchInputs.publication, null, 2) + "\n",
+    );
+    copyFileSync(
+      join(PUBLIC_MOTION_ROOT, "README.md"),
+      dp("MOTION-LIBRARY.md"),
+    );
+    copyFileSync(join(ROOT, "../LICENSE"), dp("LICENSE.txt"));
+  }
+  const files = {};
+  function collect(dir) {
+    for (const name of readdirSync(dir)) {
+      const path = join(dir, name);
+      if (statSync(path).isDirectory()) collect(path);
+      else if (name !== ".signbridge-build.json")
+        files[path.slice(DIST.length + 1).replaceAll("\\", "/")] = createHash(
+          "sha256",
+        )
+          .update(readFileSync(path))
+          .digest("hex");
+    }
+  }
+  collect(DIST);
+  const sourceHashes = {};
+  function sourceFiles(dir) {
+    for (const name of readdirSync(dir).sort()) {
+      const path = join(dir, name);
+      if (statSync(path).isDirectory()) sourceFiles(path);
+      else if (/\.(js|mjs|html|css|glb)$/.test(name))
+        sourceHashes[path.slice(ROOT.length + 1).replaceAll("\\", "/")] =
+          createHash("sha256").update(readFileSync(path)).digest("hex");
+    }
+  }
+  sourceFiles(join(ROOT, "src"));
+  sourceFiles(join(ROOT, "scripts"));
+  for (const name of ["manifest.json", "package.json", "package-lock.json"])
+    sourceHashes[name] = createHash("sha256")
+      .update(readFileSync(join(ROOT, name)))
+      .digest("hex");
+  const sourceDigest = createHash("sha256")
+    .update(JSON.stringify(sourceHashes))
+    .digest("hex");
+  writeFileSync(
+    dp("BUILD.json"),
+    JSON.stringify(
+      {
+        schema: "signbridge-build-v1",
+        profile: profile.name,
+        source_sha256: sourceDigest,
+        authored_dictionary_included: true,
+        research_assets_included: Boolean(researchInputs),
+        research_asset_manifest_sha256: researchInputs?.manifestSha256 || null,
+        public_motion_release: researchInputs?.publication?.release || null,
+        training_ready: false,
+        model_training_ready: false,
+        deployment_ready: false,
+        csl_translation_trained: false,
+        native_candidate_count: researchInputs?.native?.clips.length || 0,
+        core_unit_count: researchInputs?.core?.units.length || 0,
+        files,
+      },
+      null,
+      2,
+    ) + "\n",
+  );
+  console.log("\n✅ Build complete: " + profile.name + "\n");
+}
+
+async function buildDemo() {
+  copyFileSync(join(ROOT, "src/tools/sign-demo-serve.py"), dp("start-demo.py"));
+  writeFileSync(
+    dp("start-demo.command"),
+    '#!/bin/zsh\ncd -- "$(dirname -- "$0")"\nexec /usr/bin/python3 start-demo.py\n',
+    { mode: 0o755 },
+  );
+
+  for (const file of ["index.html", "demo.css", "avatar.html", "avatar.css"]) {
+    copyFileSync(join(ROOT, "src/demo", file), dp("demo", file));
+  }
+  for (const file of ["model.html", "model-demo.css"]) {
+    copyFileSync(join(ROOT, "src/demo", file), dp("demo", file));
+  }
+  copyFileSync(
+    join(ROOT, "src/demo/demo-vocabulary.json"),
+    dp("demo", "demo-vocabulary.json"),
+  );
+  await bundle("demo/model-demo.js", "demo/model-demo.js");
+  await bundle("demo/demo.js", "demo/demo.js");
+  await bundle("demo/demo-avatar.js", "demo/demo-avatar.js");
+
+  let runtimeIndex = {
+    schema: "signbridge-t08-runtime-index-v1",
+    checkpoint_sha256: "",
+    clips: [],
+  };
+  let candidateAsset = {
+    schema: "signbridge-t08-motion-candidates-v1",
+    training_checkpoint_sha256: "",
+    training_weights_updated: false,
+    training_ready: false,
+    text_to_sign_trained: false,
+    research_only: true,
+    clips: [],
+  };
+  const motionLibrary = researchInputs
+    ? buildMotionLibrary({
+        motion: researchInputs.motion,
+        candidates: researchInputs.candidates,
+        experimental: researchInputs.experimental,
+        experimentalFiles: researchInputs.fileBytes.experimental,
+      })
+    : {
+        schema: "signbridge-motion-library-v2",
+        version: 2,
+        representation:
+          "source-specific-axis-angle-with-display-quaternion-policy",
+        entries: [],
+        summary: {
+          total: 0,
+          bySource: { t08: 0, candidate: 0, experimental: 0 },
+          byStability: { stable: 0, needs_review: 0, reject: 0 },
+        },
+        semantic_status: "unverified",
+        training_ready: false,
+        model_training_ready: false,
+        deployment_ready: false,
+      };
+  writeFileSync(
+    dp("demo/motion-library-v2.json"),
+    JSON.stringify(motionLibrary),
+  );
+  const motionById = new Map(
+    motionLibrary.entries.map((entry) => [entry.id, entry]),
+  );
+  if (researchInputs) {
+    writeFileSync(
+      dp("demo/t08-motion.json"),
+      researchInputs.fileBytes.demo.get("t08-motion.json"),
+    );
+    const source = researchInputs.motion;
+    runtimeIndex = {
+      schema: "signbridge-t08-runtime-index-v1",
+      checkpoint_sha256: source.checkpoint_sha256,
+      clips: source.clips.map(({ id, text, aliases, fps, frames }) => {
+        const entry = motionById.get(id);
+        return {
+          id,
+          text,
+          aliases,
+          fps,
+          frames,
+          runtime_candidate: false,
+          stability: entry?.stability || "stable",
+          display_stabilization_profile:
+            entry?.display_stabilization_profile || "quaternion-temporal-v1",
+        };
+      }),
+    };
+    console.log("  ✓ demo/T08 local reference motions");
+  } else {
+    writeFileSync(
+      dp("demo/t08-motion.json"),
+      JSON.stringify({ unavailable: true }),
+    );
+    console.log(
+      "  ℹ T08 assets absent; Demo dictionary mode remains available (see docs/demo.md)",
+    );
+  }
+  if (researchInputs) {
+    writeFileSync(
+      dp("demo/t08-candidates.json"),
+      researchInputs.fileBytes.demo.get("t08-candidates.json"),
+    );
+    candidateAsset = researchInputs.candidates;
+    runtimeIndex.clips.push(
+      ...candidateAsset.clips.map(
+        ({ id, text, aliases, fps, frames, runtime_candidate }) => ({
+          id,
+          text,
+          aliases,
+          fps,
+          frames,
+          runtime_candidate,
+          stability: motionById.get(id)?.stability || "stable",
+          display_stabilization_profile:
+            motionById.get(id)?.display_stabilization_profile ||
+            "quaternion-temporal-v1",
+        }),
+      ),
+    );
+  } else {
+    writeFileSync(
+      dp("demo/t08-candidates.json"),
+      JSON.stringify(candidateAsset),
+    );
+  }
+  writeFileSync(dp("avatar/t08-index.json"), JSON.stringify(runtimeIndex));
+  if (researchInputs) {
+    for (const [name, bytes] of researchInputs.fileBytes.experimental)
+      writeFileSync(dp("demo", name), bytes);
+    console.log(
+      `  ✓ ${researchInputs.experimental.clips.length} fitted motions (${profile.name})`,
+    );
+  } else {
+    writeFileSync(
+      dp("demo/experimental-index.json"),
+      JSON.stringify({ unavailable: true }),
+    );
+  }
+  if (researchInputs?.native) {
+    for (const [name, bytes] of researchInputs.fileBytes.native)
+      writeFileSync(dp("demo", name), bytes);
+    console.log(
+      `  ✓ ${researchInputs.native.clips.length} precompiled native candidates (local only)`,
+    );
+  } else
+    writeFileSync(
+      dp("demo/native-index.json"),
+      JSON.stringify({ unavailable: true }),
+    );
+  if (!researchInputs?.core)
+    writeFileSync(
+      dp("demo/core-manifest.json"),
+      JSON.stringify({ unavailable: true }),
+    );
+  const research = researchInputs?.research || [];
+  for (const item of research)
+    writeFileSync(
+      dp("demo", item.image),
+      researchInputs.fileBytes.demo.get(item.image),
+    );
+  writeFileSync(dp("demo/research.json"), JSON.stringify(research));
 }
 
 async function buildPoseEditor() {

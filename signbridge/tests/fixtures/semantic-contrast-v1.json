@@ -1,0 +1,1218 @@
+{
+  "schema": "signbridge-semantic-contrast-v1",
+  "frozen_before_scope_implementation": true,
+  "language": "Chinese semantic structure; not CSL supervision",
+  "limitations": [
+    "Developer-authored synthetic engineering evaluation, not independent human validation.",
+    "Structure holdout labels are frozen before implementation but the test design is known to this developer.",
+    "Old training/challenge overlap is measured separately; do not claim all rows are unseen."
+  ],
+  "rows": [
+    {
+      "id": "contrast-001",
+      "text": "我帮你",
+      "expected_roles": {
+        "actor": "我",
+        "predicate": "帮",
+        "patient": "你"
+      },
+      "expected_operators": [],
+      "template_group": "role_swap",
+      "partition": "development",
+      "pair_id": "role-0",
+      "pair_relation": "different",
+      "label_source": "assistant_synthetic_chinese",
+      "human_approved": false,
+      "csl_supervision": false
+    },
+    {
+      "id": "contrast-002",
+      "text": "你帮我",
+      "expected_roles": {
+        "actor": "你",
+        "predicate": "帮",
+        "patient": "我"
+      },
+      "expected_operators": [],
+      "template_group": "role_swap",
+      "partition": "development",
+      "pair_id": "role-0",
+      "pair_relation": "different",
+      "label_source": "assistant_synthetic_chinese",
+      "human_approved": false,
+      "csl_supervision": false
+    },
+    {
+      "id": "contrast-003",
+      "text": "他帮她",
+      "expected_roles": {
+        "actor": "他",
+        "predicate": "帮",
+        "patient": "她"
+      },
+      "expected_operators": [],
+      "template_group": "role_swap",
+      "partition": "development",
+      "pair_id": "role-1",
+      "pair_relation": "different",
+      "label_source": "assistant_synthetic_chinese",
+      "human_approved": false,
+      "csl_supervision": false
+    },
+    {
+      "id": "contrast-004",
+      "text": "她帮他",
+      "expected_roles": {
+        "actor": "她",
+        "predicate": "帮",
+        "patient": "他"
+      },
+      "expected_operators": [],
+      "template_group": "role_swap",
+      "partition": "development",
+      "pair_id": "role-1",
+      "pair_relation": "different",
+      "label_source": "assistant_synthetic_chinese",
+      "human_approved": false,
+      "csl_supervision": false
+    },
+    {
+      "id": "contrast-005",
+      "text": "我们帮你们",
+      "expected_roles": {
+        "actor": "我们",
+        "predicate": "帮",
+        "patient": "你们"
+      },
+      "expected_operators": [],
+      "template_group": "role_swap",
+      "partition": "development",
+      "pair_id": "role-2",
+      "pair_relation": "different",
+      "label_source": "assistant_synthetic_chinese",
+      "human_approved": false,
+      "csl_supervision": false
+    },
+    {
+      "id": "contrast-006",
+      "text": "你们帮我们",
+      "expected_roles": {
+        "actor": "你们",
+        "predicate": "帮",
+        "patient": "我们"
+      },
+      "expected_operators": [],
+      "template_group": "role_swap",
+      "partition": "development",
+      "pair_id": "role-2",
+      "pair_relation": "different",
+      "label_source": "assistant_synthetic_chinese",
+      "human_approved": false,
+      "csl_supervision": false
+    },
+    {
+      "id": "contrast-007",
+      "text": "我今天去学校",
+      "expected_roles": {
+        "actor": "我",
+        "time": "今天",
+        "predicate": "去",
+        "goal": "学校"
+      },
+      "expected_operators": [],
+      "template_group": "time_paraphrase",
+      "partition": "development",
+      "pair_id": "time-0",
+      "pair_relation": "same",
+      "label_source": "assistant_synthetic_chinese",
+      "human_approved": false,
+      "csl_supervision": false
+    },
+    {
+      "id": "contrast-008",
+      "text": "今天我去学校",
+      "expected_roles": {
+        "actor": "我",
+        "time": "今天",
+        "predicate": "去",
+        "goal": "学校"
+      },
+      "expected_operators": [],
+      "template_group": "time_paraphrase",
+      "partition": "development",
+      "pair_id": "time-0",
+      "pair_relation": "same",
+      "label_source": "assistant_synthetic_chinese",
+      "human_approved": false,
+      "csl_supervision": false
+    },
+    {
+      "id": "contrast-009",
+      "text": "她今天去医院",
+      "expected_roles": {
+        "actor": "她",
+        "time": "今天",
+        "predicate": "去",
+        "goal": "医院"
+      },
+      "expected_operators": [],
+      "template_group": "time_paraphrase",
+      "partition": "development",
+      "pair_id": "time-1",
+      "pair_relation": "same",
+      "label_source": "assistant_synthetic_chinese",
+      "human_approved": false,
+      "csl_supervision": false
+    },
+    {
+      "id": "contrast-010",
+      "text": "今天她去医院",
+      "expected_roles": {
+        "actor": "她",
+        "time": "今天",
+        "predicate": "去",
+        "goal": "医院"
+      },
+      "expected_operators": [],
+      "template_group": "time_paraphrase",
+      "partition": "development",
+      "pair_id": "time-1",
+      "pair_relation": "same",
+      "label_source": "assistant_synthetic_chinese",
+      "human_approved": false,
+      "csl_supervision": false
+    },
+    {
+      "id": "contrast-011",
+      "text": "我们今天去公司",
+      "expected_roles": {
+        "actor": "我们",
+        "time": "今天",
+        "predicate": "去",
+        "goal": "公司"
+      },
+      "expected_operators": [],
+      "template_group": "time_paraphrase",
+      "partition": "development",
+      "pair_id": "time-2",
+      "pair_relation": "same",
+      "label_source": "assistant_synthetic_chinese",
+      "human_approved": false,
+      "csl_supervision": false
+    },
+    {
+      "id": "contrast-012",
+      "text": "今天我们去公司",
+      "expected_roles": {
+        "actor": "我们",
+        "time": "今天",
+        "predicate": "去",
+        "goal": "公司"
+      },
+      "expected_operators": [],
+      "template_group": "time_paraphrase",
+      "partition": "development",
+      "pair_id": "time-2",
+      "pair_relation": "same",
+      "label_source": "assistant_synthetic_chinese",
+      "human_approved": false,
+      "csl_supervision": false
+    },
+    {
+      "id": "contrast-013",
+      "text": "我不想去",
+      "expected_roles": {
+        "actor": "我",
+        "negation": "不",
+        "modal": "想",
+        "predicate": "去"
+      },
+      "expected_operators": ["negation:不", "modal:想"],
+      "template_group": "negated_desire",
+      "partition": "development",
+      "pair_id": "desire-0",
+      "pair_relation": "different",
+      "label_source": "assistant_synthetic_chinese",
+      "human_approved": false,
+      "csl_supervision": false
+    },
+    {
+      "id": "contrast-014",
+      "text": "我想不去",
+      "expected_roles": {
+        "actor": "我",
+        "negation": "不",
+        "modal": "想",
+        "predicate": "去"
+      },
+      "expected_operators": ["modal:想", "negation:不"],
+      "template_group": "negated_desire",
+      "partition": "development",
+      "pair_id": "desire-0",
+      "pair_relation": "different",
+      "label_source": "assistant_synthetic_chinese",
+      "human_approved": false,
+      "csl_supervision": false
+    },
+    {
+      "id": "contrast-015",
+      "text": "我不能去",
+      "expected_roles": {
+        "actor": "我",
+        "modal": "能",
+        "predicate": "去",
+        "negation": "不"
+      },
+      "expected_operators": ["negation:不", "modal:能"],
+      "template_group": "negated_ability",
+      "partition": "structure_holdout",
+      "pair_id": "ability-0",
+      "pair_relation": "different",
+      "label_source": "assistant_synthetic_chinese",
+      "human_approved": false,
+      "csl_supervision": false
+    },
+    {
+      "id": "contrast-016",
+      "text": "我能去",
+      "expected_roles": {
+        "actor": "我",
+        "modal": "能",
+        "predicate": "去"
+      },
+      "expected_operators": ["modal:能"],
+      "template_group": "negated_ability",
+      "partition": "structure_holdout",
+      "pair_id": "ability-0",
+      "pair_relation": "different",
+      "label_source": "assistant_synthetic_chinese",
+      "human_approved": false,
+      "csl_supervision": false
+    },
+    {
+      "id": "contrast-017",
+      "text": "我去了",
+      "expected_roles": {
+        "actor": "我",
+        "predicate": "去",
+        "aspect": "了"
+      },
+      "expected_operators": [],
+      "template_group": "event_status",
+      "partition": "structure_holdout",
+      "pair_id": "aspect-0",
+      "pair_relation": "different",
+      "label_source": "assistant_synthetic_chinese",
+      "human_approved": false,
+      "csl_supervision": false
+    },
+    {
+      "id": "contrast-018",
+      "text": "我没去",
+      "expected_roles": {
+        "actor": "我",
+        "predicate": "去",
+        "negation": "没"
+      },
+      "expected_operators": ["negation:没"],
+      "template_group": "event_status",
+      "partition": "structure_holdout",
+      "pair_id": "aspect-0",
+      "pair_relation": "different",
+      "label_source": "assistant_synthetic_chinese",
+      "human_approved": false,
+      "csl_supervision": false
+    },
+    {
+      "id": "contrast-019",
+      "text": "明天我不想去学校",
+      "expected_roles": {
+        "actor": "我",
+        "time": "明天",
+        "negation": "不",
+        "modal": "想",
+        "predicate": "去",
+        "goal": "学校"
+      },
+      "expected_operators": ["negation:不", "modal:想"],
+      "template_group": "scope_with_goal",
+      "partition": "structure_holdout",
+      "pair_id": "goal-0",
+      "pair_relation": "different",
+      "label_source": "assistant_synthetic_chinese",
+      "human_approved": false,
+      "csl_supervision": false
+    },
+    {
+      "id": "contrast-020",
+      "text": "我明天想不去学校",
+      "expected_roles": {
+        "actor": "我",
+        "time": "明天",
+        "negation": "不",
+        "modal": "想",
+        "predicate": "去",
+        "goal": "学校"
+      },
+      "expected_operators": ["modal:想", "negation:不"],
+      "template_group": "scope_with_goal",
+      "partition": "structure_holdout",
+      "pair_id": "goal-0",
+      "pair_relation": "different",
+      "label_source": "assistant_synthetic_chinese",
+      "human_approved": false,
+      "csl_supervision": false
+    },
+    {
+      "id": "contrast-021",
+      "text": "我。帮你",
+      "expected_roles": null,
+      "expected_operators": null,
+      "template_group": "clause_boundary",
+      "partition": "development",
+      "pair_id": null,
+      "pair_relation": null,
+      "label_source": "assistant_synthetic_chinese",
+      "human_approved": false,
+      "csl_supervision": false
+    },
+    {
+      "id": "contrast-022",
+      "text": "我；去学校",
+      "expected_roles": null,
+      "expected_operators": null,
+      "template_group": "clause_boundary",
+      "partition": "development",
+      "pair_id": null,
+      "pair_relation": null,
+      "label_source": "assistant_synthetic_chinese",
+      "human_approved": false,
+      "csl_supervision": false
+    },
+    {
+      "id": "contrast-023",
+      "text": "你不想去",
+      "expected_roles": {
+        "actor": "你",
+        "negation": "不",
+        "modal": "想",
+        "predicate": "去"
+      },
+      "expected_operators": ["negation:不", "modal:想"],
+      "template_group": "negated_desire",
+      "partition": "development",
+      "pair_id": "desire-1",
+      "pair_relation": "different",
+      "label_source": "assistant_synthetic_chinese",
+      "human_approved": false,
+      "csl_supervision": false
+    },
+    {
+      "id": "contrast-024",
+      "text": "你想不去",
+      "expected_roles": {
+        "actor": "你",
+        "negation": "不",
+        "modal": "想",
+        "predicate": "去"
+      },
+      "expected_operators": ["modal:想", "negation:不"],
+      "template_group": "negated_desire",
+      "partition": "development",
+      "pair_id": "desire-1",
+      "pair_relation": "different",
+      "label_source": "assistant_synthetic_chinese",
+      "human_approved": false,
+      "csl_supervision": false
+    },
+    {
+      "id": "contrast-025",
+      "text": "你不能去",
+      "expected_roles": {
+        "actor": "你",
+        "modal": "能",
+        "predicate": "去",
+        "negation": "不"
+      },
+      "expected_operators": ["negation:不", "modal:能"],
+      "template_group": "negated_ability",
+      "partition": "structure_holdout",
+      "pair_id": "ability-1",
+      "pair_relation": "different",
+      "label_source": "assistant_synthetic_chinese",
+      "human_approved": false,
+      "csl_supervision": false
+    },
+    {
+      "id": "contrast-026",
+      "text": "你能去",
+      "expected_roles": {
+        "actor": "你",
+        "modal": "能",
+        "predicate": "去"
+      },
+      "expected_operators": ["modal:能"],
+      "template_group": "negated_ability",
+      "partition": "structure_holdout",
+      "pair_id": "ability-1",
+      "pair_relation": "different",
+      "label_source": "assistant_synthetic_chinese",
+      "human_approved": false,
+      "csl_supervision": false
+    },
+    {
+      "id": "contrast-027",
+      "text": "你去了",
+      "expected_roles": {
+        "actor": "你",
+        "predicate": "去",
+        "aspect": "了"
+      },
+      "expected_operators": [],
+      "template_group": "event_status",
+      "partition": "structure_holdout",
+      "pair_id": "aspect-1",
+      "pair_relation": "different",
+      "label_source": "assistant_synthetic_chinese",
+      "human_approved": false,
+      "csl_supervision": false
+    },
+    {
+      "id": "contrast-028",
+      "text": "你没去",
+      "expected_roles": {
+        "actor": "你",
+        "predicate": "去",
+        "negation": "没"
+      },
+      "expected_operators": ["negation:没"],
+      "template_group": "event_status",
+      "partition": "structure_holdout",
+      "pair_id": "aspect-1",
+      "pair_relation": "different",
+      "label_source": "assistant_synthetic_chinese",
+      "human_approved": false,
+      "csl_supervision": false
+    },
+    {
+      "id": "contrast-029",
+      "text": "明天你不想去学校",
+      "expected_roles": {
+        "actor": "你",
+        "time": "明天",
+        "negation": "不",
+        "modal": "想",
+        "predicate": "去",
+        "goal": "学校"
+      },
+      "expected_operators": ["negation:不", "modal:想"],
+      "template_group": "scope_with_goal",
+      "partition": "structure_holdout",
+      "pair_id": "goal-1",
+      "pair_relation": "different",
+      "label_source": "assistant_synthetic_chinese",
+      "human_approved": false,
+      "csl_supervision": false
+    },
+    {
+      "id": "contrast-030",
+      "text": "你明天想不去学校",
+      "expected_roles": {
+        "actor": "你",
+        "time": "明天",
+        "negation": "不",
+        "modal": "想",
+        "predicate": "去",
+        "goal": "学校"
+      },
+      "expected_operators": ["modal:想", "negation:不"],
+      "template_group": "scope_with_goal",
+      "partition": "structure_holdout",
+      "pair_id": "goal-1",
+      "pair_relation": "different",
+      "label_source": "assistant_synthetic_chinese",
+      "human_approved": false,
+      "csl_supervision": false
+    },
+    {
+      "id": "contrast-031",
+      "text": "你。帮你",
+      "expected_roles": null,
+      "expected_operators": null,
+      "template_group": "clause_boundary",
+      "partition": "development",
+      "pair_id": null,
+      "pair_relation": null,
+      "label_source": "assistant_synthetic_chinese",
+      "human_approved": false,
+      "csl_supervision": false
+    },
+    {
+      "id": "contrast-032",
+      "text": "你；去学校",
+      "expected_roles": null,
+      "expected_operators": null,
+      "template_group": "clause_boundary",
+      "partition": "development",
+      "pair_id": null,
+      "pair_relation": null,
+      "label_source": "assistant_synthetic_chinese",
+      "human_approved": false,
+      "csl_supervision": false
+    },
+    {
+      "id": "contrast-033",
+      "text": "她不想去",
+      "expected_roles": {
+        "actor": "她",
+        "negation": "不",
+        "modal": "想",
+        "predicate": "去"
+      },
+      "expected_operators": ["negation:不", "modal:想"],
+      "template_group": "negated_desire",
+      "partition": "development",
+      "pair_id": "desire-2",
+      "pair_relation": "different",
+      "label_source": "assistant_synthetic_chinese",
+      "human_approved": false,
+      "csl_supervision": false
+    },
+    {
+      "id": "contrast-034",
+      "text": "她想不去",
+      "expected_roles": {
+        "actor": "她",
+        "negation": "不",
+        "modal": "想",
+        "predicate": "去"
+      },
+      "expected_operators": ["modal:想", "negation:不"],
+      "template_group": "negated_desire",
+      "partition": "development",
+      "pair_id": "desire-2",
+      "pair_relation": "different",
+      "label_source": "assistant_synthetic_chinese",
+      "human_approved": false,
+      "csl_supervision": false
+    },
+    {
+      "id": "contrast-035",
+      "text": "她不能去",
+      "expected_roles": {
+        "actor": "她",
+        "modal": "能",
+        "predicate": "去",
+        "negation": "不"
+      },
+      "expected_operators": ["negation:不", "modal:能"],
+      "template_group": "negated_ability",
+      "partition": "structure_holdout",
+      "pair_id": "ability-2",
+      "pair_relation": "different",
+      "label_source": "assistant_synthetic_chinese",
+      "human_approved": false,
+      "csl_supervision": false
+    },
+    {
+      "id": "contrast-036",
+      "text": "她能去",
+      "expected_roles": {
+        "actor": "她",
+        "modal": "能",
+        "predicate": "去"
+      },
+      "expected_operators": ["modal:能"],
+      "template_group": "negated_ability",
+      "partition": "structure_holdout",
+      "pair_id": "ability-2",
+      "pair_relation": "different",
+      "label_source": "assistant_synthetic_chinese",
+      "human_approved": false,
+      "csl_supervision": false
+    },
+    {
+      "id": "contrast-037",
+      "text": "她去了",
+      "expected_roles": {
+        "actor": "她",
+        "predicate": "去",
+        "aspect": "了"
+      },
+      "expected_operators": [],
+      "template_group": "event_status",
+      "partition": "structure_holdout",
+      "pair_id": "aspect-2",
+      "pair_relation": "different",
+      "label_source": "assistant_synthetic_chinese",
+      "human_approved": false,
+      "csl_supervision": false
+    },
+    {
+      "id": "contrast-038",
+      "text": "她没去",
+      "expected_roles": {
+        "actor": "她",
+        "predicate": "去",
+        "negation": "没"
+      },
+      "expected_operators": ["negation:没"],
+      "template_group": "event_status",
+      "partition": "structure_holdout",
+      "pair_id": "aspect-2",
+      "pair_relation": "different",
+      "label_source": "assistant_synthetic_chinese",
+      "human_approved": false,
+      "csl_supervision": false
+    },
+    {
+      "id": "contrast-039",
+      "text": "明天她不想去学校",
+      "expected_roles": {
+        "actor": "她",
+        "time": "明天",
+        "negation": "不",
+        "modal": "想",
+        "predicate": "去",
+        "goal": "学校"
+      },
+      "expected_operators": ["negation:不", "modal:想"],
+      "template_group": "scope_with_goal",
+      "partition": "structure_holdout",
+      "pair_id": "goal-2",
+      "pair_relation": "different",
+      "label_source": "assistant_synthetic_chinese",
+      "human_approved": false,
+      "csl_supervision": false
+    },
+    {
+      "id": "contrast-040",
+      "text": "她明天想不去学校",
+      "expected_roles": {
+        "actor": "她",
+        "time": "明天",
+        "negation": "不",
+        "modal": "想",
+        "predicate": "去",
+        "goal": "学校"
+      },
+      "expected_operators": ["modal:想", "negation:不"],
+      "template_group": "scope_with_goal",
+      "partition": "structure_holdout",
+      "pair_id": "goal-2",
+      "pair_relation": "different",
+      "label_source": "assistant_synthetic_chinese",
+      "human_approved": false,
+      "csl_supervision": false
+    },
+    {
+      "id": "contrast-041",
+      "text": "她。帮你",
+      "expected_roles": null,
+      "expected_operators": null,
+      "template_group": "clause_boundary",
+      "partition": "development",
+      "pair_id": null,
+      "pair_relation": null,
+      "label_source": "assistant_synthetic_chinese",
+      "human_approved": false,
+      "csl_supervision": false
+    },
+    {
+      "id": "contrast-042",
+      "text": "她；去学校",
+      "expected_roles": null,
+      "expected_operators": null,
+      "template_group": "clause_boundary",
+      "partition": "development",
+      "pair_id": null,
+      "pair_relation": null,
+      "label_source": "assistant_synthetic_chinese",
+      "human_approved": false,
+      "csl_supervision": false
+    },
+    {
+      "id": "contrast-043",
+      "text": "我们不想去",
+      "expected_roles": {
+        "actor": "我们",
+        "negation": "不",
+        "modal": "想",
+        "predicate": "去"
+      },
+      "expected_operators": ["negation:不", "modal:想"],
+      "template_group": "negated_desire",
+      "partition": "development",
+      "pair_id": "desire-3",
+      "pair_relation": "different",
+      "label_source": "assistant_synthetic_chinese",
+      "human_approved": false,
+      "csl_supervision": false
+    },
+    {
+      "id": "contrast-044",
+      "text": "我们想不去",
+      "expected_roles": {
+        "actor": "我们",
+        "negation": "不",
+        "modal": "想",
+        "predicate": "去"
+      },
+      "expected_operators": ["modal:想", "negation:不"],
+      "template_group": "negated_desire",
+      "partition": "development",
+      "pair_id": "desire-3",
+      "pair_relation": "different",
+      "label_source": "assistant_synthetic_chinese",
+      "human_approved": false,
+      "csl_supervision": false
+    },
+    {
+      "id": "contrast-045",
+      "text": "我们不能去",
+      "expected_roles": {
+        "actor": "我们",
+        "modal": "能",
+        "predicate": "去",
+        "negation": "不"
+      },
+      "expected_operators": ["negation:不", "modal:能"],
+      "template_group": "negated_ability",
+      "partition": "structure_holdout",
+      "pair_id": "ability-3",
+      "pair_relation": "different",
+      "label_source": "assistant_synthetic_chinese",
+      "human_approved": false,
+      "csl_supervision": false
+    },
+    {
+      "id": "contrast-046",
+      "text": "我们能去",
+      "expected_roles": {
+        "actor": "我们",
+        "modal": "能",
+        "predicate": "去"
+      },
+      "expected_operators": ["modal:能"],
+      "template_group": "negated_ability",
+      "partition": "structure_holdout",
+      "pair_id": "ability-3",
+      "pair_relation": "different",
+      "label_source": "assistant_synthetic_chinese",
+      "human_approved": false,
+      "csl_supervision": false
+    },
+    {
+      "id": "contrast-047",
+      "text": "我们去了",
+      "expected_roles": {
+        "actor": "我们",
+        "predicate": "去",
+        "aspect": "了"
+      },
+      "expected_operators": [],
+      "template_group": "event_status",
+      "partition": "structure_holdout",
+      "pair_id": "aspect-3",
+      "pair_relation": "different",
+      "label_source": "assistant_synthetic_chinese",
+      "human_approved": false,
+      "csl_supervision": false
+    },
+    {
+      "id": "contrast-048",
+      "text": "我们没去",
+      "expected_roles": {
+        "actor": "我们",
+        "predicate": "去",
+        "negation": "没"
+      },
+      "expected_operators": ["negation:没"],
+      "template_group": "event_status",
+      "partition": "structure_holdout",
+      "pair_id": "aspect-3",
+      "pair_relation": "different",
+      "label_source": "assistant_synthetic_chinese",
+      "human_approved": false,
+      "csl_supervision": false
+    },
+    {
+      "id": "contrast-049",
+      "text": "明天我们不想去学校",
+      "expected_roles": {
+        "actor": "我们",
+        "time": "明天",
+        "negation": "不",
+        "modal": "想",
+        "predicate": "去",
+        "goal": "学校"
+      },
+      "expected_operators": ["negation:不", "modal:想"],
+      "template_group": "scope_with_goal",
+      "partition": "structure_holdout",
+      "pair_id": "goal-3",
+      "pair_relation": "different",
+      "label_source": "assistant_synthetic_chinese",
+      "human_approved": false,
+      "csl_supervision": false
+    },
+    {
+      "id": "contrast-050",
+      "text": "我们明天想不去学校",
+      "expected_roles": {
+        "actor": "我们",
+        "time": "明天",
+        "negation": "不",
+        "modal": "想",
+        "predicate": "去",
+        "goal": "学校"
+      },
+      "expected_operators": ["modal:想", "negation:不"],
+      "template_group": "scope_with_goal",
+      "partition": "structure_holdout",
+      "pair_id": "goal-3",
+      "pair_relation": "different",
+      "label_source": "assistant_synthetic_chinese",
+      "human_approved": false,
+      "csl_supervision": false
+    },
+    {
+      "id": "contrast-051",
+      "text": "我们。帮你",
+      "expected_roles": null,
+      "expected_operators": null,
+      "template_group": "clause_boundary",
+      "partition": "development",
+      "pair_id": null,
+      "pair_relation": null,
+      "label_source": "assistant_synthetic_chinese",
+      "human_approved": false,
+      "csl_supervision": false
+    },
+    {
+      "id": "contrast-052",
+      "text": "我们；去学校",
+      "expected_roles": null,
+      "expected_operators": null,
+      "template_group": "clause_boundary",
+      "partition": "development",
+      "pair_id": null,
+      "pair_relation": null,
+      "label_source": "assistant_synthetic_chinese",
+      "human_approved": false,
+      "csl_supervision": false
+    },
+    {
+      "id": "contrast-053",
+      "text": "我喝书",
+      "expected_roles": null,
+      "expected_operators": null,
+      "template_group": "unsupported_or_ambiguous",
+      "partition": "structure_holdout",
+      "pair_id": null,
+      "pair_relation": null,
+      "label_source": "assistant_synthetic_chinese",
+      "human_approved": false,
+      "csl_supervision": false
+    },
+    {
+      "id": "contrast-054",
+      "text": "我买医院",
+      "expected_roles": null,
+      "expected_operators": null,
+      "template_group": "unsupported_or_ambiguous",
+      "partition": "structure_holdout",
+      "pair_id": null,
+      "pair_relation": null,
+      "label_source": "assistant_synthetic_chinese",
+      "human_approved": false,
+      "csl_supervision": false
+    },
+    {
+      "id": "contrast-055",
+      "text": "我去水",
+      "expected_roles": null,
+      "expected_operators": null,
+      "template_group": "unsupported_or_ambiguous",
+      "partition": "structure_holdout",
+      "pair_id": null,
+      "pair_relation": null,
+      "label_source": "assistant_synthetic_chinese",
+      "human_approved": false,
+      "csl_supervision": false
+    },
+    {
+      "id": "contrast-056",
+      "text": "我们去你",
+      "expected_roles": null,
+      "expected_operators": null,
+      "template_group": "unsupported_or_ambiguous",
+      "partition": "structure_holdout",
+      "pair_id": null,
+      "pair_relation": null,
+      "label_source": "assistant_synthetic_chinese",
+      "human_approved": false,
+      "csl_supervision": false
+    },
+    {
+      "id": "contrast-057",
+      "text": "我学习水",
+      "expected_roles": null,
+      "expected_operators": null,
+      "template_group": "unsupported_or_ambiguous",
+      "partition": "structure_holdout",
+      "pair_id": null,
+      "pair_relation": null,
+      "label_source": "assistant_synthetic_chinese",
+      "human_approved": false,
+      "csl_supervision": false
+    },
+    {
+      "id": "contrast-058",
+      "text": "我去火星",
+      "expected_roles": null,
+      "expected_operators": null,
+      "template_group": "unsupported_or_ambiguous",
+      "partition": "structure_holdout",
+      "pair_id": null,
+      "pair_relation": null,
+      "label_source": "assistant_synthetic_chinese",
+      "human_approved": false,
+      "csl_supervision": false
+    },
+    {
+      "id": "contrast-059",
+      "text": "我帮你你帮我",
+      "expected_roles": null,
+      "expected_operators": null,
+      "template_group": "unsupported_or_ambiguous",
+      "partition": "structure_holdout",
+      "pair_id": null,
+      "pair_relation": null,
+      "label_source": "assistant_synthetic_chinese",
+      "human_approved": false,
+      "csl_supervision": false
+    },
+    {
+      "id": "contrast-060",
+      "text": "如果你来我就去",
+      "expected_roles": null,
+      "expected_operators": null,
+      "template_group": "unsupported_or_ambiguous",
+      "partition": "structure_holdout",
+      "pair_id": null,
+      "pair_relation": null,
+      "label_source": "assistant_synthetic_chinese",
+      "human_approved": false,
+      "csl_supervision": false
+    },
+    {
+      "id": "contrast-061",
+      "text": "我被你帮助",
+      "expected_roles": null,
+      "expected_operators": null,
+      "template_group": "unsupported_or_ambiguous",
+      "partition": "structure_holdout",
+      "pair_id": null,
+      "pair_relation": null,
+      "label_source": "assistant_synthetic_chinese",
+      "human_approved": false,
+      "csl_supervision": false
+    },
+    {
+      "id": "contrast-062",
+      "text": "不是我帮你",
+      "expected_roles": null,
+      "expected_operators": null,
+      "template_group": "unsupported_or_ambiguous",
+      "partition": "structure_holdout",
+      "pair_id": null,
+      "pair_relation": null,
+      "label_source": "assistant_synthetic_chinese",
+      "human_approved": false,
+      "csl_supervision": false
+    },
+    {
+      "id": "contrast-063",
+      "text": "谁帮助谁",
+      "expected_roles": null,
+      "expected_operators": null,
+      "template_group": "unsupported_or_ambiguous",
+      "partition": "structure_holdout",
+      "pair_id": null,
+      "pair_relation": null,
+      "label_source": "assistant_synthetic_chinese",
+      "human_approved": false,
+      "csl_supervision": false
+    },
+    {
+      "id": "contrast-064",
+      "text": "我去了学校以后回家",
+      "expected_roles": null,
+      "expected_operators": null,
+      "template_group": "unsupported_or_ambiguous",
+      "partition": "structure_holdout",
+      "pair_id": null,
+      "pair_relation": null,
+      "label_source": "assistant_synthetic_chinese",
+      "human_approved": false,
+      "csl_supervision": false
+    },
+    {
+      "id": "contrast-065",
+      "text": "我喜欢他也喜欢你",
+      "expected_roles": null,
+      "expected_operators": null,
+      "template_group": "unsupported_or_ambiguous",
+      "partition": "structure_holdout",
+      "pair_id": null,
+      "pair_relation": null,
+      "label_source": "assistant_synthetic_chinese",
+      "human_approved": false,
+      "csl_supervision": false
+    },
+    {
+      "id": "contrast-066",
+      "text": "我把书给你",
+      "expected_roles": null,
+      "expected_operators": null,
+      "template_group": "unsupported_or_ambiguous",
+      "partition": "structure_holdout",
+      "pair_id": null,
+      "pair_relation": null,
+      "label_source": "assistant_synthetic_chinese",
+      "human_approved": false,
+      "csl_supervision": false
+    },
+    {
+      "id": "contrast-067",
+      "text": "我不不去",
+      "expected_roles": null,
+      "expected_operators": null,
+      "template_group": "unsupported_or_ambiguous",
+      "partition": "structure_holdout",
+      "pair_id": null,
+      "pair_relation": null,
+      "label_source": "assistant_synthetic_chinese",
+      "human_approved": false,
+      "csl_supervision": false
+    },
+    {
+      "id": "contrast-068",
+      "text": "我想想去",
+      "expected_roles": null,
+      "expected_operators": null,
+      "template_group": "unsupported_or_ambiguous",
+      "partition": "structure_holdout",
+      "pair_id": null,
+      "pair_relation": null,
+      "label_source": "assistant_synthetic_chinese",
+      "human_approved": false,
+      "csl_supervision": false
+    },
+    {
+      "id": "contrast-069",
+      "text": "我没有想去",
+      "expected_roles": null,
+      "expected_operators": null,
+      "template_group": "unsupported_or_ambiguous",
+      "partition": "structure_holdout",
+      "pair_id": null,
+      "pair_relation": null,
+      "label_source": "assistant_synthetic_chinese",
+      "human_approved": false,
+      "csl_supervision": false
+    },
+    {
+      "id": "contrast-070",
+      "text": "我可以不去",
+      "expected_roles": null,
+      "expected_operators": null,
+      "template_group": "unsupported_or_ambiguous",
+      "partition": "structure_holdout",
+      "pair_id": null,
+      "pair_relation": null,
+      "label_source": "assistant_synthetic_chinese",
+      "human_approved": false,
+      "csl_supervision": false
+    },
+    {
+      "id": "contrast-071",
+      "text": "我不想没去",
+      "expected_roles": null,
+      "expected_operators": null,
+      "template_group": "unsupported_or_ambiguous",
+      "partition": "structure_holdout",
+      "pair_id": null,
+      "pair_relation": null,
+      "label_source": "assistant_synthetic_chinese",
+      "human_approved": false,
+      "csl_supervision": false
+    },
+    {
+      "id": "contrast-072",
+      "text": "你喜欢看电影吗",
+      "expected_roles": null,
+      "expected_operators": null,
+      "template_group": "unsupported_or_ambiguous",
+      "partition": "structure_holdout",
+      "pair_id": null,
+      "pair_relation": null,
+      "label_source": "assistant_synthetic_chinese",
+      "human_approved": false,
+      "csl_supervision": false
+    },
+    {
+      "id": "contrast-073",
+      "text": "我不能今天去",
+      "expected_roles": null,
+      "expected_operators": null,
+      "template_group": "unsupported_or_ambiguous",
+      "partition": "structure_holdout",
+      "pair_id": null,
+      "pair_relation": null,
+      "label_source": "assistant_synthetic_chinese",
+      "human_approved": false,
+      "csl_supervision": false
+    },
+    {
+      "id": "contrast-074",
+      "text": "我不想今天去学校",
+      "expected_roles": null,
+      "expected_operators": null,
+      "template_group": "unsupported_or_ambiguous",
+      "partition": "structure_holdout",
+      "pair_id": null,
+      "pair_relation": null,
+      "label_source": "assistant_synthetic_chinese",
+      "human_approved": false,
+      "csl_supervision": false
+    },
+    {
+      "id": "contrast-075",
+      "text": "😀",
+      "expected_roles": null,
+      "expected_operators": null,
+      "template_group": "unsupported_or_ambiguous",
+      "partition": "structure_holdout",
+      "pair_id": null,
+      "pair_relation": null,
+      "label_source": "assistant_synthetic_chinese",
+      "human_approved": false,
+      "csl_supervision": false
+    },
+    {
+      "id": "contrast-076",
+      "text": "",
+      "expected_roles": null,
+      "expected_operators": null,
+      "template_group": "unsupported_or_ambiguous",
+      "partition": "structure_holdout",
+      "pair_id": null,
+      "pair_relation": null,
+      "label_source": "assistant_synthetic_chinese",
+      "human_approved": false,
+      "csl_supervision": false
+    }
+  ]
+}

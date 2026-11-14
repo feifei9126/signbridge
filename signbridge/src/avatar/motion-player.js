@@ -3,15 +3,49 @@ function easeInOut(amount) {
 }
 
 function normalizeMotionFrames(input) {
-  const frames = Array.isArray(input) ? input : input?.frames;
-  if (!Array.isArray(frames) || frames.length === 0) return [];
-  return frames.map((frame) => ({
-    value: frame?.value && typeof frame.value === "object" ? frame.value : {},
-    duration:
-      Number.isFinite(frame?.duration) && frame.duration > 0
-        ? frame.duration
-        : 0.8,
-  }));
+  if (input?.type === "motion-sequence") {
+    if (
+      !Array.isArray(input.motions) ||
+      !input.motions.length ||
+      input.motions.length > 40
+    )
+      return [];
+    const parts = input.motions.map((motion) =>
+      motion?.type === "motion-sequence" ? [] : normalizeMotionFrames(motion),
+    );
+    return parts.some((part) => !part.length) ? [] : parts.flat();
+  }
+  let normalized;
+  if (input?.type === "quaternion-track") {
+    if (
+      !Array.isArray(input.samples) ||
+      input.samples.length < 2 ||
+      !Number.isFinite(input.fps) ||
+      input.fps <= 0 ||
+      !Number.isFinite(input.duration) ||
+      input.duration <= 0
+    )
+      return [];
+    normalized = [
+      {
+        track: input.samples,
+        fps: input.fps,
+        duration: input.duration,
+      },
+    ];
+  } else {
+    const frames = Array.isArray(input) ? input : input?.frames;
+    if (!Array.isArray(frames) || frames.length === 0) return [];
+    normalized = frames.map((frame) => ({
+      value: frame?.value && typeof frame.value === "object" ? frame.value : {},
+      duration:
+        Number.isFinite(frame?.duration) && frame.duration > 0
+          ? frame.duration
+          : 0.8,
+    }));
+  }
+  if (input.sourceInfo) normalized[0].sourceInfo = input.sourceInfo;
+  return normalized;
 }
 
 function createMotionPlayer(
@@ -25,6 +59,7 @@ function createMotionPlayer(
     maxPendingMotions = 2,
     maxPendingAgeMs = 6000,
     onComplete = () => {},
+    onMotionStart = () => {},
   } = {},
 ) {
   let queue = [];
@@ -65,6 +100,42 @@ function createMotionPlayer(
     }
 
     const frame = queue.shift();
+    if (frame.sourceInfo) onMotionStart(frame.sourceInfo);
+    if (frame.track) {
+      const from = rig.capture();
+      const blendMs = Math.max(0, Math.min(frame.duration * 1000 * 0.2, 120));
+      const startedAt = now();
+      function animateTrack() {
+        if (!playing) return;
+        const elapsed = Math.max(0, now() - startedAt) / 1000;
+        const framePosition = Math.min(
+          elapsed * frame.fps,
+          frame.track.length - 1,
+        );
+        const fromIndex = Math.floor(framePosition);
+        const toIndex = Math.min(fromIndex + 1, frame.track.length - 1);
+        const amount = framePosition - fromIndex;
+        if (blendMs > 0 && elapsed * 1000 < blendMs) {
+          rig.interpolate(frame.track[fromIndex], frame.track[toIndex], amount);
+          const target = rig.capture();
+          rig.interpolate(
+            from,
+            target,
+            easeInOut(Math.min(elapsed * 1000, blendMs) / blendMs),
+          );
+        } else {
+          rig.interpolate(frame.track[fromIndex], frame.track[toIndex], amount);
+        }
+        if (elapsed >= frame.duration) {
+          frameId = null;
+          playNext();
+        } else {
+          frameId = requestFrame(animateTrack);
+        }
+      }
+      animateTrack();
+      return;
+    }
     const durationMs = frame.duration * 1000;
     const blendMs = Math.max(1, Math.min(durationMs * 0.35, 150));
     const from = rig.capture();
@@ -83,14 +154,19 @@ function createMotionPlayer(
     timerId = setTimer(playNext, durationMs);
   }
 
-  function play(motion) {
+  function replace(motion, { key = null } = {}) {
     const frames = normalizeMotionFrames(motion);
     if (frames.length === 0) return false;
     stop();
     queue = frames;
+    currentKey = key;
     playing = true;
     playNext();
     return true;
+  }
+
+  function play(motion) {
+    return replace(motion);
   }
 
   function enqueue(motion, { key = null } = {}) {
@@ -119,6 +195,7 @@ function createMotionPlayer(
 
   return {
     play,
+    replace,
     enqueue,
     stop,
     get isPlaying() {

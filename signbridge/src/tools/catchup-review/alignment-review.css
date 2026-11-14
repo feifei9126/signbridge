@@ -1,0 +1,66 @@
+body {
+  max-width: 1400px;
+  margin: auto;
+  padding: 24px;
+  color: #18352d;
+  background: #f3f6f4;
+  font:
+    15px/1.6 system-ui,
+    sans-serif;
+}
+header,
+section {
+  margin-bottom: 18px;
+  padding: 20px;
+  border: 1px solid #cbdad3;
+  border-radius: 8px;
+  background: white;
+}
+nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+}
+.pager {
+  align-items: center;
+  gap: 12px;
+}
+button {
+  min-height: 42px;
+  padding: 7px 13px;
+  border: 1px solid #afc4b9;
+  border-radius: 6px;
+  background: white;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+button:focus-visible,
+input:focus-visible,
+select:focus-visible {
+  outline: 3px solid #d39c22;
+  outline-offset: 3px;
+}
+input,
+select {
+  padding: 8px;
+  font: inherit;
+}
+section img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+h1 {
+  font-size: 26px;
+}
+h2 {
+  font-size: 18px;
+}
+p {
+  overflow-wrap: anywhere;
+}

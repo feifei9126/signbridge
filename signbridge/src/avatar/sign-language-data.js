@@ -695,62 +695,81 @@ function neutralGesture() {
   return { frames: [frm({}, 0.5)], matches: [] };
 }
 
-function translateText(subtitleText, maxSigns = 12, matchers = SIGN_MATCHERS) {
-  const text = normalizeText(subtitleText).toLowerCase();
-  if (!text) return null;
-
-  const tokens = wordTokens(text);
-  const matches = [];
-  const unmatched = [];
-  const skipped = [];
+// Shared scanner for Demo, coverage and real-time dictionary fallback.
+// Offsets refer to Unicode code points in the NFKC-normalized input.
+function scanDictionaryText(input, maxSigns = 12, matchers = SIGN_MATCHERS) {
+  const text = String(input).normalize("NFKC");
+  const tokens = [...wordSegmenter.segment(text)];
+  const matches = [],
+    unmatched = [],
+    skipped = [];
   let cursor = 0;
+  const offset = (index) => [...text.slice(0, index)].length;
   while (cursor < tokens.length && matches.length < maxSigns) {
-    const signMatch = matchers.find((entry) =>
-      entry.tokens.every(
-        (token, offset) => tokens[cursor + offset]?.segment === token,
-      ),
-    );
-    if (signMatch) {
-      matches.push({
-        id: signMatch.id,
-        text: signMatch.text,
-        gloss: signMatch.sign.gloss,
-        frames: signMatch.sign.frames,
-      });
-      cursor += signMatch.tokens.length;
+    const current = tokens[cursor];
+    if (!current.isWordLike) {
+      if (!/^[\s\p{P}]*$/u.test(current.segment))
+        unmatched.push(current.segment);
+      cursor++;
       continue;
     }
-
-    const word = tokens[cursor].segment;
-    if (FUNCTION_WORDS.has(word)) {
-      skipped.push(word);
-    } else if (SINGLE_CHARS[word]) {
+    let end = cursor;
+    const entry = matchers.find((candidate) => {
+      let position = cursor;
+      for (const expected of candidate.tokens) {
+        while (
+          position < tokens.length &&
+          !tokens[position].isWordLike &&
+          /^[\s\p{P}]*$/u.test(tokens[position].segment)
+        )
+          position++;
+        if (tokens[position]?.segment.toLowerCase() !== expected) return false;
+        position++;
+      }
+      end = position;
+      return true;
+    });
+    const word = current.segment.toLowerCase();
+    const sign = entry?.sign;
+    const fallback = !entry && SINGLE_CHARS[word];
+    if (entry || fallback) {
+      if (!entry) end = cursor + 1;
+      const last = tokens[end - 1];
       matches.push({
-        id: `char_${word}`,
-        text: word,
-        gloss: word,
-        frames: SINGLE_CHARS[word],
+        id: entry?.id || `char_${word}`,
+        text: entry?.text || word,
+        gloss: sign?.gloss || word,
+        frames: sign?.frames || fallback,
+        start: offset(current.index),
+        end: offset(last.index + last.segment.length),
       });
-    } else {
-      unmatched.push(word);
+      cursor = end;
+      continue;
     }
-    cursor += 1;
+    if (FUNCTION_WORDS.has(word)) skipped.push(word);
+    else unmatched.push(current.segment);
+    cursor++;
   }
-
   return {
-    frames: matches.length
-      ? [...matches.flatMap((match) => match.frames), frm({}, 0.25)]
-      : neutralGesture().frames,
+    matches,
     unmatched,
     skipped,
     truncated: cursor < tokens.length,
     remainingText:
       cursor < tokens.length ? text.slice(tokens[cursor].index) : "",
-    matches: matches.map((match) => ({
-      id: match.id,
-      text: match.text,
-      gloss: match.gloss,
-    })),
+  };
+}
+
+function translateText(subtitleText, maxSigns = 12, matchers = SIGN_MATCHERS) {
+  const text = normalizeText(subtitleText).toLowerCase();
+  if (!text) return null;
+  const result = scanDictionaryText(text, maxSigns, matchers);
+  return {
+    ...result,
+    frames: result.matches.length
+      ? [...result.matches.flatMap((match) => match.frames), frm({}, 0.25)]
+      : neutralGesture().frames,
+    matches: result.matches.map(({ id, text, gloss }) => ({ id, text, gloss })),
   };
 }
 
@@ -787,6 +806,7 @@ export {
   addChar,
   findGesture,
   translateText,
+  scanDictionaryText,
   normalizeText,
   compileTranslationMatchers,
   translationAliasKey,

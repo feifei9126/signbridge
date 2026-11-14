@@ -3,6 +3,7 @@
 **让网页视频多一种无障碍观看方式：读取字幕或识别视频声音，用 3D 虚拟人播放可检查、可扩展的中国手语动作。**
 
 [![CI](https://github.com/feifei9126/signbridge/actions/workflows/verify.yml/badge.svg)](https://github.com/feifei9126/signbridge/actions/workflows/verify.yml)
+[![Version](https://img.shields.io/badge/demo-2.1.1-0b7285.svg)](#下载演示版211)
 [![License: MIT](https://img.shields.io/badge/license-MIT-2563eb.svg)](LICENSE)
 [![Chrome MV3](https://img.shields.io/badge/Chrome-Manifest%20V3-4285f4.svg)](https://developer.chrome.com/docs/extensions/develop/migrate/what-is-mv3)
 [![CSL](https://img.shields.io/badge/sign%20language-CSL-dc2626.svg)](#工作原理与边界)
@@ -15,6 +16,168 @@ SignBridge 是一个面向视频无障碍场景的开源 Chrome 扩展。我们�
 > **当前定位：词典驱动的辅助原型，不是完整、准确的通用手语翻译器。** 自动化测试证明指定程序行为可运行，不证明手语含义正确。手语偏好和使用需求因人而异，本项目不替代字幕、专业翻译或人工沟通支持。
 
 ![SignBridge 在视频页面中实时播放 3D 中国手语动画](docs/images/signbridge-demo.png)
+
+## 下载演示版（2.1.1）
+
+当前版本 **2.1.1**。两套演示包都是离线运行，只监听本机 `127.0.0.1`，不联网、不上传数据。
+
+| 平台 | 文件 | 说明 |
+| --- | --- | --- |
+| macOS（Apple 芯片，13+） | [SignBridge-Demo-2.1.1-macOS-AppleSilicon.pkg](docs/assets/demo-2.1.1/SignBridge-Demo-2.1.1-macOS-AppleSilicon.pkg) | 双击安装，打开应用即演示 |
+| Windows（10/11 x64） | [SignBridge-Demo-2.1.1-Windows.zip](docs/assets/demo-2.1.1/SignBridge-Demo-2.1.1-Windows.zip) | 解压后双击 `启动 SignBridge Demo.bat`，无需安装 |
+
+[SHA-256 校验值](docs/assets/demo-2.1.1/SHA256SUMS.txt) · [安装说明（macOS）](SignBridge-Demo-安装指南.md)
+
+**2.1.1 版包含什么**：141 条手语词条，其中 104 条有动作（66 条视频拟合动作 + 38 条内置手工姿势，每个词的动作互不相同），其余 37 条只在词表中展示、不用别的动作顶替。插件浮层与演示工作台都会优先匹配视频拟合动作，匹配不到才回退内置词库，界面标注来源。界面版本显示 **v2.1.1**。
+
+**必读限制**：所有动作均为未经手语专家审核的候选，`human_approved` 与 `training_ready` 仍为 false；不含语音识别与语义模型推理；macOS 包为 ad-hoc 签名、未公证，Windows 包未做代码签名，首次运行需手动放行。
+
+## 目录
+
+- [项目简介](#signbridge)
+- [下载演示版（2.1.1）](#下载演示版211)
+- [快速上手](#三步快速上手)
+- [核心特性](#核心特性)
+- [声音识别](#两种声音识别方式)
+- [动作制作](#如何增加动作而不是反复调参数)
+- [工作原理与边界](#工作原理与边界)
+- [版本记录与批准记录](#版本记录)
+- [本地研究 Demo](#本地研究-demo)
+- [文档](#文档)
+- [开发与验证](#开发与验证)
+- [路线图](#路线图)
+- [参与贡献](#参与贡献)
+- [License](#license)
+
+## 主要能力
+
+- **字幕和声音入口**：读取网页可用字幕，或在用户显式开启后识别当前标签页声音。
+- **本地与云端 ASR**：支持浏览器内 Whisper，也可配置 OpenAI-compatible 云端识别服务。
+- **3D 手语动作播放**：播放内置词典动作、真实参考句或实验拟合动作。
+- **来源可审计**：动作、研究资产和播放报告保留来源、审核状态与 SHA-256 摘要。
+- **制作与验收工具**：提供姿势编辑器、录制工具、词库覆盖分析和动作回放验收。
+- **研究资产隔离**：普通构建不含本地研究资产；研究资产必须显式选择并通过校验后才进入构建。
+
+## 版本记录
+
+### 2026-11-14：演示版 2.1.1 发布，新增 Windows 版
+
+- 修复插件浮层播放时抛 `TypeError: frames.reduce is not a function` 导致每次都显示“参考动作加载失败”并回退词库的问题。原因是浮层原生动作缓存回调返回了对象而缓存期望帧数组。修复后在真实 Chrome 中实测，“我 / 听 / 谢谢”等词全部走视频拟合动作，不再回退。
+- 插件浮层（网页上的虚拟人）此前只匹配 T08 参考句和内置词库，完全不查原生动作库。现已在浮层实时路由中加入原生动作匹配：最长别名优先、失败才回退词库，并校验每个动作文件的 SHA-256。
+- 原生动作库新增第二档准入：仅“手腕活动幅度保留 < 90%”一项未达标、手形与骨架几何检查均通过的 37 条录制以 `wrist_amplitude_reduced_candidate` 准入，界面标注“手腕幅度略减”。动作库由 29 条扩至 66 条。
+- 词库 141 条中有动作的由 73 条增至 104 条（66 原生 + 38 内置），仍无动作的 37 条如实标注、不借用其他动作。
+- 插件版本号此前停留在 1.0.7，与安装包版本不一致；现已统一为 2.1.1，弹窗显示 v2.1.1 即表示新版本生效。
+- 新增 Windows 便携版：内置 PowerShell 静态服务器，解压即可运行，无需安装或管理员权限。新增 `sign-windows-demo.py` 打包脚本与 `sign-public-site.py` 公开发布裁剪工具（公开下载不含来源视频截图）。
+- 公开发布的 macOS 与 Windows 包均基于裁剪后的站点构建，两者站点内容一致。
+
+### 2026-11-13：移除 AR 模式；自动播放优先手语库
+
+弹窗移除 AR（摄像头）模式入口，相关页面、控制器、i18n 文案和构建步骤一并删除；`web_accessible_resources` 不再声明 `ar/` 资源。演示页自动模式新增手语库优先路由：一个词如果既有内置词库姿势、又有视频拟合的原生动作，现在优先播放原生动作（`native_auto_mix`，来源标记仍为未核准候选）；从词库面板点选内置姿势词条不再把模式锁死在“字典”，后续输入继续走自动路由。新增 3 个路由回归测试。
+
+### 2026-11-12：演示页可访问性增强
+
+演示页新增 WCAG AA 级可访问性覆盖：正文基准字号 16px、辅助文字不低于 13px，次要文字与警示文字在所有底色上的对比度不低于 4.5:1，主要按钮与链接触控高度不低于 44px，并响应系统“增强对比度”与“减少动态效果”偏好。静态回归测试 `tests/demo-accessibility.test.mjs` 锁定这些约束。此改动只影响演示页样式，不改变动作内容、词库或任何批准状态。
+
+### 2026-11-08：Mac 独立演示安装包
+
+1.0.10增加自选插件目录安装向导：安装时选择空文件夹，程序记住该位置，“打开插件文件夹”直接打开，支持更改位置和复制路径。
+
+新增面向Apple芯片Mac的独立演示应用封装：内置Python、23个推理依赖、模型和动作，启动后自动打开本机演示，退出时回收自己的模型服务。无需外部项目目录、Python环境或GPU。安装包仅作本地交付；平台、签名、公证、Chrome手动安装及真实验证边界见[Mac演示安装包说明](docs/mac-demo-installer-20261108.md)。
+
+### 2026-11-08：本机模型演示接入插件
+
+插件弹窗新增“模型演示 Demo”，在插件内展示真实模型的有限中文角色和否定范围分析、8条经过技术筛选的拟合动作独立预览。模型继续由本机Python服务推理，动作在插件内加载；连接需要用户显式授权本机地址。原动作工作台保留。
+
+这是本地研究交付，未上传模型权重；不能把独立动作参考当作模型已生成正确中国手语。安装位置、启动步骤、运行时依赖、数据边界和验证方式见[插件模型Demo说明](docs/model-extension-demo-20261108.md)。
+
+### 2026-10-27：T08 + 83 条动作公开版 1.0.7
+
+经用户明确授权，**14 条 T08 参考、3 条 T08 候选和 83 条已获动作质量批准的 SMPL-X 拟合动作**现以可读 JSON 纳入仓库，共 100 个动作片段；不是 100 个独立词条或已认证手语句子。动作播放器、原始姿态、索引、SHA-256 和既有批准记录一起提供。T08 是冻结 tokenizer 的预计算解码，83 条是视频拟合，两者不混称为新训练的文字理解模型。
+
+- **[下载 1.0.7 公开动作 Demo ZIP](docs/assets/signbridge-chrome-extension-1.0.7-public-motion-20261027.zip)** · [SHA-256](docs/assets/signbridge-chrome-extension-1.0.7-public-motion-20261027.zip.sha256) · [逐文件清单](docs/assets/signbridge-chrome-extension-1.0.7-public-motion-20261027.zip.contents.json)
+- **[公开动作源码与固定清单](signbridge/assets/public-motion-v1/)** · [安装、复现、发布边界与验收](docs/public-motion-release-20261027.md)
+- 从源码构建含动作版：`cd signbridge && npm ci && npm run build:motion`。默认 `npm run build` 仍是词库版，不能据此判断动作漏传。
+- 公开版不含原视频、研究图片、训练权重或 CE-CSL 数据。**未来新动作库默认私有**；本次授权只绑定固定 100 段快照。第三方来源条款仍须遵循，公开分发不自动将其重新许可为 MIT。
+- 解压并加载 manifest.json 所在目录；停用旧插件后，用“工作忙吗？”检查 T08、用“认识你很高兴”检查拟合动作。不能用“你好”等内置词库动作来判断 T08 是否加载。
+
+training_ready、model_training_ready、deployment_ready 均为 false；能播放不是通用中国手语理解、视频识别或语义认证。
+
+### 2026-10-19：功能精简 1.0.4
+
+插件弹窗只保留日常操作，显示和声音设置统一；当前公开工作台专注于动作演示，制作、验收、规则对照和技术数据集中到可展开的研究区域。公开构建不再包含“意思分析（训练模型）”页面或客户端 bundle；模型代码与需显式运行 `npm run build:private` 的独立私有客户端保留，普通公开包不包含私有模型或研究资产。
+
+### 2026-10-19：现有资源优化 1.0.5
+
+新增冻结的76例中文角色／作用域对照、复用旧模型权重的可选结构约束服务、20项未批准教学动作复核包，以及95段虚拟人稳定性和有界缓存对照。实验不训练、不改写视频或原姿态；95段中没有一段通过自适应过滤联合数值门槛，因此继续保留现有显示配置。对照指标、已排除的训练句重叠、候选原片和逐项测量见[优化报告说明](docs/existing-resources-optimization-20261019.md)及本机结果目录。作用域实验需显式启动；标准语义服务保持原样。旧公开包不自动更新。
+
+### 2026-10-19：审计整改 1.0.3
+
+本轮修复构建路径删除风险、远程HTTP ASR传输、Demo／实时中文词边界分歧；语义模式改为仅分析，不再播放规则草案或整句检索动作。普通构建不自动打包本地研究资产，研究版必须显式选择并通过SHA清单；轻量客户端仍不含词库／动作。Playwright验收依赖与Python测试入口已补齐。具体构建方式、组合目录变化和残余依赖风险见 [审计整改说明](docs/audit-remediation-20261019.md)。旧公开ZIP不因本地修改自动更新。
+
+## 本地 T08 展示工作台（2026-10-12，历史）
+
+以下为历史能力记录。1.0.6 起，可用 `npm run build:motion` 直接构建已公开的固定 T08 + 83 条动作；1.0.7 起公开工作台不再打包训练模型意思分析页面。未公开研究资产仍按[审计整改说明](docs/audit-remediation-20261019.md)显式构建 local-research；普通 public-demo 构建只含公开词典。
+
+已增加独立 Demo 和实时字幕路由：14 段真实 T08 token 解码动作与 52 个内置动作共用当前 Godette 虚拟人。实时字幕完整匹配 14 条 T08 参考句时优先播放 T08 动作，其它文字仍走原有词库/自定义动作。独立 Demo 另支持文字最长匹配、未知内容提示、播放控制、三视角、实际 token 查看和来源报告下载。本地授权资产准备完成后，无需 GPU 即可演示。
+
+## 本地研究 Demo
+
+`local-research` 构建用于本机研究、验收和演示，普通公开构建不应自动包含本地研究资产。典型流程：
+
+```bash
+cd signbridge
+SIGNBRIDGE_BUILD_DIR="$PWD/../local-data/your-new-build-dir" \
+SIGNBRIDGE_DEMO_EXPERIMENTAL_DIR="$PWD/../local-data/your-approved-experimental-dir" \
+npm run build:research
+```
+
+研究构建会校验索引、剪辑、批准引用和关键 SHA-256；缺资产或摘要不一致会构建失败，而不是静默降级。浏览器加载器还会按需校验每个动作文件，并用有界缓存限制内存。
+
+### 2026-10-20：83 条实验动作质量批准
+
+2026-10-20，用户在当前对话中明确批准当时的 83 条实验拟合动作用于动作质量审核后的本地研究 Demo 播放。批准只绑定：
+
+- 当时的 83 个稳定动作 ID；
+- 原实验索引 SHA-256：`49d4acde86d019d5df80f6462a7d0ed38fb3417df6c03dbe8f0e3be1b734a1eb`；
+- 每条原始动作文件 SHA-256、源/拟合来源摘要；
+- 量化后的姿态内容摘要。
+
+批准声明、时间与逐条绑定信息保存在 `experimental/motion-approval.json`。构建和运行时会重新校验：
+
+1. 批准记录 SHA-256 必须与索引引用一致。
+2. 批准记录的剪辑数量必须与已批准剪辑一致。
+3. 每个动作的来源、拟合来源和姿态摘要必须匹配。
+4. 动作文件改变后不能继续冒用旧批准。
+
+**批准范围仅为动作质量审核后的本地 Demo 播放。** 以下内容仍未确认，且不能被 UI 或报告升级：
+
+- 中文含义与词界；
+- 镜像方向与惯用手；
+- 手语者身份；
+- 数据划分归属；
+- 训练数据资格与训练就绪状态。
+
+相关字段继续为 false：`training_data_member`、`training_ready`、`model_training_ready`、`training_weights_updated`、`text_to_sign_trained`。该批准不把实验拟合动作变成训练数据，也不替换公开安装包。
+
+复核方法：
+
+```bash
+cd signbridge
+.venv-sign-data/bin/python3.12 tests/sign-demo-apply-motion-approval.test.py
+node --test tests/experimental-motion.test.mjs
+```
+
+如需重新生成新的批准目录，必须提供未修改的原始研究索引和 83 个动作文件，并使用新输出目录：
+
+```bash
+.venv-sign-data/bin/python3.12 src/tools/sign-demo-apply-motion-approval.py \
+  --source /absolute/path/to/source-experimental-v6 \
+  --output /absolute/path/to/new-approved-experimental-dir
+```
+
+已追加3条明确标记的候选重建：“如果下雨可以借你一把。”“我给她买了一件衣服”“去人民广场怎么走？”；它们用原T08权重编码/解码，未重训，镜像与人物分组仍待确认。Demo分别显示14条原参考句与3条候选，详细来源和限制见 [候选扩充记录](docs/t08-phrase-expansion-20261012.md)。
+
+构建后双击 `signbridge/dist/start-demo.command`，或在插件弹窗点击“打开演示工作台”。完整覆盖清单、启动与复现方式见 [Demo 说明](docs/demo.md)。实时模式可播放14条T08原参考句，以及3条显式标记的T08编码/解码候选句；候选未更新权重且重建误差偏高。它不是任意文字到手语生成模型。
 
 ## 最新进展：语义研究版（2026-10-18）
 
@@ -143,6 +306,8 @@ flowchart LR
 
 ## 文档
 
+- [CE-CSL 词条与元数据候选库：本地导入、划分保留和检索](docs/ce-csl-candidate-library.md)
+- [CE-CSL 中文到 Gloss 序列训练：任务、模型、评价与复现](docs/ce-csl-gloss-training.md)
 - [架构与数据流](docs/architecture.md)
 - [第一阶段稳定性修复与复测说明](docs/phase1-stability.md)
 - [第二阶段共享动作库：制作、迁移与启用](docs/phase2-motion-library.md)
@@ -150,6 +315,8 @@ flowchart LR
 - [第四阶段动作库备份与安全批量导入](docs/phase4-motion-packs.md)
 - [第五阶段动作可视化验收与截图回归](docs/phase5-motion-review.md)
 - [第六阶段小批量补词、实际试用与发布验收](docs/phase6-acceptance.md)
+- [手语视频的数据准备：清单、片段与关键点核验](docs/sign-language-dataset.md)
+- [已核对视频的 SMPL-X 动作重建与 SOKE 数据接口](docs/sign-language-motion.md)
 - [添加和调试手语动作](docs/gesture-authoring.md)
 - [常见问题](docs/faq.md)
 - [贡献指南](CONTRIBUTING.md)
@@ -163,14 +330,22 @@ flowchart LR
 ```bash
 cd signbridge
 npm run dev       # 持续构建
-npm run verify    # 构建 + ESLint + 自动化回归测试 + Prettier 检查
+npm run verify    # 单次构建 + ESLint + JavaScript/Python 测试 + Prettier 检查
 ```
+
+Python 测试会优先使用仓库根目录 `.venv-sign-data`；也可通过 `SIGNBRIDGE_PYTHON` 指定解释器。`npm run test:js` 和 `npm run test:python` 可单独执行。
 
 主要技术栈：Chrome Extension Manifest V3、Three.js、glTF、Transformers.js、ONNX Runtime Web、esbuild 和 Node.js Test Runner。
 
 ### 六轮浏览器回归
 
-`npm run verify` 不包含浏览器测试。完整验收需要额外准备 Playwright 和支持扩展加载的 Chromium；它们不是当前项目的 npm 依赖。已有独立安装时，可在内层扩展目录指定路径：
+`npm run verify` 不包含浏览器测试。Playwright 已列为开发依赖，运行 `npm ci` 后还需安装支持扩展加载的 Chromium：
+
+```bash
+npx playwright install chromium
+```
+
+Linux CI 可用 `npx playwright install --with-deps chromium`。若要使用自定义 Playwright 模块或 Chromium，可在内层扩展目录指定路径：
 
 ```bash
 export SIGNBRIDGE_PLAYWRIGHT_MODULE="/absolute/path/to/playwright/index.mjs"
@@ -178,7 +353,7 @@ export SIGNBRIDGE_CHROMIUM_PATH="/absolute/path/to/chromium-executable"
 npm run verify:release
 ```
 
-如果 Node 能直接导入 `playwright` 且对应浏览器已安装，可以不设置路径。脚本依次运行常规验证及 `tests/browser-phase1.mjs` 至 `tests/browser-phase6.mjs`，使用隔离浏览器数据，不读取日常 Chrome 个人资料。
+如果 Node 能直接导入 `playwright` 且对应浏览器已安装，可以不设置路径。脚本依次运行常规验证及 `tests/browser-phase1.mjs` 至 `tests/browser-phase6.mjs`，使用隔离浏览器数据，不读取日常 Chrome 个人资料。完整验收报告写入带单一开始时间戳的新目录，避免目录名与报告时间相差毫秒。
 
 - 验收报告：`signbridge/test-results/release-acceptance.json`，包含源码和构建 SHA-256、各阶段结果及人工待验收项。
 - 页面截图和阶段报告：`signbridge/test-results/phase*-browser/`。
@@ -224,4 +399,8 @@ MIT 适用于项目代码；第三方模型、纹理、依赖和外部素材仍�
 
 ## 黑客松演示网页
 
-在线演示：<https://feifei9126.github.io/signbridge/>。展示页包含约一分钟的实际操作录屏、工作流程和已构建的 Chrome 扩展下载包，适合直接分享给评委。静态页面源码、更新方法见 [docs/README.md](docs/README.md)；网页供观看介绍与下载，实时手语功能需在 Chrome 中安装扩展。
+在线演示：<https://feifei9126.github.io/signbridge/>。展示页提供 1.0.7 公开动作包：14 条 T08 参考 + 3 条候选 + 83 条 SMPL-X 拟合动作。83 条的动作质量已人工审核，但不代表中文含义、词界或中国手语表达准确性已认证。包内姿态可提取，原视频和训练检查点不包含；训练模型意思分析页面不包含在公开包内。静态页面源码、更新方法见 [docs/README.md](docs/README.md)；实时手语功能需在 Chrome 中安装扩展。
+
+## 中国手语理解研究与私有交付
+
+新增独立的中文语义角色训练实验和不携带词库／动作／权重的私有客户端；当前仍不代表已训练出中国手语翻译。训练、数据边界、启动与保护范围见 [研究说明](signbridge/docs/csl-understanding-private.md)。普通完整开发包仍含词库，不宜作为保密分发包。

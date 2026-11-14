@@ -57,5 +57,99 @@ test("stopping translation updates the audio button so the next click restarts c
   assert.equal(elements.audioStatus.textContent, "audioStopped");
   await elements.btnAudio.events.click();
   assert.equal(sent.at(-1).type, "ASR_START");
-  assert.equal(elements.btnToggleText.textContent, "stop");
+  assert.equal(elements.btnToggleText.textContent, "workbenchStop");
+});
+
+test("Demo popup entry opens a full-page extension tab without depending on the current website", async () => {
+  let onClick;
+  const opened = [];
+  runRuntime(code, {
+    document: {
+      getElementById: (id) =>
+        id === "btnDemo"
+          ? {
+              addEventListener(_type, fn) {
+                onClick = fn;
+              },
+            }
+          : null,
+      querySelectorAll: () => [],
+    },
+    testDependencies: {
+      getConfig: async () => ({}),
+      setConfig: async (c) => c,
+      setLocale() {},
+      t: (key) => key,
+    },
+    chrome: {
+      tabs: {
+        query: async () => [],
+        create: (options) => opened.push(options),
+      },
+      runtime: { getURL: (path) => "chrome-extension://test/" + path },
+    },
+  });
+  await flushTasks();
+  onClick();
+  assert.deepEqual(
+    opened.map((o) => o.url),
+    ["chrome-extension://test/demo/index.html"],
+  );
+});
+
+test("popup version reflects the installed manifest instead of a stale hardcoded label", async () => {
+  const version = {};
+  runRuntime(code, {
+    document: {
+      getElementById: (id) => (id === "extension-version" ? version : null),
+      querySelectorAll: () => [],
+    },
+    testDependencies: {
+      getConfig: async () => ({}),
+      setConfig: async (c) => c,
+      setLocale() {},
+      t: (key) => key,
+    },
+    chrome: {
+      tabs: { query: async () => [] },
+      runtime: { getManifest: () => ({ version: "1.0.1" }) },
+    },
+  });
+  await flushTasks();
+  assert.equal(version.textContent, "v1.0.1");
+});
+
+test("model demo has its own extension-hosted popup entry", async () => {
+  let click;
+  const opened = [];
+  runRuntime(code, {
+    document: {
+      getElementById: (id) =>
+        id === "btnModelDemo"
+          ? {
+              addEventListener(_event, handler) {
+                click = handler;
+              },
+            }
+          : null,
+      querySelectorAll: () => [],
+    },
+    testDependencies: {
+      getConfig: async () => ({}),
+      setConfig: async (c) => c,
+      setLocale() {},
+      t: (key) => key,
+    },
+    chrome: {
+      tabs: {
+        query: async () => [],
+        create: (options) => opened.push(options.url),
+      },
+      runtime: { getURL: (p) => "chrome-extension://demo/" + p },
+    },
+  });
+  await flushTasks();
+  assert.equal(typeof click, "function");
+  click();
+  assert.deepEqual(opened, ["chrome-extension://demo/demo/model.html"]);
 });

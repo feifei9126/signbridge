@@ -1,0 +1,573 @@
+{
+  "schema": "signbridge-daily-scenario-contrast-v1",
+  "supervision": "assistant_synthetic_chinese_development_contract_not_CSL_accuracy",
+  "cases": [
+    {
+      "text": "我工作",
+      "play": true,
+      "units": ["speaker", "work"],
+      "actor": "我",
+      "predicate": "工作"
+    },
+    {
+      "text": "你工作",
+      "play": true,
+      "units": ["addressee", "work"],
+      "actor": "你",
+      "predicate": "工作"
+    },
+    {
+      "text": "我健康",
+      "play": true,
+      "units": ["speaker", "healthy"],
+      "actor": "我"
+    },
+    {
+      "text": "你健康",
+      "play": true,
+      "units": ["addressee", "healthy"],
+      "actor": "你"
+    },
+    {
+      "text": "我放松",
+      "play": false,
+      "actor": "我",
+      "gap": "放松"
+    },
+    {
+      "text": "你放松",
+      "play": false,
+      "actor": "你",
+      "gap": "放松"
+    },
+    {
+      "text": "我开车",
+      "play": true,
+      "units": ["speaker", "drive"],
+      "actor": "我"
+    },
+    {
+      "text": "你开车",
+      "play": true,
+      "units": ["addressee", "drive"],
+      "actor": "你"
+    },
+    {
+      "text": "我没有家",
+      "play": true,
+      "units": ["speaker", "absence", "home"],
+      "actor": "我",
+      "patient": "家"
+    },
+    {
+      "text": "你没有家",
+      "play": true,
+      "units": ["addressee", "absence", "home"],
+      "actor": "你"
+    },
+    {
+      "text": "我没有衣服",
+      "play": true,
+      "units": ["speaker", "absence", "clothes"],
+      "patient": "衣服"
+    },
+    {
+      "text": "你没有衣服",
+      "play": true,
+      "units": ["addressee", "absence", "clothes"]
+    },
+    {
+      "text": "我没有鞋",
+      "play": true,
+      "units": ["speaker", "absence", "shoes"]
+    },
+    {
+      "text": "你没有鞋",
+      "play": true,
+      "units": ["addressee", "absence", "shoes"]
+    },
+    {
+      "text": "我没有饮料",
+      "play": false,
+      "gap": "饮料"
+    },
+    {
+      "text": "你没有饮料",
+      "play": false,
+      "gap": "饮料"
+    },
+    {
+      "text": "我没有香蕉",
+      "play": true,
+      "units": ["speaker", "absence", "banana"]
+    },
+    {
+      "text": "你没有裤子",
+      "play": true,
+      "units": ["addressee", "absence", "trousers"]
+    },
+    {
+      "text": "我工作。",
+      "play": true,
+      "units": ["speaker", "work"]
+    },
+    {
+      "text": " 你健康 ",
+      "play": true,
+      "units": ["addressee", "healthy"]
+    },
+    {
+      "text": "我帮你",
+      "play": false,
+      "actor": "我",
+      "patient": "你",
+      "blocker": "directional_motion_missing"
+    },
+    {
+      "text": "你帮我",
+      "play": false,
+      "actor": "你",
+      "patient": "我",
+      "blocker": "directional_motion_missing"
+    },
+    {
+      "text": "我帮助你",
+      "play": false,
+      "actor": "我",
+      "patient": "你",
+      "blocker": "directional_motion_missing"
+    },
+    {
+      "text": "你帮助我",
+      "play": false,
+      "actor": "你",
+      "patient": "我",
+      "blocker": "directional_motion_missing"
+    },
+    {
+      "text": "我们工作",
+      "play": false,
+      "gap": "我们"
+    },
+    {
+      "text": "他工作",
+      "play": false,
+      "gap": "他"
+    },
+    {
+      "text": "她开车",
+      "play": false,
+      "gap": "她"
+    },
+    {
+      "text": "你们健康",
+      "play": false,
+      "gap": "你们"
+    },
+    {
+      "text": "我去医院",
+      "play": false,
+      "gap": "去"
+    },
+    {
+      "text": "你来家",
+      "play": false,
+      "gap": "来"
+    },
+    {
+      "text": "今天我工作",
+      "play": false,
+      "gap": "今天"
+    },
+    {
+      "text": "我今天工作",
+      "play": false,
+      "gap": "今天"
+    },
+    {
+      "text": "明天你开车",
+      "play": false,
+      "gap": "明天"
+    },
+    {
+      "text": "我没有工作",
+      "play": false,
+      "blocker": "ambiguous_scope"
+    },
+    {
+      "text": "你没有开车",
+      "play": false,
+      "blocker": "ambiguous_scope"
+    },
+    {
+      "text": "我不工作",
+      "play": false,
+      "gap": "不"
+    },
+    {
+      "text": "你不健康",
+      "play": false,
+      "gap": "不"
+    },
+    {
+      "text": "我不想去",
+      "play": false
+    },
+    {
+      "text": "我想不去",
+      "play": false
+    },
+    {
+      "text": "我不能工作",
+      "play": false
+    },
+    {
+      "text": "我工作了吗",
+      "play": false
+    },
+    {
+      "text": "你工作吗",
+      "play": false
+    },
+    {
+      "text": "你健康？",
+      "play": false
+    },
+    {
+      "text": "我工作，你健康",
+      "play": false
+    },
+    {
+      "text": "我工作然后开车",
+      "play": false
+    },
+    {
+      "text": "我工作但是取消",
+      "play": false
+    },
+    {
+      "text": "我工作你健康",
+      "play": false
+    },
+    {
+      "text": "谢谢",
+      "play": false,
+      "gap": "谢谢"
+    },
+    {
+      "text": "你好",
+      "play": false,
+      "gap": "你好"
+    },
+    {
+      "text": "我们",
+      "play": false,
+      "gap": "我们"
+    },
+    {
+      "text": "他",
+      "play": false,
+      "gap": "他"
+    },
+    {
+      "text": "我有家",
+      "play": false,
+      "gap": "有"
+    },
+    {
+      "text": "医院我",
+      "play": false
+    },
+    {
+      "text": "",
+      "play": false
+    },
+    {
+      "text": "<script>alert(1)</script>",
+      "play": false
+    },
+    {
+      "text": "我跑步",
+      "play": true,
+      "units": ["speaker", "run"],
+      "actor": "我",
+      "predicate": "跑步"
+    },
+    {
+      "text": "我洗澡",
+      "play": true,
+      "units": ["speaker", "bathe"],
+      "actor": "我",
+      "predicate": "洗澡"
+    },
+    {
+      "text": "我回家",
+      "play": true,
+      "units": ["speaker", "returnhome"],
+      "actor": "我",
+      "predicate": "回家"
+    },
+    {
+      "text": "我听",
+      "play": false,
+      "actor": "我",
+      "predicate": "听",
+      "gap": "听"
+    },
+    {
+      "text": "我没有围巾",
+      "play": false,
+      "actor": "我",
+      "patient": "围巾",
+      "gap": "围巾"
+    },
+    {
+      "text": "我没有帽子",
+      "play": true,
+      "units": ["speaker", "absence", "hat"],
+      "actor": "我",
+      "patient": "帽子"
+    },
+    {
+      "text": "我没有夹克",
+      "play": true,
+      "units": ["speaker", "absence", "jacket"],
+      "actor": "我",
+      "patient": "夹克"
+    },
+    {
+      "text": "我没有袜子",
+      "play": true,
+      "units": ["speaker", "absence", "socks"],
+      "actor": "我",
+      "patient": "袜子"
+    },
+    {
+      "text": "我没有大米",
+      "play": true,
+      "units": ["speaker", "absence", "rice"],
+      "actor": "我",
+      "patient": "大米"
+    },
+    {
+      "text": "我没有醋",
+      "play": true,
+      "units": ["speaker", "absence", "vinegar"],
+      "actor": "我",
+      "patient": "醋"
+    },
+    {
+      "text": "我没有照片",
+      "play": true,
+      "units": ["speaker", "absence", "photo"],
+      "actor": "我",
+      "patient": "照片"
+    },
+    {
+      "text": "我没有味精",
+      "play": true,
+      "units": ["speaker", "absence", "seasoning"],
+      "actor": "我",
+      "patient": "味精"
+    },
+    {
+      "text": "我没有耳环",
+      "play": true,
+      "units": ["speaker", "absence", "earrings"],
+      "actor": "我",
+      "patient": "耳环"
+    },
+    {
+      "text": "你跑步",
+      "play": true,
+      "units": ["addressee", "run"],
+      "actor": "你",
+      "predicate": "跑步"
+    },
+    {
+      "text": "你洗澡",
+      "play": true,
+      "units": ["addressee", "bathe"],
+      "actor": "你",
+      "predicate": "洗澡"
+    },
+    {
+      "text": "你回家",
+      "play": true,
+      "units": ["addressee", "returnhome"],
+      "actor": "你",
+      "predicate": "回家"
+    },
+    {
+      "text": "你听",
+      "play": false,
+      "actor": "你",
+      "predicate": "听",
+      "gap": "听"
+    },
+    {
+      "text": "你没有围巾",
+      "play": false,
+      "actor": "你",
+      "patient": "围巾",
+      "gap": "围巾"
+    },
+    {
+      "text": "你没有帽子",
+      "play": true,
+      "units": ["addressee", "absence", "hat"],
+      "actor": "你",
+      "patient": "帽子"
+    },
+    {
+      "text": "你没有夹克",
+      "play": true,
+      "units": ["addressee", "absence", "jacket"],
+      "actor": "你",
+      "patient": "夹克"
+    },
+    {
+      "text": "你没有袜子",
+      "play": true,
+      "units": ["addressee", "absence", "socks"],
+      "actor": "你",
+      "patient": "袜子"
+    },
+    {
+      "text": "你没有大米",
+      "play": true,
+      "units": ["addressee", "absence", "rice"],
+      "actor": "你",
+      "patient": "大米"
+    },
+    {
+      "text": "你没有醋",
+      "play": true,
+      "units": ["addressee", "absence", "vinegar"],
+      "actor": "你",
+      "patient": "醋"
+    },
+    {
+      "text": "你没有照片",
+      "play": true,
+      "units": ["addressee", "absence", "photo"],
+      "actor": "你",
+      "patient": "照片"
+    },
+    {
+      "text": "你没有味精",
+      "play": true,
+      "units": ["addressee", "absence", "seasoning"],
+      "actor": "你",
+      "patient": "味精"
+    },
+    {
+      "text": "你没有耳环",
+      "play": true,
+      "units": ["addressee", "absence", "earrings"],
+      "actor": "你",
+      "patient": "耳环"
+    },
+    {
+      "text": "我没有我",
+      "play": false
+    },
+    {
+      "text": "我没有你",
+      "play": false
+    },
+    {
+      "text": "你没有我",
+      "play": false
+    },
+    {
+      "text": "我没有医院",
+      "play": false
+    },
+    {
+      "text": "我没有听",
+      "play": false
+    },
+    {
+      "text": "我没有跑步",
+      "play": false
+    },
+    {
+      "text": "你没有洗澡",
+      "play": false
+    },
+    {
+      "text": "我没有回家",
+      "play": false
+    },
+    {
+      "text": "我没有年龄",
+      "play": false
+    },
+    {
+      "text": "我没有晴",
+      "play": false
+    },
+    {
+      "text": "我没有酸",
+      "play": false
+    },
+    {
+      "text": "你没有苦",
+      "play": false
+    },
+    {
+      "text": "我有你",
+      "play": false
+    },
+    {
+      "text": "我跑步医院",
+      "play": false
+    },
+    {
+      "text": "我洗澡但你不洗澡",
+      "play": false
+    },
+    {
+      "text": "我回家了",
+      "play": false
+    },
+    {
+      "text": "我不跑步",
+      "play": false
+    },
+    {
+      "text": "你不听",
+      "play": false
+    },
+    {
+      "text": "我今天跑步",
+      "play": false
+    },
+    {
+      "text": "我跑步吗",
+      "play": false
+    },
+    {
+      "text": "你洗澡吗",
+      "play": false
+    },
+    {
+      "text": "我没有帽子然后回家",
+      "play": false
+    },
+    {
+      "text": "我没有未知物品",
+      "play": false
+    },
+    {
+      "text": "我没有袜子啊",
+      "play": false
+    },
+    {
+      "text": "你跑步我回家",
+      "play": false
+    }
+  ],
+  "scope": "30 retained candidates; four local temporal-risk proposals isolated to research"
+}

@@ -1,15 +1,29 @@
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import {
+  mkdir,
+  readFile,
+  readdir,
+  copyFile,
+  writeFile,
+} from "node:fs/promises";
 import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
+import { existsSync } from "node:fs";
+import { createReleaseReportLocation } from "../scripts/release-report-location.mjs";
+import { resolveTestResultsDir } from "../scripts/test-results-dir.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
-const reportPath = join(root, "test-results/release-acceptance.json");
+const resultsRoot = resolveTestResultsDir(root);
+const reportLocation = createReleaseReportLocation(
+  join(resultsRoot, "releases"),
+);
+const reportDir = reportLocation.directory;
+const reportPath = join(reportDir, "release-acceptance.json");
 const report = {
   format: "signbridge-release-acceptance",
   version: 1,
-  startedAt: new Date().toISOString(),
+  startedAt: reportLocation.startedAt,
   automatedStatus: "running",
   publishReady: false,
   stages: [],
@@ -32,9 +46,13 @@ async function save() {
   await writeFile(reportPath, JSON.stringify(report, null, 2) + "\n");
 }
 
-function run(command, args) {
+function run(command, args, env = process.env) {
   return new Promise((resolve, reject) => {
-    const child = spawn(command, args, { cwd: root, stdio: "inherit" });
+    const child = spawn(command, args, {
+      cwd: root,
+      env,
+      stdio: "inherit",
+    });
     child.once("error", reject);
     child.once("exit", (code, signal) => {
       if (code === 0) resolve();
@@ -54,9 +72,11 @@ async function fingerprint(paths) {
     for (const entry of (
       await readdir(join(root, path), { withFileTypes: true })
     ).sort((first, second) => first.name.localeCompare(second.name))) {
+      if (entry.name === "__pycache__") continue;
       const child = join(path, entry.name);
       if (entry.isDirectory()) await collect(child);
-      else if (entry.isFile()) entries.push(child);
+      else if (entry.isFile() && !entry.name.endsWith(".pyc"))
+        entries.push(child);
       else throw new Error(`Unsupported release input: ${child}`);
     }
   }
@@ -90,6 +110,14 @@ const distPaths = { directories: ["dist"], files: [] };
 await mkdir(dirname(reportPath), { recursive: true });
 await save();
 try {
+  const { chromium } = await import(
+    process.env.SIGNBRIDGE_PLAYWRIGHT_MODULE || "playwright"
+  );
+  process.env.SIGNBRIDGE_CHROMIUM_PATH ||= chromium.executablePath();
+  if (!existsSync(process.env.SIGNBRIDGE_CHROMIUM_PATH))
+    throw new Error(
+      "Chromium missing. Run: npx playwright install chromium (Linux CI: npx playwright install --with-deps chromium)",
+    );
   const source = await fingerprint(sourcePaths);
   await run(process.platform === "win32" ? "npm.cmd" : "npm", [
     "run",
@@ -99,21 +127,31 @@ try {
     throw new Error(
       "Source changed during verification; rerun against a stable working tree.",
     );
-  report.stages.push({ id: "build-lint-unit-format", status: "passed" });
+  report.stages.push({ id: "build-lint-js-python-format", status: "passed" });
   report.source = source;
   report.build = await fingerprint(distPaths);
   report.extensionVersion = JSON.parse(
     await readFile(join(root, "dist/manifest.json"), "utf8"),
   ).version;
   await save();
+  const browserEnv = {
+    ...process.env,
+    SIGNBRIDGE_TEST_RESULTS_DIR: resultsRoot,
+    SIGNBRIDGE_AUDIT_QA_DIR: join(resultsRoot, "audit-browser"),
+    SIGNBRIDGE_FEATURE_QA_DIR: join(resultsRoot, "feature-browser"),
+    SIGNBRIDGE_PRIVATE_HANDOFF_QA_DIR: join(
+      resultsRoot,
+      "private-handoff-browser",
+    ),
+  };
   for (let phase = 1; phase <= 6; phase++) {
-    const evidence = join(
-      root,
-      `test-results/phase${phase}-browser/report.json`,
+    const evidence = join(resultsRoot, `phase${phase}-browser/report.json`);
+
+    await run(
+      process.execPath,
+      [`tests/browser-phase${phase}.mjs`],
+      browserEnv,
     );
-    await rm(evidence, { force: true });
-    await rm(join(dirname(evidence), "failure.json"), { force: true });
-    await run(process.execPath, [`tests/browser-phase${phase}.mjs`]);
     const result = JSON.parse(await readFile(evidence, "utf8"));
     if (
       !Array.isArray(result.checks) ||
@@ -122,6 +160,7 @@ try {
       result.errors.length
     )
       throw new Error(`Invalid or failed phase ${phase} evidence`);
+    await copyFile(evidence, join(reportDir, `phase${phase}.json`));
     report.stages.push({
       id: `browser-phase${phase}`,
       status: "passed",
@@ -130,6 +169,57 @@ try {
     });
     await save();
   }
+  await run(process.execPath, ["tests/audit-browser-qa.mjs"], browserEnv);
+  await copyFile(
+    join(resultsRoot, "audit-browser/report.json"),
+    join(reportDir, "audit-browser.json"),
+  );
+  report.stages.push({
+    id: "audit-browser-analysis-and-boundaries",
+    status: "passed",
+  });
+  await run(process.execPath, ["tests/feature-browser-qa.mjs"], browserEnv);
+  await copyFile(
+    join(resultsRoot, "feature-browser/report.json"),
+    join(reportDir, "feature-browser.json"),
+  );
+  report.stages.push({
+    id: "feature-simplification-browser",
+    status: "passed",
+  });
+  const privateClientDir = join(reportDir, "private-client-build");
+  await run(
+    process.platform === "win32" ? "npm.cmd" : "npm",
+    ["run", "build:private"],
+    { ...process.env, SIGNBRIDGE_PRIVATE_BUILD_DIR: privateClientDir },
+  );
+  browserEnv.SIGNBRIDGE_PRIVATE_CLIENT_DIR = privateClientDir;
+  await run(
+    process.execPath,
+    ["tests/private-handoff-browser-qa.mjs"],
+    browserEnv,
+  );
+  const handoffEvidence = join(
+    resultsRoot,
+    "private-handoff-browser/report.json",
+  );
+  const handoffResult = JSON.parse(await readFile(handoffEvidence, "utf8"));
+  if (
+    handoffResult.status !== "passed" ||
+    !Array.isArray(handoffResult.checks) ||
+    handoffResult.checks.length !== 2 ||
+    handoffResult.errors.length
+  )
+    throw new Error("Private service handoff browser checks failed");
+  await copyFile(
+    handoffEvidence,
+    join(reportDir, "private-handoff-browser.json"),
+  );
+  report.stages.push({
+    id: "private-service-handoff-browser",
+    status: "passed",
+    checks: handoffResult.checks,
+  });
   if (
     (await fingerprint(sourcePaths)).sha256 !== report.source.sha256 ||
     (await fingerprint(distPaths)).sha256 !== report.build.sha256
@@ -138,13 +228,20 @@ try {
       "Source or built files changed during browser verification; results must not be reused.",
     );
   report.automatedStatus = "passed";
+  report.buildProfile = JSON.parse(
+    await readFile(join(root, "dist/BUILD.json"), "utf8"),
+  ).profile;
 } catch (error) {
   report.automatedStatus = "failed";
-  report.failure = error.message;
+  report.failure =
+    error.code === "ERR_MODULE_NOT_FOUND"
+      ? "Playwright missing. Run npm ci before verify:release."
+      : error.message;
   process.exitCode = 1;
 } finally {
   report.finishedAt = new Date().toISOString();
   await save();
+  await copyFile(reportPath, join(resultsRoot, "release-acceptance.json"));
   console.log(
     `\nAutomated acceptance: ${report.automatedStatus}. Human acceptance remains pending.\n${reportPath}`,
   );

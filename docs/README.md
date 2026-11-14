@@ -1,5 +1,19 @@
 # 黑客松展示页
 
+## 当前公开下载：1.0.7（2026-10-27）
+
+当前默认分支为 `codex/t08-avatar-demo`，不再是下文历史记录中的 main。Pages 若使用分支发布，选择当前默认分支的 `/docs`。下载入口使用版本化 T08 + 83 条动作公开包；1.0.7 已去掉训练模型意思分析页面。JSON、授权范围和复现步骤见[发布记录](public-motion-release-20261027.md)。旧 ZIP 与日期记录保留，不能替代当前版本。
+
+含动作包使用 `cd signbridge && npm ci && npm run build:motion`；再用 `npm run package:motion -- --build dist --output /absolute/new/demo.zip` 生成确定性 ZIP、SHA-256 和逐文件清单。不要把普通词库构建当作含动作发布包，也不要从 local-data 自动复制后续私有库。
+
+> 2026-10-19更新：当前构建配置、词边界和语义禁播行为以[审计整改说明](audit-remediation-20261019.md)为准；下文按日期保留历史记录。普通构建不再自动读取本地T08／拟合动作。
+
+## 手语模型训练工程总报告
+
+完整数据准备、重建、试修、训练、评估、失败和复跑入口见[手语训练全过程总报告](training-master-report.md)。该报告登记9份本地可核验研究权重及1轮尚未下载的远端训练；模型、视频和证据快照留在本地 `local-data/training-master-report-20261010-v1/`，其中 `index.html` 提供全文阅读、证据检索和调用命令，`RESUME-CONTEXT.md` 供后续接手。报告区分研究动作编码与正式文字到手语生成，并校正历史比较口径。
+
+2026-10-10 新增教学资料的95个视频文件已完成来源清点和标注参考交付，详见[教学视频学习与手部参考](sign-tutorial-reference.md)。本地查阅页为 `local-data/tutorial-hand-reference-20261010-v2/review.html`，与既有训练结果分开记录。
+
 本目录是 SignBridge 的静态演示网页，用 GitHub Pages 从 `main` 分支的 `/docs` 目录发布。配置 Pages 后的公开地址：<https://feifei9126.github.io/signbridge/>。
 
 页面提供实际操作录屏、功能说明和预构建 Chrome 扩展下载。它自身不是扩展运行环境；实时字幕、标签页音频捕获和 3D 浮窗需要先在 Chrome 中加载扩展。
@@ -41,3 +55,6 @@ zip -FS -qr ../../docs/assets/signbridge-chrome-extension.zip . -x '*.DS_Store'
 ## 2026-10-18 语义研究版发布
 
 主页新增语义研究版下载区。完整工具包可在本机重新训练并运行受限中文角色解析，另提供轻量客户端和SHA256清单；详见 [研究版使用说明](research-demo.md)。这不是在线中国手语翻译服务，不含原始视频、完整动作或预训练权重。原有动作播放包保持原样。
+
+- [2026-10-19 功能精简（本地1.0.4）](feature-simplification-20261019.md)：普通弹窗、统一设置与研究工作台。
+- [2026-10-19 现有资源优化（本地1.0.5）](existing-resources-optimization-20261019.md)：作用域对照、旧视频候选单元和稳定性基准。

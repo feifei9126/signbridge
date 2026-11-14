@@ -19,6 +19,25 @@ signbridge_backup_*/
 
 # Intentional downloadable build for the public demo site
 !docs/assets/signbridge-chrome-extension.zip
+!docs/assets/signbridge-chrome-extension-motion-demo-20261022.zip
+!docs/assets/signbridge-chrome-extension-motion-demo-20261022.zip.sha256
+!docs/assets/signbridge-chrome-extension-1.0.6-public-motion-20261027.zip
+!docs/assets/signbridge-chrome-extension-1.0.7-public-motion-20261027.zip
+!docs/assets/signbridge-chrome-extension-1.0.7-public-motion-20261027.zip.sha256
+!docs/assets/signbridge-chrome-extension-1.0.7-public-motion-20261027.zip.contents.json
+
+# Versioned demo downloads for macOS and Windows (2.1.1)
+!docs/assets/demo-2.1.1/
+!docs/assets/demo-2.1.1/SignBridge-Demo-2.1.1-Windows.zip
+
+# Local authorized sign videos and derived dataset artifacts
+/local-data/
+.codegraph/
+.venv-sign-data/
+__pycache__/
+
+# Thin private client builds; model/corpus stay under ignored local-data
+/signbridge/dist-private/
 
 # Explicitly reviewed public research downloads (no private data or weights)
 !docs/assets/signbridge-csl-research-kit-20261018.zip

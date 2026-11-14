@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import test from "node:test";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -34,6 +34,7 @@ test("build creates every runtime asset", () => {
     "content/injector.js",
     "avatar/avatar-frame.html",
     "avatar/iframe-bundle.js",
+    "avatar/t08-index.json",
     "avatar/model.glb",
     "offscreen/audio-capture.html",
     "offscreen/audio-capture.js",
@@ -59,6 +60,21 @@ test("build creates every runtime asset", () => {
   ];
   for (const relativePath of required) {
     assert.ok(existsSync(join(dist, relativePath)), `missing ${relativePath}`);
+  }
+});
+
+test("public extension build does not ship the trained-meaning task page", () => {
+  const demo = readFileSync(join(dist, "demo/index.html"), "utf8");
+  assert.doesNotMatch(
+    demo,
+    /meaning-task|workbenchMeaning|private\/index\.html/,
+  );
+  for (const path of [
+    "private/index.html",
+    "private/client.css",
+    "private/client.js",
+  ]) {
+    assert.equal(existsSync(join(dist, path)), false, path);
   }
 });
 
@@ -92,9 +108,9 @@ test("coverage tool uses external scripts under extension CSP", () => {
 
 test("visual review is a CSP-safe independent popup tool", () => {
   const html = readFileSync(join(dist, "tools/motion-review.html"), "utf8");
-  const popup = readFileSync(join(dist, "popup/index.html"), "utf8");
+  const workspace = readFileSync(join(dist, "demo/index.html"), "utf8");
   const bundle = readFileSync(join(dist, "tools/motion-review.js"), "utf8");
-  assert.match(popup, /id="btnMotionReview"/);
+  assert.match(workspace, /id="btnMotionReview"/);
   assert.doesNotMatch(html, /\son\w+=/i);
   assert.match(html, /<script type="module" src="motion-review.js"><\/script>/);
   assert.doesNotMatch(bundle, /from\s+["']three["']/);
@@ -137,7 +153,7 @@ test("tab audio capture and ASR run in extension contexts", () => {
   assert.match(offscreen, /automatic-speech-recognition/);
   assert.match(offscreen, /useBrowserCache/);
   assert.match(offscreen, /decodeAudioData/);
-  assert.doesNotMatch(offscreen, /127\.0\.0\.1/);
+  assert.match(offscreen, /asr-endpoint-secure-required/);
   assert.doesNotMatch(offscreen, /local-asr/);
   assert.doesNotMatch(offscreen, /chrome\.storage/);
   assert.doesNotMatch(avatar, /SpeechRecognition/);
@@ -215,4 +231,151 @@ test("local Whisper is deployed inside the extension", () => {
   assert.doesNotMatch(settings, /downloadInstaller|localEndpoint|\.zip/);
   assert.match(worker, /ASR_LOCAL_DEPLOY/);
   assert.equal(existsSync(join(dist, "local-asr")), false);
+});
+
+test("full-page Demo ships its iframe, local assets and popup entry under the existing CSP", () => {
+  for (const file of [
+    "index.html",
+    "demo.css",
+    "demo.js",
+    "avatar.html",
+    "avatar.css",
+    "demo-avatar.js",
+    "t08-motion.json",
+    "t08-candidates.json",
+    "experimental-index.json",
+    "motion-library-v2.json",
+    "research.json",
+    "demo-vocabulary.json",
+  ])
+    assert.ok(existsSync(join(dist, "demo", file)), file);
+  const popup = readFileSync(join(dist, "popup/index.html"), "utf8");
+  assert.match(popup, /id="btnDemo"/);
+  for (const file of ["index.html", "avatar.html"]) {
+    const html = readFileSync(join(dist, "demo", file), "utf8");
+    assert.doesNotMatch(html, /\son\w+=/i);
+    assert.doesNotMatch(html, /<script(?: type="module")?>/i);
+  }
+  const bundle = readFileSync(join(dist, "demo/demo-avatar.js"), "utf8");
+  assert.doesNotMatch(bundle, /from\s+["']three["']/);
+  const data = JSON.parse(
+    readFileSync(join(dist, "demo/t08-motion.json"), "utf8"),
+  );
+  const library = JSON.parse(
+    readFileSync(join(dist, "demo/motion-library-v2.json"), "utf8"),
+  );
+  assert.equal(library.schema, "signbridge-motion-library-v2");
+  assert.equal(library.entries.length, data.unavailable ? 0 : 100);
+  if (!data.unavailable) {
+    assert.equal(data.clips.length, 14);
+    assert.equal(data.text_to_sign_trained, false);
+    assert.equal(data.research_only, true);
+  }
+  const runtimeBundle = readFileSync(
+    join(dist, "avatar/iframe-bundle.js"),
+    "utf8",
+  );
+  assert.match(runtimeBundle, /Realtime motion source:/);
+  assert.match(runtimeBundle, /loadT08CandidateBundle/);
+  assert.match(runtimeBundle, /T08 playback unavailable; using dictionary/);
+  assert.doesNotMatch(runtimeBundle, /from\s+["']three["']/);
+  const index = JSON.parse(
+    readFileSync(join(dist, "avatar/t08-index.json"), "utf8"),
+  );
+  if (!data.unavailable) {
+    assert.equal(index.schema, "signbridge-t08-runtime-index-v1");
+    assert.equal(index.checkpoint_sha256, data.checkpoint_sha256);
+    assert.equal(
+      index.clips.filter((clip) => !clip.runtime_candidate).length,
+      14,
+    );
+    const candidates = JSON.parse(
+      readFileSync(join(dist, "demo/t08-candidates.json"), "utf8"),
+    );
+    assert.equal(
+      index.clips.filter((clip) => clip.runtime_candidate).length,
+      candidates.clips.length,
+    );
+    assert.equal(candidates.training_weights_updated, false);
+  } else {
+    assert.equal(index.clips.length, 0);
+  }
+});
+
+test("experimental motions ship per-clip with checked hashes and no training promotion", async () => {
+  const { createHash } = await import("node:crypto");
+  const { validateExperimentalIndex, validateExperimentalClip } =
+    await import("../src/demo/experimental-motion.js");
+  const index = JSON.parse(
+    readFileSync(join(dist, "demo/experimental-index.json"), "utf8"),
+  );
+  if (index.unavailable) return;
+  validateExperimentalIndex(index);
+  assert.equal(
+    new Set(index.clips.map((c) => c.text)).size,
+    index.clips.length,
+  );
+  for (const entry of index.clips) {
+    const bytes = readFileSync(join(dist, "demo", entry.asset));
+    assert.equal(
+      createHash("sha256").update(bytes).digest("hex"),
+      entry.sha256,
+    );
+    validateExperimentalClip(JSON.parse(bytes.toString("utf8")), entry);
+  }
+});
+
+test("build profile explicitly controls research assets and records all packaged hashes", async () => {
+  const { createHash } = await import("node:crypto");
+  const report = JSON.parse(readFileSync(join(dist, "BUILD.json"), "utf8"));
+  assert.equal(report.schema, "signbridge-build-v1");
+  assert.match(report.source_sha256, /^[a-f0-9]{64}$/);
+  for (const [file, hash] of Object.entries(report.files))
+    assert.equal(
+      createHash("sha256")
+        .update(readFileSync(join(dist, file)))
+        .digest("hex"),
+      hash,
+    );
+  const index = JSON.parse(
+    readFileSync(join(dist, "demo/experimental-index.json"), "utf8"),
+  );
+  if (report.profile === "public-demo") {
+    assert.equal(report.research_assets_included, false);
+    assert.equal(index.unavailable, true);
+    assert.equal(report.research_asset_manifest_sha256, null);
+  } else if (report.profile === "public-motion-demo") {
+    assert.equal(report.research_assets_included, true);
+    assert.match(report.research_asset_manifest_sha256, /^[a-f0-9]{64}$/);
+    assert.equal(index.unavailable, undefined);
+    assert.equal(
+      JSON.parse(
+        readFileSync(join(dist, "demo/motion-library-v2.json"), "utf8"),
+      ).entries.length,
+      100,
+    );
+  } else {
+    assert.equal(report.profile, "local-research");
+    assert.equal(report.research_assets_included, true);
+    assert.match(report.research_asset_manifest_sha256, /^[a-f0-9]{64}$/);
+    // If recovery profiles are supplied, they must survive copying exactly.
+    const expected = JSON.parse(
+      readFileSync(
+        join(
+          process.env.SIGNBRIDGE_DEMO_EXPERIMENTAL_DIR,
+          "experimental-index.json",
+        ),
+        "utf8",
+      ),
+    );
+    assert.deepEqual(index.recovery_profiles, expected.recovery_profiles);
+  }
+});
+
+test("real-time avatar does not bundle the unused semantic rule parser", () => {
+  const bundle = readFileSync(join(dist, "avatar/iframe-bundle.js"), "utf8");
+  assert.doesNotMatch(
+    bundle,
+    /src\/demo\/csl-semantic-plan\.js|bounded_chinese_rules_v1/,
+  );
 });

@@ -3,12 +3,13 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { resolveTestResultsDir } from "../scripts/test-results-dir.mjs";
 
 const { chromium } = await import(
   process.env.SIGNBRIDGE_PLAYWRIGHT_MODULE || "playwright"
 );
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
-const output = join(root, "test-results/phase5-browser");
+const output = join(resolveTestResultsDir(root), "phase5-browser");
 await mkdir(output, { recursive: true });
 const profile = await mkdtemp(join(tmpdir(), "signbridge-phase5-"));
 const checks = [];
@@ -99,8 +100,13 @@ try {
   const originalStorage = await storage();
   const popup = await context.newPage();
   await popup.goto(`${origin}/popup/index.html`);
+  const workspaceOpened = context.waitForEvent("page");
+  await popup.locator("#btnDemo").click();
+  const workspace = await workspaceOpened;
+  await workspace.waitForURL(`${origin}/demo/index.html`);
+  await workspace.locator("#research-details > summary").click();
   const opened = context.waitForEvent("page");
-  await popup.locator("#btnMotionReview").click();
+  await workspace.locator("#btnMotionReview").click();
   const page = await opened;
   await page.waitForURL(`${origin}/tools/motion-review.html`);
   await eventually(
@@ -114,7 +120,7 @@ try {
     fullPage: true,
   });
   checks.push(
-    "popup opens localized CSP-safe review page, real model and 52 unique built-in signs",
+    "workspace opens localized CSP-safe review page, real model and 52 unique built-in signs",
   );
   const select = async (keys) => {
     while (await page.locator("#review-catalog input:checked").count())
