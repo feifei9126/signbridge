@@ -19,14 +19,14 @@ SignBridge 是一个面向视频无障碍场景的开源 Chrome 扩展。我们�
 
 ## 下载演示版（2.1.1）
 
-当前版本 **2.1.1**。两套演示包都是离线运行，只监听本机 `127.0.0.1`，不联网、不上传数据。
+当前版本 **2.1.1**，发布在 [GitHub Releases](https://github.com/feifei9126/signbridge/releases/tag/v2.1.1)。两套演示包都是离线运行，只监听本机 `127.0.0.1`，不联网、不上传数据。
 
 | 平台 | 文件 | 说明 |
 | --- | --- | --- |
-| macOS（Apple 芯片，13+） | [SignBridge-Demo-2.1.1-macOS-AppleSilicon.pkg](docs/assets/demo-2.1.1/SignBridge-Demo-2.1.1-macOS-AppleSilicon.pkg) | 双击安装，打开应用即演示 |
-| Windows（10/11 x64） | [SignBridge-Demo-2.1.1-Windows.zip](docs/assets/demo-2.1.1/SignBridge-Demo-2.1.1-Windows.zip) | 解压后双击 `启动 SignBridge Demo.bat`，无需安装 |
+| macOS（Apple 芯片，13+） | [SignBridge-Demo-2.1.1-macOS-AppleSilicon.pkg](https://github.com/feifei9126/signbridge/releases/download/v2.1.1/SignBridge-Demo-2.1.1-macOS-AppleSilicon.pkg) | 双击安装，打开应用即演示 |
+| Windows（10/11 x64） | [SignBridge-Demo-2.1.1-Windows.zip](https://github.com/feifei9126/signbridge/releases/download/v2.1.1/SignBridge-Demo-2.1.1-Windows.zip) | 解压后双击 `启动 SignBridge Demo.bat`，无需安装 |
 
-[SHA-256 校验值](docs/assets/demo-2.1.1/SHA256SUMS.txt) · [安装说明（macOS）](SignBridge-Demo-安装指南.md)
+[SHA-256 校验值](https://github.com/feifei9126/signbridge/releases/download/v2.1.1/SHA256SUMS.txt) · [安装说明（macOS）](SignBridge-Demo-安装指南.md)
 
 **2.1.1 版包含什么**：141 条手语词条，其中 104 条有动作（66 条视频拟合动作 + 38 条内置手工姿势，每个词的动作互不相同），其余 37 条只在词表中展示、不用别的动作顶替。插件浮层与演示工作台都会优先匹配视频拟合动作，匹配不到才回退内置词库，界面标注来源。界面版本显示 **v2.1.1**。
 
