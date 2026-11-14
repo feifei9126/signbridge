@@ -20,6 +20,7 @@ import math
 import os
 from pathlib import Path
 import re
+import shutil
 import subprocess
 import sys
 import time
@@ -207,7 +208,7 @@ def sample_index(samples, inventory, manifest, fail):
     return indexed
 
 
-def run_audit(database, output, manifest_sha256, ffprobe=Path('/opt/homebrew/bin/ffprobe'),
+def run_audit(database, output, manifest_sha256, ffprobe=Path(shutil.which('ffprobe') or '/usr/bin/ffprobe'),
               workers=4, timeout=1800):
     if type(workers) is not int or not 1 <= workers <= 4:
         raise ValueError('Use 1..4 workers')
@@ -452,7 +453,7 @@ def main():
     parser.add_argument('--database', type=Path, required=True)
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--manifest-sha256', required=True)
-    parser.add_argument('--ffprobe', type=Path, default=Path('/opt/homebrew/bin/ffprobe'))
+    parser.add_argument('--ffprobe', type=Path, default=Path(shutil.which('ffprobe') or '/usr/bin/ffprobe'))
     parser.add_argument('--workers', type=int, default=4)
     parser.add_argument('--timeout', type=float, default=1800)
     args = parser.parse_args()

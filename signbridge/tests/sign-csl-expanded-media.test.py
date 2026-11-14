@@ -6,6 +6,7 @@ import io
 import json
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import tempfile
 import unittest
@@ -16,8 +17,9 @@ TOOL = Path(__file__).resolve().parents[1] / 'src/tools/sign-csl-expanded-media.
 SPEC = importlib.util.spec_from_file_location('expanded_media_test_tool', TOOL)
 m = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(m)
-FFPROBE = Path('/opt/homebrew/bin/ffprobe')
-FFMPEG = Path('/opt/homebrew/bin/ffmpeg')
+# Resolve the media tools from PATH so the suite runs on both macOS and Linux.
+FFPROBE = Path((shutil.which('ffprobe') or '/usr/bin/ffprobe'))
+FFMPEG = Path((shutil.which('ffmpeg') or '/usr/bin/ffmpeg'))
 
 
 class MediaTests(unittest.TestCase):
