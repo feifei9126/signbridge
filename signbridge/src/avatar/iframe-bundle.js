@@ -321,9 +321,7 @@ function textToAnimation(text, manual = false) {
           const loaded = await loadNativeClip(item.id);
           if (!modelReady || generation !== translationGeneration) return;
           const clipsKey = `native:${item.id}:${loaded.clip.display_profile}`;
-          const compiled = nativeTrackCache.get(clipsKey, () => ({
-            frames: loaded.frames,
-          }));
+          const compiled = nativeTrackCache.get(clipsKey, () => loaded.frames);
           motions.push({
             type: "quaternion-track",
             samples: compiled.frames,

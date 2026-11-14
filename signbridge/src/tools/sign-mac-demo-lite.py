@@ -8,8 +8,8 @@ import shutil
 import subprocess
 
 TOOLS = Path(__file__).resolve().parent
-VERSION = '2.1.0'
-BUILD_NUMBER = '20261113.1'
+VERSION = '2.1.1'
+BUILD_NUMBER = '20261114.1'
 REQUIRED_LABELS = ['nativeLiteStartFailed', 'nativeLiteInstallPlugin', 'nativeLiteInstallHelp',
                    'nativeLiteInstallDone', 'nativeLiteOpenExtensions', 'nativeLiteChromeMissing']
 
