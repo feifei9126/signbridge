@@ -22,7 +22,7 @@ import zipfile
 from pathlib import Path
 
 NAME = 'signbridge-demo'
-VERSION = '2.1.2'
+VERSION = '2.1.3'
 
 # Directories shipped in the ZIP, copied from the verified build manifest.
 INCLUDE_PREFIXES = ('demo/', 'avatar/', 'icons/')
@@ -115,6 +115,36 @@ def strip_extension_links(html, version):
     return html
 
 
+def flatten_demo(staging):
+    """Move demo/ contents up to the site root.
+
+    Hosting platforms validate that the root index.html is a complete page, not
+    a redirect. The demo fetches its JSON with paths relative to itself and
+    loads avatar.html from the same directory, so lifting the whole demo/
+    directory to the root keeps every reference working while making the root
+    index.html the real application entry point.
+    """
+    demo = staging / 'demo'
+    if not demo.is_dir():
+        raise ValueError('demo/ directory is missing from the build')
+    for entry in sorted(demo.iterdir()):
+        target = staging / entry.name
+        if target.exists():
+            raise ValueError('Root file would collide with demo asset: ' + entry.name)
+        shutil.move(str(entry), str(target))
+    demo.rmdir()
+    # demo/index.html referenced ../icons and ../avatar; from the root those
+    # become icons/ and avatar/.
+    index = staging / 'index.html'
+    html = index.read_text(encoding='utf-8')
+    html = html.replace('href="../icons/', 'href="icons/')
+    html = html.replace('href="../avatar/', 'href="avatar/')
+    html = html.replace('src="../icons/', 'src="icons/')
+    index.write_text(html, encoding='utf-8')
+    # avatar.html now sits at the root and loads demo-avatar.js from the root.
+    return index
+
+
 def build(site, output):
     site, output = Path(site).absolute(), Path(output).absolute()
     if output.exists():
@@ -132,14 +162,13 @@ def build(site, output):
         if sha(target) != files[name]:
             raise ValueError('Copy differs: ' + name)
         copied.append(name)
-    entry = staging / 'demo/index.html'
-    html = entry.read_text(encoding='utf-8')
-    entry.write_text(strip_extension_links(html, VERSION), encoding='utf-8')
-    for name in ('demo/demo.js',):
+    entry = flatten_demo(staging)
+    html = strip_extension_links(entry.read_text(encoding='utf-8'), VERSION)
+    entry.write_text(html, encoding='utf-8')
+    for name in ('demo.js',):
         source = staging / name
         if source.is_file() and 'chrome.runtime.getURL' in source.read_text(encoding='utf-8', errors='ignore'):
             raise ValueError('Static bundle still calls chrome.runtime.getURL: ' + name)
-    (staging / 'index.html').write_text(ROOT_INDEX.replace('__VERSION__', VERSION), encoding='utf-8')
     (staging / 'package.json').write_text(json.dumps({
         'name': NAME,
         'version': VERSION,
@@ -158,11 +187,12 @@ def build(site, output):
         'archive_sha256': sha(archive),
         'archive_bytes': archive.stat().st_size,
         'version': VERSION,
-        'files': len(copied) + 2,
+        'files': len(copied) + 1,
         'excluded_extension_files': sorted(EXCLUDE_FILES),
         'root_index': 'index.html',
         'root_package_json': 'package.json',
-        'entry': 'demo/index.html',
+        'entry': 'index.html',
+        'layout': 'demo files flattened to the site root',
     }
     (output / 'build.json').write_text(
         json.dumps(result, ensure_ascii=False, indent=2) + '\n', encoding='utf-8'
