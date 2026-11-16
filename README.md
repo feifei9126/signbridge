@@ -25,7 +25,6 @@ SignBridge 是一个面向视频无障碍场景的开源 Chrome 扩展。我们�
 | --- | --- | --- |
 | macOS（Apple 芯片，13+） | [SignBridge-Demo-2.1.2-macOS-AppleSilicon.pkg](https://github.com/feifei9126/signbridge/releases/latest/download/SignBridge-Demo-2.1.2-macOS-AppleSilicon.pkg) | 双击安装，打开应用即演示 |
 | Windows（10/11 x64） | [SignBridge-Demo-2.1.2-Windows.zip](https://github.com/feifei9126/signbridge/releases/latest/download/SignBridge-Demo-2.1.2-Windows.zip) | 解压后双击 `启动 SignBridge Demo.bat`，无需安装 |
-| 静态网站托管 | [SignBridge-Demo-2.1.3-StaticSite.zip](https://github.com/feifei9126/signbridge/releases/download/v2.1.3/SignBridge-Demo-2.1.3-StaticSite.zip) | 解压上传即可：根目录是完整页面（`package.json` + `index.html` + 资源平铺），无需构建 |
 
 [SHA-256 校验值](https://github.com/feifei9126/signbridge/releases/latest/download/SHA256SUMS.txt) · [安装说明（macOS）](SignBridge-Demo-安装指南.md)
 
@@ -60,6 +59,11 @@ SignBridge 是一个面向视频无障碍场景的开源 Chrome 扩展。我们�
 - **研究资产隔离**：普通构建不含本地研究资产；研究资产必须显式选择并通过校验后才进入构建。
 
 ## 版本记录
+
+### 2026-11-17：更新演示介绍视频；下线静态网站托管包
+
+- 项目介绍视频已更新为新版横版介绍（`docs/assets/signbridge-demo.mp4`，1080p）。
+- 静态网站托管包不再提供下载：托管平台的完整性校验始终无法通过，相关 ZIP 已从仓库移除。本地演示与 macOS / Windows 包不受影响。
 
 ### 2026-11-15：静态网站包 2.1.3 —— 根目录布局修正
 
