@@ -15,11 +15,7 @@ SignBridge 是一个面向视频无障碍场景的开源 Chrome 扩展。我们�
 
 > **当前定位：词典驱动的辅助原型，不是完整、准确的通用手语翻译器。** 自动化测试证明指定程序行为可运行，不证明手语含义正确。手语偏好和使用需求因人而异，本项目不替代字幕、专业翻译或人工沟通支持。
 
-### 介绍视频（54 秒）
-
 https://github.com/user-attachments/assets/19543956-2852-414f-8244-41d2b7646552
-
-[下载 MP4（1080p，3.6 MB）](https://github.com/feifei9126/signbridge/raw/main/docs/assets/signbridge-demo.mp4)
 
 ![SignBridge 在视频页面中实时播放 3D 中国手语动画](docs/images/signbridge-demo.png)
 
